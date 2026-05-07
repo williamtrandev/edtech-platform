@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/vite-env.d.ts","./src/features/user/hooks/use-users.ts","./src/lib/http-client.ts","./src/lib/react-query.ts","./src/lib/router.tsx","./src/pages/users-page.tsx","./src/schemas/user.schema.ts","./src/services/user.service.ts"],"version":"5.9.3"}

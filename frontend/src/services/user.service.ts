@@ -1,0 +1,33 @@
+import { httpClient } from "../lib/http-client";
+
+export type User = {
+  id: string;
+  email: string;
+  role: "USER" | "ADMIN";
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ApiResponse<T> = {
+  success: boolean;
+  data: T;
+};
+
+export type PaginatedUsers = {
+  items: User[];
+  pagination: {
+    page: number;
+    limit: number;
+  };
+};
+
+export const userService = {
+  async getUsers(): Promise<PaginatedUsers> {
+    const response = await httpClient.get<ApiResponse<PaginatedUsers>>("/users");
+    return response.data.data;
+  },
+  async createUser(payload: { id: string; email: string; role: "USER" | "ADMIN" }): Promise<User> {
+    const response = await httpClient.post<ApiResponse<User>>("/users", payload);
+    return response.data.data;
+  }
+};
