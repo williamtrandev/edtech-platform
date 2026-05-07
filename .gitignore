@@ -26,3 +26,6 @@ backend/prisma/*.db
 .cursor/cache/
 .cursor/index/
 .cursorignore
+
+# TypeScript incremental build cache
+*.tsbuildinfo
