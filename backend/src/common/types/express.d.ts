@@ -5,7 +5,7 @@ declare global {
     interface UserClaims {
       id: string;
       email?: string;
-      role?: "USER" | "ADMIN";
+      role?: "USER" | "INSTRUCTOR" | "ADMIN";
     }
 
     interface Request {

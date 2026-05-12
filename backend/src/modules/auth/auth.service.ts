@@ -14,7 +14,7 @@ export class AuthService {
     };
   }
 
-  async createSession(user: Express.UserClaims | undefined, payload: { email?: string; role?: "USER" | "ADMIN" }) {
+  async createSession(user: Express.UserClaims | undefined, payload: { email?: string }) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
     }
@@ -22,7 +22,7 @@ export class AuthService {
     const authUser = await this.authRepository.upsertAuthUser({
       id: user.id,
       email: payload.email ?? user.email,
-      role: payload.role ?? user.role
+      role: user.role
     });
 
     return {

@@ -8,6 +8,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   SUPABASE_DB_URL: z.string().min(1),
   SUPABASE_DIRECT_URL: z.string().min(1),
+  SUPABASE_SECRET_KEY: z.string().min(1),
   REDIS_URL: z.string().min(1),
   SUPABASE_JWT_SECRET: z.string().min(1)
 });

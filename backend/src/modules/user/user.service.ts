@@ -1,5 +1,6 @@
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AppError } from "../../common/errors/app-error";
+import { USER_ROLE } from "../../common/constants/business";
 import { UserRepository } from "./user.repository";
 
 export class UserService {
@@ -25,12 +26,12 @@ export class UserService {
     return user;
   }
 
-  async createUser(payload: { id: string; email: string; role?: "USER" | "ADMIN" }) {
+  async createUser(payload: { id: string; email: string; role?: "USER" | "INSTRUCTOR" | "ADMIN" }) {
     try {
       return await this.userRepository.create({
         id: payload.id,
         email: payload.email,
-        role: payload.role ?? "USER"
+        role: payload.role ?? USER_ROLE.user
       });
     } catch (error: unknown) {
       if (error instanceof PrismaClientKnownRequestError && error.code === "P2002") {
@@ -40,7 +41,7 @@ export class UserService {
     }
   }
 
-  async updateUser(id: string, payload: { email?: string; role?: "USER" | "ADMIN" }) {
+  async updateUser(id: string, payload: { email?: string; role?: "USER" | "INSTRUCTOR" | "ADMIN" }) {
     await this.getUserById(id);
     return this.userRepository.update(id, payload);
   }

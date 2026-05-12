@@ -1,11 +1,12 @@
 import { User } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
+import { USER_ROLE } from "../../common/constants/business";
 import { UserRepository } from "../user/user.repository";
 
 export class AuthRepository {
   constructor(private readonly userRepository: UserRepository) {}
 
-  async upsertAuthUser(payload: { id: string; email?: string; role?: "USER" | "ADMIN" }): Promise<User> {
+  async upsertAuthUser(payload: { id: string; email?: string; role?: "USER" | "INSTRUCTOR" | "ADMIN" }): Promise<User> {
     const existingUser = await this.userRepository.findById(payload.id);
     if (!existingUser) {
       if (!payload.email) {
@@ -15,7 +16,7 @@ export class AuthRepository {
       return this.userRepository.create({
         id: payload.id,
         email: payload.email,
-        role: payload.role ?? "USER"
+        role: payload.role ?? USER_ROLE.user
       });
     }
 
