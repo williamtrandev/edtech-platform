@@ -10,7 +10,20 @@ datasource db {
 
 enum UserRole {
   USER
+  INSTRUCTOR
   ADMIN
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LessonContentType {
+  VIDEO
+  TEXT
+  RESOURCE
 }
 
 model User {
@@ -19,4 +32,73 @@ model User {
   role      UserRole @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  createdCourses  Course[]        @relation("CourseInstructor")
+  enrollments     Enrollment[]
+  lessonProgress  LessonProgress[]
+}
+
+model Course {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  status        CourseStatus @default(DRAFT)
+  instructorId  String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  archivedAt    DateTime?
+
+  instructor    User         @relation("CourseInstructor", fields: [instructorId], references: [id])
+  lessons       Lesson[]
+  enrollments   Enrollment[]
+
+  @@index([status])
+  @@index([instructorId])
+}
+
+model Lesson {
+  id          String            @id @default(cuid())
+  courseId    String
+  title       String
+  contentType LessonContentType
+  content     String
+  sortOrder   Int
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  course      Course            @relation(fields: [courseId], references: [id])
+  progress    LessonProgress[]
+
+  @@unique([courseId, sortOrder])
+  @@index([courseId])
+}
+
+model Enrollment {
+  id          String   @id @default(cuid())
+  userId      String
+  courseId    String
+  enrolledAt  DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  course      Course   @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([userId])
+}
+
+model LessonProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  lessonId     String
+  isCompleted  Boolean  @default(true)
+  completedAt  DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id])
+  lesson       Lesson   @relation(fields: [lessonId], references: [id])
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
 }
