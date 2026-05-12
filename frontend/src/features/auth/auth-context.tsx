@@ -1,0 +1,91 @@
+import { Session } from "@supabase/supabase-js";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { supabase } from "../../lib/supabase";
+import { authService } from "../../services/auth.service";
+
+type AuthContextValue = {
+  session: Session | null;
+  isBootstrapping: boolean;
+  isAuthenticated: boolean;
+  userEmail: string | null;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeSession = async () => {
+      try {
+        const currentSession = await authService.getSession();
+        if (!isMounted) {
+          return;
+        }
+
+        setSession(currentSession);
+        authService.persistAccessToken(currentSession?.access_token);
+        if (currentSession?.access_token) {
+          await authService.syncBackendSession();
+        }
+      } finally {
+        if (isMounted) {
+          setIsBootstrapping(false);
+        }
+      }
+    };
+
+    void initializeSession();
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      authService.persistAccessToken(nextSession?.access_token);
+      if (nextSession?.access_token) {
+        void authService.syncBackendSession();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      session,
+      isBootstrapping,
+      isAuthenticated: Boolean(session?.access_token),
+      userEmail: session?.user?.email ?? null,
+      signIn: async (email: string, password: string) => {
+        await authService.signIn(email, password);
+      },
+      signUp: async (email: string, password: string) => {
+        await authService.signUp(email, password);
+      },
+      signOut: async () => {
+        await authService.signOut();
+      }
+    }),
+    [session, isBootstrapping]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+
+  return context;
+}
