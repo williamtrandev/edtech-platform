@@ -13,3 +13,6 @@ coverage/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+# Emitted next to vite.config.ts (avoid duplicate config in repo)
+vite.config.js
+vite.config.d.ts
