@@ -34,9 +34,12 @@ npm install
 - `PORT`
 - `SUPABASE_DB_URL`
 - `SUPABASE_DIRECT_URL`
+- `SUPABASE_SECRET_KEY` (server-only, never expose to frontend)
 - `REDIS_URL`
 - `SUPABASE_JWT_SECRET`
 - `VITE_API_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 ## Development Commands
 
