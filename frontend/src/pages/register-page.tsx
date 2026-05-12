@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell } from "../components/auth-shell";
@@ -12,7 +13,6 @@ import { RegisterFormValues, registerFormSchema } from "../schemas/auth.schema";
 export function RegisterPage() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
-  const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const form = useForm<RegisterFormValues>({
@@ -26,15 +26,27 @@ export function RegisterPage() {
 
   const onSubmit = async (values: RegisterFormValues) => {
     setErrorMessage(null);
-    setMessage(null);
     try {
-      await signUp(values.email, values.password);
-      setMessage("Check your inbox to confirm your email if required by your project settings.");
-      setTimeout(() => {
-        navigate("/login", { replace: true });
-      }, 900);
+      const result = await signUp(values.email, values.password);
+
+      if (result.hasSession) {
+        toast.success("Welcome! Your account is ready — taking you to your courses.", { duration: 5000 });
+        navigate("/courses", { replace: true });
+        return;
+      }
+
+      if (result.needsEmailConfirmation) {
+        toast.success("Account created. Check your inbox and confirm your email, then sign in.", { duration: 8000 });
+        navigate("/login?registered=1&verify=1", { replace: true });
+        return;
+      }
+
+      toast.success("Account created. You can sign in now.", { duration: 6000 });
+      navigate("/login?registered=1&verify=0", { replace: true });
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to register");
+      const message = error instanceof Error ? error.message : "Failed to register";
+      setErrorMessage(message);
+      toast.error(message, { duration: 7000 });
     }
   };
 
@@ -64,12 +76,17 @@ export function RegisterPage() {
           />
         </FormField>
 
-        <FormField id="register-password" label="Password" error={form.formState.errors.password?.message}>
+        <FormField
+          id="register-password"
+          label="Password"
+          error={form.formState.errors.password?.message}
+          hint="At least 8 characters, including one letter and one number."
+        >
           <Input
             id="register-password"
             type="password"
             autoComplete="new-password"
-            placeholder="At least 6 characters"
+            placeholder="Create a strong password"
             className="h-11 rounded-xl shadow-sm"
             {...form.register("password")}
           />
@@ -89,7 +106,6 @@ export function RegisterPage() {
         {errorMessage ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{errorMessage}</div>
         ) : null}
-        {message ? <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-foreground">{message}</div> : null}
 
         <Button className="h-11 rounded-xl text-base font-medium shadow-sm" disabled={form.formState.isSubmitting} type="submit">
           {form.formState.isSubmitting ? "Creating account…" : "Create account"}

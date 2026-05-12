@@ -1,7 +1,7 @@
 import { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { authService } from "../../services/auth.service";
+import { authService, type SignUpResult } from "../../services/auth.service";
 
 type AuthContextValue = {
   session: Session | null;
@@ -9,7 +9,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   userEmail: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
 };
 
@@ -68,9 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn: async (email: string, password: string) => {
         await authService.signIn(email, password);
       },
-      signUp: async (email: string, password: string) => {
-        await authService.signUp(email, password);
-      },
+      signUp: async (email: string, password: string) => authService.signUp(email, password),
       signOut: async () => {
         await authService.signOut();
       }
