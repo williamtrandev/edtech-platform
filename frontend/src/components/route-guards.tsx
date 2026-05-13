@@ -1,6 +1,8 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { Skeleton } from "./skeleton";
+import { USER_ROLE } from "../constants/business";
 import { useAuth } from "../features/auth/auth-context";
+import { useCurrentUser } from "../features/user/hooks/use-current-user";
 
 function FullScreenLoader() {
   return (
@@ -39,7 +41,71 @@ export function PublicOnly() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/courses" replace />;
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet />;
+}
+
+/** After login: learners land on Explore; instructors and admins on Course studio. */
+export function HomeRedirect() {
+  const { isAuthenticated, isBootstrapping } = useAuth();
+  const me = useCurrentUser(isAuthenticated && !isBootstrapping);
+
+  if (isBootstrapping || (isAuthenticated && me.isLoading)) {
+    return <FullScreenLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/explore" replace />;
+  }
+
+  if (me.isError) {
+    return <Navigate to="/explore" replace />;
+  }
+
+  const canAccessWorkspace = me.data?.role === USER_ROLE.instructor || me.data?.role === USER_ROLE.admin;
+  if (!canAccessWorkspace) {
+    return <Navigate to="/explore" replace />;
+  }
+
+  return <Navigate to="/courses" replace />;
+}
+
+/** Instructor workspace: list + create courses — not for plain students. */
+export function CoursesWorkspaceGate() {
+  const { isAuthenticated, isBootstrapping } = useAuth();
+  const me = useCurrentUser(isAuthenticated && !isBootstrapping);
+
+  if (isBootstrapping || (isAuthenticated && me.isLoading)) {
+    return <FullScreenLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (me.data?.role === USER_ROLE.user) {
+    return <Navigate to="/explore" replace />;
+  }
+
+  return <Outlet />;
+}
+
+export function AdminUsersGate() {
+  const { isAuthenticated, isBootstrapping } = useAuth();
+  const me = useCurrentUser(isAuthenticated && !isBootstrapping);
+
+  if (isBootstrapping || (isAuthenticated && me.isLoading)) {
+    return <FullScreenLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (me.data?.role !== USER_ROLE.admin) {
+    return <Navigate to="/explore" replace />;
   }
 
   return <Outlet />;

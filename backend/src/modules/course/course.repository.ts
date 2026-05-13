@@ -15,6 +15,7 @@ export class CourseRepository {
           description: true,
           status: true,
           instructorId: true,
+          archivedAt: true,
           createdAt: true,
           updatedAt: true
         },
@@ -37,6 +38,7 @@ export class CourseRepository {
         description: true,
         status: true,
         instructorId: true,
+        archivedAt: true,
         createdAt: true,
         updatedAt: true
       }
@@ -52,6 +54,7 @@ export class CourseRepository {
         description: true,
         status: true,
         instructorId: true,
+        archivedAt: true,
         createdAt: true,
         updatedAt: true
       }
@@ -68,6 +71,27 @@ export class CourseRepository {
         description: true,
         status: true,
         instructorId: true,
+        archivedAt: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+  }
+
+  async archiveById(id: string) {
+    return prisma.course.update({
+      where: { id },
+      data: {
+        status: CourseStatus.ARCHIVED,
+        archivedAt: new Date()
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        instructorId: true,
+        archivedAt: true,
         createdAt: true,
         updatedAt: true
       }

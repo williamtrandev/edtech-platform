@@ -1,18 +1,21 @@
-import { Prisma, User } from "@prisma/client";
+import { Prisma, User, UserRole } from "@prisma/client";
 import { prisma } from "../../config/prisma";
+import { USER_ROLE } from "../../common/constants/business";
 
 export class UserRepository {
+  private readonly userSelect = {
+    id: true,
+    email: true,
+    role: true,
+    createdAt: true,
+    updatedAt: true
+  } satisfies Prisma.UserSelect;
+
   async findMany(page: number, limit: number): Promise<User[]> {
     const skip = (page - 1) * limit;
 
     return prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true
-      },
+      select: this.userSelect,
       orderBy: { createdAt: "desc" },
       skip,
       take: limit
@@ -22,26 +25,30 @@ export class UserRepository {
   async findById(id: string): Promise<User | null> {
     return prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true
-      }
+      select: this.userSelect
     });
   }
 
   async create(data: Prisma.UserCreateInput): Promise<User> {
     return prisma.user.create({
       data,
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true
-      }
+      select: this.userSelect
+    });
+  }
+
+  async upsertAuthUser(data: { id: string; email: string; role?: UserRole }): Promise<User> {
+    return prisma.user.upsert({
+      where: { id: data.id },
+      create: {
+        id: data.id,
+        email: data.email,
+        role: data.role ?? USER_ROLE.user
+      },
+      update: {
+        email: data.email,
+        ...(data.role ? { role: data.role } : {})
+      },
+      select: this.userSelect
     });
   }
 
@@ -49,26 +56,14 @@ export class UserRepository {
     return prisma.user.update({
       where: { id },
       data,
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true
-      }
+      select: this.userSelect
     });
   }
 
   async delete(id: string): Promise<User> {
     return prisma.user.delete({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true
-      }
+      select: this.userSelect
     });
   }
 }

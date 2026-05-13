@@ -1,15 +1,42 @@
-import { BookOpen, ChevronRight, GraduationCap, LogOut, Users } from "lucide-react";
+import { BookMarked, BookOpen, Compass, GraduationCap, Library, LogIn, LogOut, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { USER_ROLE } from "../constants/business";
 import { useAuth } from "../features/auth/auth-context";
+import { useCurrentUser } from "../features/user/hooks/use-current-user";
 
-const mainNav = [
-  { to: "/courses", label: "Courses", icon: BookOpen },
-  { to: "/my-progress", label: "Progress", icon: GraduationCap },
-  { to: "/users", label: "Users", icon: Users }
-] as const;
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  /** If set, only these roles see the item */
+  roles?: readonly string[];
+  /** Active when pathname equals `to` (default) or when `activePath` matches */
+  activePath?: string;
+};
+
+const NAV_ITEMS: NavItem[] = [
+  { to: "/explore", label: "Explore", icon: Compass },
+  { to: "/dashboard", label: "My learning", icon: Library, roles: [USER_ROLE.user, USER_ROLE.instructor, USER_ROLE.admin] },
+  { to: "/courses", label: "Course studio", icon: BookMarked, roles: [USER_ROLE.instructor, USER_ROLE.admin], activePath: "/courses" },
+  { to: "/my-progress", label: "Progress", icon: GraduationCap, roles: [USER_ROLE.user, USER_ROLE.instructor, USER_ROLE.admin] },
+  { to: "/users", label: "Users", icon: Users, roles: [USER_ROLE.admin] }
+];
+
+function isNavActive(pathname: string, item: NavItem): boolean {
+  if (item.activePath) {
+    return pathname === item.activePath;
+  }
+  if (pathname === item.to) {
+    return true;
+  }
+  return pathname.startsWith(`${item.to}/`);
+}
 
 type DashboardLayoutProps = {
   title: string;
@@ -20,14 +47,22 @@ type DashboardLayoutProps = {
 
 export function DashboardLayout({ title, subtitle, actions, children }: DashboardLayoutProps) {
   const location = useLocation();
-  const { userEmail, signOut } = useAuth();
+  const { userEmail, signOut, isAuthenticated, isBootstrapping } = useAuth();
+  const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
+
+  const visibleNav = useMemo(() => {
+    const role = meQuery.data?.role;
+    if (!role) {
+      return NAV_ITEMS.filter((item) => !item.roles);
+    }
+    return NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(role));
+  }, [meQuery.data?.role]);
 
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
-      {/* Desktop sidebar — locked to viewport height; nav scrolls if needed */}
       <aside className="relative hidden h-dvh w-64 shrink-0 flex-col overflow-hidden border-r border-border/60 bg-card/40 backdrop-blur-xl lg:flex">
         <div className="flex h-14 shrink-0 items-center border-b border-border/60 px-5">
-          <Link to="/courses" className="flex items-center gap-2 font-semibold tracking-tight transition-opacity hover:opacity-90">
+          <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight transition-opacity hover:opacity-90">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-xs font-bold text-background">
               E
             </span>
@@ -35,8 +70,8 @@ export function DashboardLayout({ title, subtitle, actions, children }: Dashboar
           </Link>
         </div>
         <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3" aria-label="Main">
-          {mainNav.map((item) => {
-            const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+          {visibleNav.map((item) => {
+            const active = isNavActive(location.pathname, item);
             const Icon = item.icon;
             return (
               <Link
@@ -56,36 +91,56 @@ export function DashboardLayout({ title, subtitle, actions, children }: Dashboar
           })}
         </nav>
         <div className="shrink-0 border-t border-border/60 p-3">
-          <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2.5">
-            <p className="truncate text-xs font-medium text-foreground">{userEmail ?? "Signed in"}</p>
-            <p className="text-[11px] text-muted-foreground">Workspace</p>
-          </div>
-          <Button
-            className="mt-2 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={() => {
-              void signOut();
-            }}
-          >
-            <LogOut className="size-4" />
-            Sign out
-          </Button>
+          {isAuthenticated ? (
+            <>
+              <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2.5">
+                <p className="truncate text-xs font-medium text-foreground">{userEmail ?? "Signed in"}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">Role</span>
+                  {meQuery.data?.role ? (
+                    <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[10px] font-medium uppercase tracking-wide">
+                      {meQuery.data.role}
+                    </Badge>
+                  ) : meQuery.isLoading ? (
+                    <span className="text-[11px] text-muted-foreground">…</span>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
+              <Button
+                className="mt-2 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => {
+                  void signOut();
+                }}
+              >
+                <LogOut className="size-4" />
+                Sign out
+              </Button>
+            </>
+          ) : (
+            <Button asChild className="w-full justify-start gap-2 rounded-xl" size="sm">
+              <Link to="/login">
+                <LogIn className="size-4" />
+                Sign in to enroll
+              </Link>
+            </Button>
+          )}
         </div>
       </aside>
 
-      {/* Main column — fills remaining width; only this column scrolls vertically */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Mobile / tablet top nav */}
         <header className="sticky top-0 z-30 shrink-0 border-b border-border/60 bg-background/85 backdrop-blur-md lg:hidden">
           <div className="flex h-14 items-center justify-between gap-3 px-4">
-            <Link to="/courses" className="text-sm font-semibold tracking-tight">
+            <Link to="/" className="text-sm font-semibold tracking-tight">
               EdTech
             </Link>
             <nav className="flex min-w-0 flex-1 justify-end gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {mainNav.map((item) => {
-                const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+              {visibleNav.map((item) => {
+                const active = isNavActive(location.pathname, item);
                 return (
                   <Button key={item.to} asChild size="sm" variant={active ? "default" : "ghost"} className="shrink-0 rounded-full">
                     <Link to={item.to}>{item.label}</Link>
@@ -96,13 +151,14 @@ export function DashboardLayout({ title, subtitle, actions, children }: Dashboar
           </div>
         </header>
 
-        {/* Page chrome */}
         <div className="shrink-0 border-b border-border/40 bg-muted/20">
           <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 <span>App</span>
-                <ChevronRight className="size-3 opacity-60" aria-hidden />
+                <span className="text-foreground/60" aria-hidden>
+                  /
+                </span>
                 <span className="truncate text-foreground/80">{title}</span>
               </div>
               <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{title}</h1>

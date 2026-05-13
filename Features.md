@@ -48,6 +48,13 @@ The platform supports 3 main roles:
 - Only published courses can be enrolled
 - Each student can enroll once per course
 
+## Implementation (MVP backend + app)
+
+- **REST (kebab-case, plural):** `GET/POST /courses`, `GET/PUT /courses/:id`, `DELETE /courses/:id` (soft-archive → `ARCHIVED` + `archivedAt`), `GET /courses/:id/enrollments` (instructor of course or admin), `GET /users/me` (current profile for UI).
+- **Roles:** Course create is limited to **INSTRUCTOR** and **ADMIN** (admin aligns with platform override in §1). **USER** sees only **published** courses in `GET /courses` and cannot load non-published course detail.
+- **Enrollment:** Still only on **published** courses; `@@unique([userId, courseId])` with idempotent duplicate handling.
+- **Learner UI:** `Explore` (`/explore`) = published catalog; `My learning` (`/dashboard`) = enrolled courses; `Course studio` (`/courses`) = instructor/admin workspace only.
+
 ---
 
 # 📖 3. LESSON MODULE

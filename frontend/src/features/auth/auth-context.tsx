@@ -31,9 +31,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setSession(currentSession);
         authService.persistAccessToken(currentSession?.access_token);
-        if (currentSession?.access_token) {
-          await authService.syncBackendSession();
-        }
       } finally {
         if (isMounted) {
           setIsBootstrapping(false);
@@ -48,9 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       authService.persistAccessToken(nextSession?.access_token);
-      if (nextSession?.access_token) {
-        void authService.syncBackendSession();
-      }
     });
 
     return () => {
@@ -66,7 +60,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: Boolean(session?.access_token),
       userEmail: session?.user?.email ?? null,
       signIn: async (email: string, password: string) => {
-        await authService.signIn(email, password);
+        const session = await authService.signIn(email, password);
+        setSession(session ?? null);
+        if (session?.access_token) {
+          await authService.syncBackendSession(session.access_token);
+        }
       },
       signUp: async (email: string, password: string) => authService.signUp(email, password),
       signOut: async () => {

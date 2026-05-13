@@ -61,7 +61,7 @@ export function LoginPage() {
     try {
       await signIn(values.email, values.password);
       toast.success("Signed in successfully");
-      navigate("/courses", { replace: true });
+      navigate("/", { replace: true });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to login";
       setErrorMessage(message);

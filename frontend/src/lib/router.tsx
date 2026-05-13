@@ -1,8 +1,10 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import { PublicOnly, RequireAuth } from "../components/route-guards";
+import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, PublicOnly, RequireAuth } from "../components/route-guards";
 import { CourseDetailPage } from "../pages/course-detail-page";
 import { CoursesPage } from "../pages/courses-page";
+import { ExploreCoursesPage } from "../pages/explore-courses-page";
 import { LoginPage } from "../pages/login-page";
+import { MyLearningPage } from "../pages/my-learning-page";
 import { MyProgressPage } from "../pages/my-progress-page";
 import { RegisterPage } from "../pages/register-page";
 import { UsersPage } from "../pages/users-page";
@@ -22,32 +24,52 @@ export const router = createBrowserRouter([
     ]
   },
   {
+    path: "/",
+    element: <HomeRedirect />
+  },
+  {
+    path: "/explore",
+    element: <ExploreCoursesPage />
+  },
+  {
+    path: "/courses/:courseId",
+    element: <CourseDetailPage />
+  },
+  {
     element: <RequireAuth />,
     children: [
       {
-        path: "/",
-        element: <Navigate to="/courses" replace />
-      },
-      {
-        path: "/courses",
-        element: <CoursesPage />
-      },
-      {
-        path: "/courses/:courseId",
-        element: <CourseDetailPage />
+        path: "/dashboard",
+        element: <MyLearningPage />
       },
       {
         path: "/my-progress",
         element: <MyProgressPage />
       },
       {
+        path: "/courses",
+        element: <CoursesWorkspaceGate />,
+        children: [
+          {
+            index: true,
+            element: <CoursesPage />
+          }
+        ]
+      },
+      {
         path: "/users",
-        element: <UsersPage />
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <UsersPage />
+          }
+        ]
       }
     ]
   },
   {
     path: "*",
-    element: <Navigate to="/courses" replace />
+    element: <Navigate to="/" replace />
   }
 ]);

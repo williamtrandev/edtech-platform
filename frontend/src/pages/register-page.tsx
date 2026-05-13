@@ -30,8 +30,8 @@ export function RegisterPage() {
       const result = await signUp(values.email, values.password);
 
       if (result.hasSession) {
-        toast.success("Welcome! Your account is ready — taking you to your courses.", { duration: 5000 });
-        navigate("/courses", { replace: true });
+        toast.success("Welcome! Your account is ready — opening your home.", { duration: 5000 });
+        navigate("/", { replace: true });
         return;
       }
 

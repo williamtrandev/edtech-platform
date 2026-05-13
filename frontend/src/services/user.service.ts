@@ -22,6 +22,11 @@ export type PaginatedUsers = {
 };
 
 export const userService = {
+  async getMe(): Promise<User> {
+    const response = await httpClient.get<ApiResponse<User>>("/users/me");
+    return response.data.data;
+  },
+
   async getUsers(): Promise<PaginatedUsers> {
     const response = await httpClient.get<ApiResponse<PaginatedUsers>>("/users");
     return response.data.data;

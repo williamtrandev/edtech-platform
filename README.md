@@ -34,12 +34,17 @@ npm install
 - `PORT`
 - `SUPABASE_DB_URL`
 - `SUPABASE_DIRECT_URL`
-- `SUPABASE_SECRET_KEY` (server-only, never expose to frontend)
 - `REDIS_URL`
 - `SUPABASE_JWT_SECRET`
 - `VITE_API_URL`
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Optional backend:
+
+- `SUPABASE_URL` — Project API URL (e.g. `https://xxxx.supabase.co`). **Required** if Supabase issues **RS256/ES256** access tokens (default on newer projects). Used with JWKS at `/auth/v1/.well-known/jwks.json`. Same value as frontend `VITE_SUPABASE_URL` without `/auth/v1` path.
+- `LOG_PRETTY` — `true` or `false`. When omitted, logs are pretty in `development` and JSON in `production`.
+- `LOG_LEVEL` — `fatal` | `error` | `warn` | `info` | `debug` | `trace` (default `info`). Use response header `X-Request-Id` to correlate `request_completed` and error lines.
 
 ## Development Commands
 

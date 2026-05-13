@@ -17,6 +17,34 @@ export class UserService {
     };
   }
 
+  async getMe(user: Express.UserClaims | undefined) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const existingUser = await this.userRepository.findById(user.id);
+    if (existingUser) {
+      return existingUser;
+    }
+
+    if (!user.email) {
+      throw new AppError("Email is required to create user", 422, "USER_EMAIL_REQUIRED");
+    }
+
+    try {
+      return await this.userRepository.upsertAuthUser({
+        id: user.id,
+        email: user.email,
+        role: user.role
+      });
+    } catch (error: unknown) {
+      if (error instanceof PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new AppError("Email already exists", 409, "USER_EMAIL_EXISTS");
+      }
+      throw error;
+    }
+  }
+
   async getUserById(id: string) {
     const user = await this.userRepository.findById(id);
     if (!user) {

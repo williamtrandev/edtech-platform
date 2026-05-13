@@ -15,7 +15,7 @@ export function MyProgressPage() {
   return (
     <AppShell
       title="Progress"
-      subtitle="Courses you are enrolled in. Open a course to update lesson completion and sync metrics."
+      subtitle="Completion and enrollment overview. For a learner-style home of enrolled courses, use My learning in the sidebar."
     >
       <div className="space-y-8">
         <section className="grid gap-4 sm:grid-cols-2">
@@ -75,10 +75,10 @@ export function MyProgressPage() {
                 <EmptyState
                   icon={BookOpenCheck}
                   title="No enrollments yet"
-                  description="Head to Courses and enroll in a published course. Your enrollments will show up here automatically."
+                  description="Open Explore to browse published courses and enroll. This page then tracks your enrollments and progress."
                   action={
                     <Button asChild className="rounded-lg" size="sm">
-                      <Link to="/courses">Browse courses</Link>
+                      <Link to="/explore">Explore catalog</Link>
                     </Button>
                   }
                 />

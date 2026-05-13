@@ -4,6 +4,11 @@ import { UserService } from "./user.service";
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  getMe = async (req: Request, res: Response): Promise<void> => {
+    const user = await this.userService.getMe(req.user);
+    res.status(200).json({ success: true, data: user });
+  };
+
   listUsers = async (req: Request, res: Response): Promise<void> => {
     const page = Number(req.query.page ?? 1);
     const limit = Number(req.query.limit ?? 20);

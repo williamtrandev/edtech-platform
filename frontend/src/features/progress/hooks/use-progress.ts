@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { progressService } from "../../../services/progress.service";
 
-export function useCourseProgress(courseId: string) {
+export function useCourseProgress(courseId: string, enabled = true) {
   return useQuery({
     queryKey: ["progress", courseId],
-    queryFn: () => progressService.getMyCourseProgress(courseId)
+    queryFn: () => progressService.getMyCourseProgress(courseId),
+    enabled: Boolean(courseId) && enabled
   });
 }
 

@@ -11,8 +11,21 @@ export type Course = {
   description?: string;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   instructorId: string;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CourseEnrollmentRow = {
+  id: string;
+  userId: string;
+  courseId: string;
+  enrolledAt: string;
+  user: {
+    id: string;
+    email: string;
+    role: "USER" | "INSTRUCTOR" | "ADMIN";
+  };
 };
 
 export type PaginatedCourses = {
@@ -44,6 +57,16 @@ export const courseService = {
   },
   async getCourseById(id: string): Promise<Course> {
     const response = await httpClient.get<ApiResponse<Course>>(`/courses/${id}`);
+    return response.data.data;
+  },
+
+  async getCourseEnrollments(courseId: string): Promise<CourseEnrollmentRow[]> {
+    const response = await httpClient.get<ApiResponse<CourseEnrollmentRow[]>>(`/courses/${courseId}/enrollments`);
+    return response.data.data;
+  },
+
+  async archiveCourse(id: string): Promise<Course> {
+    const response = await httpClient.delete<ApiResponse<Course>>(`/courses/${id}`);
     return response.data.data;
   },
   async getCourseLessons(courseId: string): Promise<Lesson[]> {

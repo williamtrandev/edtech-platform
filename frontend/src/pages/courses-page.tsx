@@ -13,15 +13,22 @@ import { FormField } from "../components/form-field";
 import { MetricCard } from "../components/metric-card";
 import { CourseListSkeleton, MetricCardSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { COURSE_STATUS } from "../constants/business";
+import { COURSE_STATUS, USER_ROLE } from "../constants/business";
+import { useAuth } from "../features/auth/auth-context";
 import { useCreateCourse, useCourses } from "../features/course/hooks/use-courses";
+import { useCurrentUser } from "../features/user/hooks/use-current-user";
 import { useEnrollCourse } from "../features/enrollment/hooks/use-enrollments";
 import { createCourseFormSchema, CreateCourseFormValues } from "../schemas/course.schema";
 
 export function CoursesPage() {
+  const { isAuthenticated, isBootstrapping } = useAuth();
+  const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const { data, isLoading, isError, error } = useCourses();
   const createCourseMutation = useCreateCourse();
   const enrollMutation = useEnrollCourse();
+
+  const canCreateCourse =
+    meQuery.data?.role === USER_ROLE.instructor || meQuery.data?.role === USER_ROLE.admin;
 
   const form = useForm<CreateCourseFormValues>({
     resolver: zodResolver(createCourseFormSchema),
@@ -42,8 +49,8 @@ export function CoursesPage() {
 
   return (
     <AppShell
-      title="Courses"
-      subtitle="Create and publish courses, enroll learners, and open a course to manage lessons and progress."
+      title="Course studio"
+      subtitle="Instructor and admin workspace: create drafts, publish when ready, and manage the full catalog. Learners use Explore and My learning instead."
     >
       <div className="space-y-8">
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -75,12 +82,25 @@ export function CoursesPage() {
         <section className="grid gap-6 lg:grid-cols-12 lg:items-start">
           <Card className="rounded-2xl border-border/60 bg-card/90 shadow-sm lg:col-span-5">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-lg font-semibold">New course</CardTitle>
+              <CardTitle className="text-lg font-semibold">{canCreateCourse ? "New course" : "Course creation"}</CardTitle>
               <CardDescription className="text-sm leading-relaxed">
-                Instructors and admins can create drafts, then publish when ready.
+                {canCreateCourse
+                  ? "Instructors and admins can create drafts, then publish when ready."
+                  : "Your account can browse and enroll in published courses. Ask an administrator if you need instructor access."}
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {meQuery.isLoading ? (
+                <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                  Loading profile…
+                </div>
+              ) : null}
+              {!meQuery.isLoading && !canCreateCourse ? (
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  The catalog on the right shows published courses you can open or enroll in.
+                </p>
+              ) : null}
+              {!meQuery.isLoading && canCreateCourse ? (
               <form className="grid gap-5" onSubmit={form.handleSubmit(onCreateCourse)} noValidate>
                 <FormField id="course-title" label="Title" error={form.formState.errors.title?.message}>
                   <Input id="course-title" placeholder="e.g. Advanced TypeScript" {...form.register("title")} />
@@ -122,6 +142,7 @@ export function CoursesPage() {
                   {createCourseMutation.isPending ? "Creating…" : "Create course"}
                 </Button>
               </form>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -129,7 +150,9 @@ export function CoursesPage() {
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0 pb-4">
               <div>
                 <CardTitle className="text-lg font-semibold">Catalog</CardTitle>
-                <CardDescription className="mt-1 text-sm">All courses in your workspace.</CardDescription>
+                <CardDescription className="mt-1 text-sm">
+                  {canCreateCourse ? "All courses in your workspace." : "Published courses you can join."}
+                </CardDescription>
               </div>
             </CardHeader>
             <CardContent>
@@ -183,11 +206,17 @@ export function CoursesPage() {
                   <EmptyState
                     icon={BookOpen}
                     title="No courses yet"
-                    description="Create your first course using the form on the left. Published courses appear here and can be enrolled."
+                    description={
+                      canCreateCourse
+                        ? "Create your first course using the form on the left. Published courses appear here and can be enrolled."
+                        : "There are no published courses yet. Check back later or ask an instructor to publish a course."
+                    }
                     action={
-                      <Button asChild variant="outline" size="sm" className="rounded-lg">
-                        <Link to="/my-progress">View progress</Link>
-                      </Button>
+                      canCreateCourse ? (
+                        <Button asChild variant="outline" size="sm" className="rounded-lg">
+                          <Link to="/my-progress">View progress</Link>
+                        </Button>
+                      ) : undefined
                     }
                   />
                 )

@@ -10,6 +10,8 @@ declare global {
 
     interface Request {
       user?: UserClaims;
+      /** Set by request-context middleware for log correlation */
+      requestId?: string;
     }
   }
 }

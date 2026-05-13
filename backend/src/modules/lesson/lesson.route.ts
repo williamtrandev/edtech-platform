@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authMiddleware } from "../../common/middleware/auth-middleware";
+import { authMiddleware, optionalAuthMiddleware } from "../../common/middleware/auth-middleware";
 import { asyncHandler } from "../../common/utils/async-handler";
 import { validateRequest } from "../../common/middleware/validate-request";
 import { CourseRepository } from "../course/course.repository";
@@ -17,11 +17,10 @@ const lessonController = new LessonController(lessonService);
 
 export const lessonRouter = Router();
 
-lessonRouter.use(authMiddleware);
-
 lessonRouter.get(
   "/courses/:courseId/lessons",
+  optionalAuthMiddleware,
   validateRequest(courseLessonsParamSchema),
   asyncHandler(lessonController.listLessonsByCourse)
 );
-lessonRouter.post("/", validateRequest(createLessonSchema), asyncHandler(lessonController.createLesson));
+lessonRouter.post("/", authMiddleware, validateRequest(createLessonSchema), asyncHandler(lessonController.createLesson));

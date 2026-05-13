@@ -15,6 +15,7 @@ export const userRouter = Router();
 
 userRouter.use(authMiddleware);
 
+userRouter.get("/me", asyncHandler(userController.getMe));
 userRouter.get("/", validateRequest(listUsersSchema), asyncHandler(userController.listUsers));
 userRouter.get("/:id", validateRequest(userIdParamSchema), asyncHandler(userController.getUserById));
 userRouter.post("/", validateRequest(createUserSchema), asyncHandler(userController.createUser));

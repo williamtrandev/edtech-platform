@@ -14,6 +14,14 @@ function throwMappedAuthError(error: AuthError): never {
   throw new Error(mapSupabaseAuthErrorToMessage(error));
 }
 
+let syncedBackendAccessToken: string | null = null;
+let backendSessionSync:
+  | {
+      accessToken: string;
+      promise: Promise<void>;
+    }
+  | null = null;
+
 export const authService = {
   async signIn(email: string, password: string) {
     const response = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -21,7 +29,9 @@ export const authService = {
       throwMappedAuthError(response.error);
     }
 
-    return response.data;
+    const session = response.data.session;
+    authService.persistAccessToken(session?.access_token);
+    return session;
   },
 
   async signUp(email: string, password: string): Promise<SignUpResult> {
@@ -35,6 +45,8 @@ export const authService = {
       throw new Error(SUPABASE_AUTH_USER_MESSAGE.duplicateSignup);
     }
 
+    authService.persistAccessToken(session?.access_token);
+
     return {
       needsEmailConfirmation: Boolean(user) && !session,
       hasSession: Boolean(session)
@@ -46,6 +58,7 @@ export const authService = {
     if (response.error) {
       throwMappedAuthError(response.error);
     }
+    authService.persistAccessToken(null);
   },
 
   async getSession() {
@@ -57,17 +70,43 @@ export const authService = {
     return response.data.session;
   },
 
-  async syncBackendSession() {
-    try {
-      await httpClient.post("/auth-sessions", {});
-    } catch {
-      // Best-effort sync to keep UX smooth even if backend is down.
+  async syncBackendSession(accessToken?: string | null) {
+    const token = accessToken ?? localStorage.getItem(AUTH_STORAGE_KEY.accessToken);
+    if (!token) {
+      return;
     }
+
+    if (syncedBackendAccessToken === token) {
+      return;
+    }
+
+    if (backendSessionSync?.accessToken === token) {
+      return backendSessionSync.promise;
+    }
+
+    const promise = httpClient
+      .post("/auth-sessions", {})
+      .then(() => {
+        syncedBackendAccessToken = token;
+      })
+      .catch(() => {
+        // Best-effort sync to keep UX smooth even if backend is down.
+      })
+      .finally(() => {
+        if (backendSessionSync?.promise === promise) {
+          backendSessionSync = null;
+        }
+      });
+
+    backendSessionSync = { accessToken: token, promise };
+    return promise;
   },
 
   persistAccessToken(accessToken?: string | null) {
     if (!accessToken) {
       localStorage.removeItem(AUTH_STORAGE_KEY.accessToken);
+      syncedBackendAccessToken = null;
+      backendSessionSync = null;
       return;
     }
 

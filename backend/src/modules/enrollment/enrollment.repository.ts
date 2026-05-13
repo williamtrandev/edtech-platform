@@ -40,6 +40,26 @@ export class EnrollmentRepository {
     });
   }
 
+  async findByCourseId(courseId: string) {
+    return prisma.enrollment.findMany({
+      where: { courseId },
+      select: {
+        id: true,
+        userId: true,
+        courseId: true,
+        enrolledAt: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            role: true
+          }
+        }
+      },
+      orderBy: { enrolledAt: "desc" }
+    });
+  }
+
   async create(userId: string, courseId: string) {
     return prisma.enrollment.create({
       data: {

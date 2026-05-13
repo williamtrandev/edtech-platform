@@ -1,5 +1,5 @@
 import { AppError } from "../../common/errors/app-error";
-import { USER_ROLE } from "../../common/constants/business";
+import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { LessonRepository } from "./lesson.repository";
@@ -20,19 +20,22 @@ export class LessonService {
   ) {}
 
   async listLessons(user: Express.UserClaims | undefined, courseId: string) {
-    if (!user?.id) {
-      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
-    }
-
     const course = await this.courseRepository.findById(courseId);
     if (!course) {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
+    if (!user?.id) {
+      if (course.status !== COURSE_STATUS.published) {
+        throw new AppError("Course is not available", 403, "FORBIDDEN");
+      }
+      return this.lessonRepository.findByCourseId(courseId);
+    }
+
     const canAccessCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
     if (!canAccessCourse) {
       const enrollment = await this.enrollmentRepository.findByUserAndCourse(user.id, courseId);
-      if (!enrollment) {
+      if (!enrollment && course.status !== COURSE_STATUS.published) {
         throw new AppError("Forbidden", 403, "COURSE_ACCESS_DENIED");
       }
     }
