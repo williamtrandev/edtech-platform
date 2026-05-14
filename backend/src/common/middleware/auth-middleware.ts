@@ -186,7 +186,6 @@ async function verifySupabaseAccessToken(token: string): Promise<JwtPayload> {
 
 export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
   const token = parseBearerToken(req.headers.authorization ?? req.get("Authorization"));
-  console.log("token", token);
   if (!token) {
     next(new AppError("Unauthorized", 401, "UNAUTHORIZED"));
     return;

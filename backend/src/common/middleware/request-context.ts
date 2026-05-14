@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import type { NextFunction, Request, Response } from "express";
-import { logger } from "../../config/logger";
+import { createLogger } from "../../config/logger";
+
+const logger = createLogger("Request");
 
 /**
  * Assigns a stable request id (from `X-Request-Id` or generated), echoes it on the response,
@@ -16,17 +18,20 @@ export function requestContextMiddleware(req: Request, res: Response, next: Next
 
   const started = Date.now();
   res.on("finish", () => {
-    logger.info(
-      {
-        reqId: requestId,
-        method: req.method,
-        path: req.originalUrl?.split("?")[0] ?? req.url,
-        status: res.statusCode,
-        durationMs: Date.now() - started,
-        userId: req.user?.id
-      },
-      "request_completed"
-    );
+    const method = req.method;
+    const path = req.originalUrl?.split("?")[0] ?? req.url;
+    const status = res.statusCode;
+    const duration = Date.now() - started;
+    const logMessage = `${method} ${path} ${status} - ${duration}ms`;
+    const meta = { reqId: requestId, userId: req.user?.id };
+
+    if (status >= 500) {
+      logger.error(logMessage, meta);
+    } else if (status >= 400) {
+      logger.warn(logMessage, meta);
+    } else {
+      logger.info(logMessage, meta);
+    }
   });
 
   next();

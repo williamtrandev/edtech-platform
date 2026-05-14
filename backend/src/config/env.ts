@@ -3,7 +3,7 @@ import { z } from "zod";
 
 dotenv.config();
 
-const logLevelSchema = z.enum(["fatal", "error", "warn", "info", "debug", "trace"]);
+const logLevelSchema = z.enum(["error", "warn", "info", "http", "verbose", "debug", "silly"]);
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -17,9 +17,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().url().optional()
-  ),
-  /** Pretty-print logs: `true` / `false`. When omitted, pretty logs run only in `development`. */
-  LOG_PRETTY: z.enum(["true", "false"]).optional()
+  )
 });
 
 export const env = envSchema.parse(process.env);
