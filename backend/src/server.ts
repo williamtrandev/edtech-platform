@@ -1,22 +1,24 @@
 import { env } from "./config/env";
-import { logger } from "./config/logger";
+import { createLogger } from "./config/logger";
 import { prisma } from "./config/prisma";
 import { redisConnection } from "./config/redis";
 import { initializeWorkers } from "./jobs";
 import { createApp } from "./app";
 
+const logger = createLogger("Server");
+
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
   initializeWorkers();
-  logger.info({ port: env.PORT }, "server_listening");
+  logger.info(`Server is listening on port ${env.PORT}`);
 });
 
 async function gracefulShutdown(signal: string) {
-  logger.info({ signal }, "graceful_shutdown_start");
+  logger.info(`Graceful shutdown initiated (${signal})`);
   server.close(async () => {
     await Promise.allSettled([prisma.$disconnect(), redisConnection.quit()]);
-    logger.info("graceful_shutdown_complete");
+    logger.info("Graceful shutdown complete");
     process.exit(0);
   });
 }
@@ -30,10 +32,10 @@ process.on("SIGTERM", () => {
 });
 
 process.on("unhandledRejection", (reason: unknown) => {
-  logger.error({ err: reason }, "unhandled_rejection");
+  logger.error("Unhandled promise rejection", { error: reason });
 });
 
 process.on("uncaughtException", (error: Error) => {
-  logger.fatal({ err: error }, "uncaught_exception");
+  logger.error("Uncaught exception", { error: error.message });
   process.exit(1);
 });

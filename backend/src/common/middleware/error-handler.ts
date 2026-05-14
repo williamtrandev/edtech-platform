@@ -1,8 +1,10 @@
 import { NextFunction, Request, Response } from "express";
 import { JsonWebTokenError, NotBeforeError, TokenExpiredError } from "jsonwebtoken";
 import { ZodError } from "zod";
-import { logger } from "../../config/logger";
+import { createLogger } from "../../config/logger";
 import { AppError } from "../errors/app-error";
+
+const logger = createLogger("ErrorHandler");
 
 function requestLogFields(req: Request) {
   return {
@@ -17,11 +19,11 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
 
   if (err instanceof AppError) {
     if (err.statusCode >= 500) {
-      logger.error({ err, ...base, code: err.code, status: err.statusCode }, err.message);
+      logger.error(err.message, { ...base, code: err.code, status: err.statusCode });
     } else if (err.statusCode >= 400) {
-      logger.warn({ ...base, code: err.code, status: err.statusCode, message: err.message }, "app_error");
+      logger.warn(err.message, { ...base, code: err.code, status: err.statusCode });
     } else {
-      logger.info({ ...base, code: err.code, status: err.statusCode, message: err.message }, "app_error");
+      logger.info(err.message, { ...base, code: err.code, status: err.statusCode });
     }
 
     res.status(err.statusCode).json({
@@ -35,7 +37,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   }
 
   if (err instanceof JsonWebTokenError || err instanceof TokenExpiredError || err instanceof NotBeforeError) {
-    logger.warn({ ...base, errName: err.name, message: err.message }, "jwt_error");
+    logger.warn(`JWT error: ${err.message}`, { ...base, errName: err.name });
     const expired = err instanceof TokenExpiredError;
     res.status(401).json({
       success: false,
@@ -49,15 +51,10 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
 
   if (err instanceof ZodError) {
     const paths = err.issues.map((issue) => issue.path.join(".") || "(root)");
-    logger.warn(
-      {
-        ...base,
-        code: "VALIDATION_ERROR",
-        issueCount: err.issues.length,
-        paths
-      },
-      "validation_failed"
-    );
+    logger.warn(`Validation failed (${err.issues.length} issues)`, {
+      ...base,
+      paths
+    });
 
     res.status(422).json({
       success: false,
@@ -70,7 +67,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     return;
   }
 
-  logger.error({ err, ...base }, "unhandled_error");
+  logger.error("Unhandled error", base);
 
   res.status(500).json({
     success: false,
