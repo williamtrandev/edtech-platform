@@ -2,6 +2,7 @@
   "name": "edtech-platform-frontend",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.23.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -37,5 +38,11 @@
     "tailwindcss": "^4.2.4",
     "typescript": "^5.6.2",
     "vite": "^5.4.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msw"
+    ]
   }
 }
