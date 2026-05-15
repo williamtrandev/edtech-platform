@@ -1,4 +1,4 @@
-import { Session } from "@supabase/supabase-js";
+import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { authService, type SignUpResult } from "../../services/auth.service";
@@ -22,29 +22,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    const initializeSession = async () => {
-      try {
-        const currentSession = await authService.getSession();
-        if (!isMounted) {
-          return;
-        }
-
-        setSession(currentSession);
-        authService.persistAccessToken(currentSession?.access_token);
-      } finally {
-        if (isMounted) {
-          setIsBootstrapping(false);
-        }
-      }
-    };
-
-    void initializeSession();
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      setSession(data.session);
+      setIsBootstrapping(false);
+    });
 
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      authService.persistAccessToken(nextSession?.access_token);
     });
 
     return () => {
@@ -53,20 +40,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (session?.access_token) {
+      void authService.syncBackendSession(session.access_token);
+    }
+  }, [session?.access_token]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       isBootstrapping,
       isAuthenticated: Boolean(session?.access_token),
       userEmail: session?.user?.email ?? null,
-      signIn: async (email: string, password: string) => {
-        const session = await authService.signIn(email, password);
-        setSession(session ?? null);
-        if (session?.access_token) {
-          await authService.syncBackendSession(session.access_token);
-        }
+      signIn: async (email, password) => {
+        await authService.signIn(email, password);
       },
-      signUp: async (email: string, password: string) => authService.signUp(email, password),
+      signUp: async (email, password) => authService.signUp(email, password),
       signOut: async () => {
         await authService.signOut();
       }
