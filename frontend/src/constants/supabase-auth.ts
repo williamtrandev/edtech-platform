@@ -9,6 +9,26 @@ export const SUPABASE_AUTH_ERROR_CODE = {
   INVALID_CREDENTIALS: "invalid_credentials"
 } as const;
 
+export const SUPABASE_AUTH_EVENT = {
+  initialSession: "INITIAL_SESSION",
+  passwordRecovery: "PASSWORD_RECOVERY",
+  signedIn: "SIGNED_IN",
+  signedOut: "SIGNED_OUT"
+} as const;
+
+export const SUPABASE_AUTH_REDIRECT_PARAM = {
+  code: "code",
+  tokenHash: "token_hash",
+  type: "type",
+  error: "error",
+  errorCode: "error_code",
+  errorDescription: "error_description"
+} as const;
+
+export const SUPABASE_AUTH_REDIRECT_TYPE = {
+  recovery: "recovery"
+} as const;
+
 export const SUPABASE_AUTH_USER_MESSAGE = {
   duplicateSignup: "auth.error.duplicateSignup",
   generic: "auth.error.generic",
@@ -17,5 +37,6 @@ export const SUPABASE_AUTH_USER_MESSAGE = {
   signupDisabled: "auth.error.signupDisabled",
   invalidEmail: "auth.error.invalidEmail",
   network: "auth.error.network",
-  invalidCredentials: "auth.error.invalidCredentials"
+  invalidCredentials: "auth.error.invalidCredentials",
+  recoverySessionMissing: "auth.reset.invalidSession"
 } as const;
