@@ -1,12 +1,15 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, PublicOnly, RequireAuth } from "../components/route-guards";
+import { AccountSettingsPage } from "../pages/account-settings-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
 import { CoursesPage } from "../pages/courses-page";
 import { ExploreCoursesPage } from "../pages/explore-courses-page";
+import { ForgotPasswordPage } from "../pages/forgot-password-page";
 import { LoginPage } from "../pages/login-page";
 import { MyLearningPage } from "../pages/my-learning-page";
 import { MyProgressPage } from "../pages/my-progress-page";
 import { RegisterPage } from "../pages/register-page";
+import { ResetPasswordPage } from "../pages/reset-password-page";
 import { UsersPage } from "../pages/users-page";
 
 export const router = createBrowserRouter([
@@ -22,6 +25,14 @@ export const router = createBrowserRouter([
         element: <RegisterPage />
       }
     ]
+  },
+  {
+    path: "/forgot-password",
+    element: <ForgotPasswordPage />
+  },
+  {
+    path: "/reset-password",
+    element: <ResetPasswordPage />
   },
   {
     path: "/",
@@ -45,6 +56,18 @@ export const router = createBrowserRouter([
       {
         path: "/my-progress",
         element: <MyProgressPage />
+      },
+      {
+        path: "/settings",
+        element: <AccountSettingsPage />
+      },
+      {
+        path: "/account",
+        element: <Navigate to="/settings" replace />
+      },
+      {
+        path: "/profile",
+        element: <Navigate to="/settings" replace />
       },
       {
         path: "/courses",

@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { queryClient } from "../../lib/react-query";
 import { authService, type SignUpResult } from "../../services/auth.service";
 
 type AuthContextValue = {
@@ -58,6 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signUp: async (email, password) => authService.signUp(email, password),
       signOut: async () => {
         await authService.signOut();
+        setSession(null);
+        queryClient.clear();
       }
     }),
     [session, isBootstrapping]

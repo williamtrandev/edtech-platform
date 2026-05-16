@@ -21,8 +21,7 @@ export class AuthService {
 
     const authUser = await this.authRepository.upsertAuthUser({
       id: user.id,
-      email: payload.email ?? user.email,
-      role: user.role
+      email: payload.email ?? user.email
     });
 
     return {

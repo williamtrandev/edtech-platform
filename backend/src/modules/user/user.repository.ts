@@ -1,4 +1,4 @@
-import { Prisma, User, UserRole } from "@prisma/client";
+import { Prisma, User } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 import { USER_ROLE } from "../../common/constants/business";
 
@@ -36,17 +36,16 @@ export class UserRepository {
     });
   }
 
-  async upsertAuthUser(data: { id: string; email: string; role?: UserRole }): Promise<User> {
+  async upsertAuthUser(data: { id: string; email: string }): Promise<User> {
     return prisma.user.upsert({
       where: { id: data.id },
       create: {
         id: data.id,
         email: data.email,
-        role: data.role ?? USER_ROLE.user
+        role: USER_ROLE.user
       },
       update: {
-        email: data.email,
-        ...(data.role ? { role: data.role } : {})
+        email: data.email
       },
       select: this.userSelect
     });

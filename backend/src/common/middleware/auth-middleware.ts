@@ -2,34 +2,17 @@ import jwt, { JsonWebTokenError, NotBeforeError, TokenExpiredError } from "jsonw
 import * as jose from "jose";
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../../config/env";
+import { USER_ROLE } from "../constants/business";
 import { AppError } from "../errors/app-error";
+import { UserRepository } from "../../modules/user/user.repository";
 
 type JwtPayload = {
   sub: string;
   email?: string;
-  role?: "USER" | "INSTRUCTOR" | "ADMIN";
 };
 
 const SYMMETRIC_ALGS = ["HS256", "HS384", "HS512"] as const;
-
-function isUserRole(value: unknown): value is JwtPayload["role"] {
-  return value === "USER" || value === "INSTRUCTOR" || value === "ADMIN";
-}
-
-function pickRole(payload: jwt.JwtPayload | jose.JWTPayload): JwtPayload["role"] | undefined {
-  if (isUserRole(payload.role)) {
-    return payload.role;
-  }
-  const app = (payload as { app_metadata?: { role?: unknown } }).app_metadata?.role;
-  if (isUserRole(app)) {
-    return app;
-  }
-  const user = (payload as { user_metadata?: { role?: unknown } }).user_metadata?.role;
-  if (isUserRole(user)) {
-    return user;
-  }
-  return undefined;
-}
+const userRepository = new UserRepository();
 
 function mapJwtLibError(err: unknown): AppError {
   if (err instanceof TokenExpiredError) {
@@ -123,8 +106,7 @@ function verifySymmetric(token: string, alg: string): JwtPayload {
 
     return {
       sub: String(decoded.sub ?? ""),
-      email: typeof decoded.email === "string" ? decoded.email : undefined,
-      role: pickRole(decoded)
+      email: typeof decoded.email === "string" ? decoded.email : undefined
     };
   } catch (err: unknown) {
     throw mapJwtLibError(err);
@@ -152,8 +134,7 @@ async function verifyAsymmetric(token: string): Promise<JwtPayload> {
     });
     return {
       sub: String(payload.sub ?? ""),
-      email: typeof payload.email === "string" ? payload.email : undefined,
-      role: pickRole(payload)
+      email: typeof payload.email === "string" ? payload.email : undefined
     };
   } catch (err: unknown) {
     if (err instanceof jose.errors.JWTExpired) {
@@ -184,6 +165,11 @@ async function verifySupabaseAccessToken(token: string): Promise<JwtPayload> {
   return verifyAsymmetric(token);
 }
 
+async function getApplicationRole(userId: string): Promise<Express.UserClaims["role"]> {
+  const user = await userRepository.findById(userId);
+  return user?.role ?? USER_ROLE.user;
+}
+
 export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
   const token = parseBearerToken(req.headers.authorization ?? req.get("Authorization"));
   if (!token) {
@@ -202,7 +188,7 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
       req.user = {
         id: userId,
         email: payload.email,
-        role: payload.role
+        role: await getApplicationRole(userId)
       };
       next();
     } catch (err: unknown) {
@@ -234,7 +220,7 @@ export function optionalAuthMiddleware(req: Request, _res: Response, next: NextF
       req.user = {
         id: userId,
         email: payload.email,
-        role: payload.role
+        role: await getApplicationRole(userId)
       };
       next();
     } catch (err: unknown) {
