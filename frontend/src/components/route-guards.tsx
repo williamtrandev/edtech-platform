@@ -3,8 +3,11 @@ import { Skeleton } from "./skeleton";
 import { USER_ROLE } from "../constants/business";
 import { useAuth } from "../features/auth/auth-context";
 import { useCurrentUser } from "../features/user/hooks/use-current-user";
+import { useI18n } from "../i18n";
 
 function FullScreenLoader() {
+  const { t } = useI18n();
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-muted/30 via-background to-background px-4">
       <div className="flex items-center gap-3">
@@ -14,7 +17,7 @@ function FullScreenLoader() {
           <Skeleton className="h-3 w-48" />
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">Preparing your workspace…</p>
+      <p className="text-sm text-muted-foreground">{t("common.preparingWorkspace")}</p>
     </div>
   );
 }

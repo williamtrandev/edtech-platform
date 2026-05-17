@@ -32,7 +32,13 @@ export const authService = {
   },
 
   async signUp(email: string, password: string): Promise<SignUpResult> {
-    const response = await supabase.auth.signUp({ email: email.trim(), password });
+    const response = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/email-confirmed`
+      }
+    });
     if (response.error) {
       throwMappedAuthError(response.error);
     }

@@ -42,6 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const isLegacyEmailConfirmationCallback =
+      window.location.pathname === "/login" && new URLSearchParams(window.location.search).get("confirmed") === "1";
+    const isEmailConfirmationCallback = window.location.pathname === "/email-confirmed" || isLegacyEmailConfirmationCallback;
+    if (isEmailConfirmationCallback) {
+      return;
+    }
+
     if (session?.access_token) {
       void authService.syncBackendSession(session.access_token);
     }

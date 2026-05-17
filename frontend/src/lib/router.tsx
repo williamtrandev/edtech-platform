@@ -1,8 +1,10 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, PublicOnly, RequireAuth } from "../components/route-guards";
 import { AccountSettingsPage } from "../pages/account-settings-page";
+import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
 import { CoursesPage } from "../pages/courses-page";
+import { EmailConfirmedPage } from "../pages/email-confirmed-page";
 import { ExploreCoursesPage } from "../pages/explore-courses-page";
 import { ForgotPasswordPage } from "../pages/forgot-password-page";
 import { LoginPage } from "../pages/login-page";
@@ -33,6 +35,10 @@ export const router = createBrowserRouter([
   {
     path: "/reset-password",
     element: <ResetPasswordPage />
+  },
+  {
+    path: "/email-confirmed",
+    element: <EmailConfirmedPage />
   },
   {
     path: "/",
@@ -76,6 +82,10 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <CoursesPage />
+          },
+          {
+            path: "new",
+            element: <CourseCreatePage />
           }
         ]
       },

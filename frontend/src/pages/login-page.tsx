@@ -32,7 +32,14 @@ export function LoginPage() {
       return;
     }
 
-    if (searchParams.get("registered") !== "1") {
+    const confirmed = searchParams.get("confirmed") === "1";
+    if (confirmed) {
+      consumedRegisterQuery.current = true;
+      navigate("/email-confirmed", { replace: true });
+      return;
+    }
+
+    if (!confirmed && searchParams.get("registered") !== "1") {
       return;
     }
 
@@ -52,8 +59,9 @@ export function LoginPage() {
     const next = new URLSearchParams(searchParams);
     next.delete("registered");
     next.delete("verify");
+    next.delete("confirmed");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams, t]);
+  }, [navigate, searchParams, setSearchParams, t]);
 
   const onSubmit = async (values: LoginFormValues) => {
     setErrorMessage(null);
@@ -80,7 +88,7 @@ export function LoginPage() {
       }
     >
       {banner ? (
-        <div className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-foreground shadow-sm">
+        <div className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-foreground shadow-sm mb-5">
           <p className="font-semibold">{banner.title}</p>
           <p className="mt-1 text-muted-foreground">{banner.body}</p>
         </div>

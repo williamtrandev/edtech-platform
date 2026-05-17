@@ -12,10 +12,9 @@ import { RegisterFormValues, createRegisterFormSchema } from "../schemas/auth.sc
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { signUp, signOut } = useAuth();
   const { t } = useI18n();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<{ title: string; body: string } | null>(null);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(createRegisterFormSchema(t)),
@@ -28,29 +27,21 @@ export function RegisterPage() {
 
   const onSubmit = async (values: RegisterFormValues) => {
     setErrorMessage(null);
-    setSuccessMessage(null);
     try {
       const result = await signUp(values.email, values.password);
 
       if (result.hasSession) {
-        navigate("/", { replace: true });
+        await signOut();
+        navigate("/login?registered=1", { replace: true });
         return;
       }
 
       if (result.needsEmailConfirmation) {
-        setSuccessMessage({
-          title: t("auth.signup.confirmTitle"),
-          body: t("auth.signup.confirmBody")
-        });
-        form.reset();
+        navigate("/login?registered=1&verify=1", { replace: true });
         return;
       }
 
-      setSuccessMessage({
-        title: t("auth.signup.readyTitle"),
-        body: t("auth.signup.readyBody")
-      });
-      form.reset();
+      navigate("/login?registered=1", { replace: true });
     } catch (error: unknown) {
       setErrorMessage(getLocalizedErrorMessage(error, "auth.registerFallbackError", t));
     }
@@ -70,12 +61,6 @@ export function RegisterPage() {
         </p>
       }
     >
-      {successMessage ? (
-        <div className="mb-5 rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-foreground shadow-sm" role="status">
-          <p className="font-semibold">{successMessage.title}</p>
-          <p className="mt-1 text-muted-foreground">{successMessage.body}</p>
-        </div>
-      ) : null}
       <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <FormField id="register-email" label={t("auth.emailLabel")} error={form.formState.errors.email?.message}>
           <Input
