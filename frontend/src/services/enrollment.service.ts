@@ -1,4 +1,5 @@
 import { httpClient } from "../lib/http-client";
+import type { CourseStatus } from "../constants/business";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -13,7 +14,8 @@ export type Enrollment = {
   course?: {
     id: string;
     title: string;
-    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+    coverImageUrl?: string | null;
+    status: CourseStatus;
   };
 };
 

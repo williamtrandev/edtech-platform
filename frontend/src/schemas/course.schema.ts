@@ -1,18 +1,31 @@
 import { z } from "zod";
+import { COURSE_STATUS, LESSON_CONTENT_TYPE } from "../constants/business";
+import type { I18nKey } from "../i18n";
 
-export const createCourseFormSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters"),
-  description: z.string().max(1000).optional(),
-  status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT")
-});
+type Translate = (key: I18nKey) => string;
 
-export type CreateCourseFormValues = z.infer<typeof createCourseFormSchema>;
+export function createCourseFormSchema(t: Translate) {
+  return z.object({
+    title: z.string().min(3, t("validation.courseTitleMin")),
+    description: z.string().max(1000, t("validation.courseDescriptionMax")).optional(),
+    coverImageUrl: z.string().max(2000, t("validation.courseCoverUrlMax")).optional(),
+    status: z.enum([COURSE_STATUS.draft, COURSE_STATUS.published, COURSE_STATUS.archived]).default(COURSE_STATUS.draft)
+  });
+}
 
-export const createLessonFormSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters"),
-  contentType: z.enum(["VIDEO", "TEXT", "RESOURCE"]).default("TEXT"),
-  content: z.string().min(1, "Content is required"),
-  sortOrder: z.coerce.number().int().min(1)
-});
+export type CreateCourseFormValues = z.infer<ReturnType<typeof createCourseFormSchema>>;
 
-export type CreateLessonFormValues = z.infer<typeof createLessonFormSchema>;
+export const updateCourseFormSchema = createCourseFormSchema;
+
+export type UpdateCourseFormValues = z.infer<ReturnType<typeof updateCourseFormSchema>>;
+
+export function createLessonFormSchema(t: Translate) {
+  return z.object({
+    title: z.string().min(3, t("validation.lessonTitleMin")),
+    contentType: z.enum([LESSON_CONTENT_TYPE.video, LESSON_CONTENT_TYPE.text, LESSON_CONTENT_TYPE.resource]).default(LESSON_CONTENT_TYPE.text),
+    content: z.string().min(1, t("validation.lessonContentRequired")),
+    sortOrder: z.coerce.number().int().min(1)
+  });
+}
+
+export type CreateLessonFormValues = z.infer<ReturnType<typeof createLessonFormSchema>>;

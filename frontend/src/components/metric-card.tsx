@@ -14,20 +14,20 @@ export function MetricCard({ label, value, hint, icon: Icon, className }: Metric
   return (
     <Card
       className={cn(
-        "rounded-2xl border-border/60 bg-card/80 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md",
+        "rounded-lg border-border/70 bg-card shadow-none transition-colors duration-200 hover:border-border",
         className
       )}
     >
-      <CardHeader className="pb-2 pt-5">
+      <CardHeader className="pb-2 pt-4">
         <CardTitle className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-muted-foreground">
           <span>{label}</span>
-          <span className="flex size-9 items-center justify-center rounded-xl border border-border/60 bg-muted/40 text-foreground">
+          <span className="flex size-8 items-center justify-center rounded-md border border-border/70 bg-muted/30 text-foreground">
             <Icon className="size-4" aria-hidden />
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pb-5">
-        <p className="text-3xl font-semibold tracking-tight tabular-nums text-foreground">{value}</p>
+      <CardContent className="pb-4">
+        <p className="text-2xl font-semibold tabular-nums text-foreground">{value}</p>
         {hint ? <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
       </CardContent>
     </Card>

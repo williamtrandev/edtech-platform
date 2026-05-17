@@ -117,3 +117,57 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  /* Let Tiny Cloud default oxide skin render (same as tiny.cloud demo). */
+  .lesson-rich-editor {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .lesson-rich-editor .tox.tox-tinymce {
+    border-radius: 0.5rem;
+    border-color: var(--border) !important;
+    overflow: hidden;
+  }
+
+  .lesson-rich-editor .tox .tox-editor-header.tox-editor-dock-fadeout {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+
+  .dark .lesson-rich-editor .tox.tox-tinymce,
+  .dark .lesson-rich-editor .tox .tox-editor-header,
+  .dark .lesson-rich-editor .tox .tox-toolbar-overlord,
+  .dark .lesson-rich-editor .tox .tox-toolbar,
+  .dark .lesson-rich-editor .tox .tox-toolbar__primary,
+  .dark .lesson-rich-editor .tox .tox-statusbar {
+    background-color: var(--card) !important;
+    border-color: var(--border) !important;
+    background-image: none !important;
+  }
+
+  .dark .lesson-rich-editor .tox .tox-tbtn,
+  .dark .lesson-rich-editor .tox .tox-mbtn {
+    color: var(--foreground) !important;
+  }
+
+  .dark .lesson-rich-editor .tox .tox-tbtn svg,
+  .dark .lesson-rich-editor .tox .tox-mbtn svg {
+    fill: var(--foreground) !important;
+  }
+
+  .dark .lesson-rich-editor .tox .tox-tbtn:hover,
+  .dark .lesson-rich-editor .tox .tox-mbtn:hover {
+    background-color: var(--accent) !important;
+  }
+
+  .dark .lesson-rich-editor .tox .tox-edit-area__iframe {
+    background-color: var(--card) !important;
+  }
+}
+
+.tox-tinymce-aux {
+  z-index: 200 !important;
+}

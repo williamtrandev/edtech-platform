@@ -13,6 +13,7 @@ import { useAuth } from "../features/auth/auth-context";
 import { useCourses } from "../features/course/hooks/use-courses";
 import { useEnrollCourse } from "../features/enrollment/hooks/use-enrollments";
 import { useI18n } from "../i18n";
+import { toMediaUrl } from "../lib/media-url";
 
 export function ExploreCoursesPage() {
   const { t } = useI18n();
@@ -136,8 +137,15 @@ export function ExploreCoursesPage() {
                       key={course.id}
                       className="group flex flex-col overflow-hidden rounded-[1.5rem] border-border/60 bg-card/95 py-0 shadow-sm ring-1 ring-border/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
                     >
-                      <div className="relative h-32 overflow-hidden bg-gradient-to-br from-primary/20 via-muted/50 to-background">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.15),transparent_55%)]" />
+                      <div className="relative h-32 overflow-hidden bg-muted/40">
+                        {course.coverImageUrl ? (
+                          <img src={toMediaUrl(course.coverImageUrl)} alt="" className="absolute inset-0 size-full object-cover" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                            <BookOpen className="size-8" aria-hidden />
+                          </div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/80 to-transparent" />
                         <div className="absolute bottom-3 left-4">
                           <Badge variant={isOpen ? "default" : "outline"} className="rounded-md text-xs shadow-sm">
                             {isOpen ? (
