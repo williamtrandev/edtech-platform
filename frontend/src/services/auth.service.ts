@@ -48,6 +48,22 @@ export const authService = {
     };
   },
 
+  async requestPasswordReset(email: string) {
+    const response = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
+    if (response.error) {
+      throwMappedAuthError(response.error);
+    }
+  },
+
+  async updatePassword(password: string) {
+    const response = await supabase.auth.updateUser({ password });
+    if (response.error) {
+      throwMappedAuthError(response.error);
+    }
+  },
+
   async signOut() {
     const response = await supabase.auth.signOut();
     if (response.error) {

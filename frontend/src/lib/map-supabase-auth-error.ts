@@ -47,6 +47,9 @@ export function mapSupabaseAuthErrorToMessage(error: AuthError): string {
   if (lower.includes("invalid login credentials") || lower.includes("invalid credentials")) {
     return SUPABASE_AUTH_USER_MESSAGE.invalidCredentials;
   }
+  if (lower.includes("auth session") || lower.includes("session missing")) {
+    return SUPABASE_AUTH_USER_MESSAGE.recoverySessionMissing;
+  }
   if (messageLooksLikeNetwork(message)) {
     return SUPABASE_AUTH_USER_MESSAGE.network;
   }

@@ -9,14 +9,34 @@ export const SUPABASE_AUTH_ERROR_CODE = {
   INVALID_CREDENTIALS: "invalid_credentials"
 } as const;
 
+export const SUPABASE_AUTH_EVENT = {
+  initialSession: "INITIAL_SESSION",
+  passwordRecovery: "PASSWORD_RECOVERY",
+  signedIn: "SIGNED_IN",
+  signedOut: "SIGNED_OUT"
+} as const;
+
+export const SUPABASE_AUTH_REDIRECT_PARAM = {
+  code: "code",
+  tokenHash: "token_hash",
+  type: "type",
+  error: "error",
+  errorCode: "error_code",
+  errorDescription: "error_description"
+} as const;
+
+export const SUPABASE_AUTH_REDIRECT_TYPE = {
+  recovery: "recovery"
+} as const;
+
 export const SUPABASE_AUTH_USER_MESSAGE = {
-  duplicateSignup:
-    "This email is already registered. Try signing in, or use “Forgot password” if you cannot access the account.",
-  generic: "Something went wrong while creating your account. Please try again.",
-  rateLimited: "Too many attempts. Please wait a minute and try again.",
-  weakPassword: "Password does not meet the security rules for this project.",
-  signupDisabled: "New sign-ups are disabled. Contact your administrator.",
-  invalidEmail: "That email address does not look valid. Check for typos.",
-  network: "Network error. Check your connection and try again.",
-  invalidCredentials: "Incorrect email or password. Try again or reset your password from Supabase if enabled."
+  duplicateSignup: "auth.error.duplicateSignup",
+  generic: "auth.error.generic",
+  rateLimited: "auth.error.rateLimited",
+  weakPassword: "auth.error.weakPassword",
+  signupDisabled: "auth.error.signupDisabled",
+  invalidEmail: "auth.error.invalidEmail",
+  network: "auth.error.network",
+  invalidCredentials: "auth.error.invalidCredentials",
+  recoverySessionMissing: "auth.reset.invalidSession"
 } as const;
