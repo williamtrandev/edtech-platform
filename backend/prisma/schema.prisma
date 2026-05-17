@@ -42,6 +42,7 @@ model Course {
   id            String       @id @default(cuid())
   title         String
   description   String?
+  coverImageUrl String?
   status        CourseStatus @default(DRAFT)
   instructorId  String
   createdAt     DateTime     @default(now())

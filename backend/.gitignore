@@ -10,6 +10,7 @@ logs/
 
 prisma/dev.db
 prisma/*.db
+uploads/
 
 .DS_Store
 .vscode/

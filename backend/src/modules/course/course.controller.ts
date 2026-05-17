@@ -14,7 +14,10 @@ export class CourseController {
   };
 
   listCourseEnrollments = async (req: Request, res: Response): Promise<void> => {
-    const enrollments = await this.courseService.listCourseEnrollments(req.user, req.params.id);
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+    const search = typeof req.query.search === "string" ? req.query.search : undefined;
+    const enrollments = await this.courseService.listCourseEnrollments(req.user, req.params.id, page, limit, search);
     res.status(200).json({ success: true, data: enrollments });
   };
 

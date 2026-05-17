@@ -18,6 +18,7 @@ pnpm-debug.log*
 # Lockfiles - only use pnpm
 package-lock.json
 yarn.lock
+.pnpm-store/
 
 .DS_Store
 .vscode/
@@ -25,6 +26,7 @@ yarn.lock
 
 backend/prisma/dev.db
 backend/prisma/*.db
+backend/uploads/
 
 .cursor
 .cursor/cache/

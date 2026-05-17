@@ -7,6 +7,7 @@ import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 type CoursePayload = {
   title: string;
   description?: string;
+  coverImageUrl?: string | null;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
 };
 
@@ -69,6 +70,7 @@ export class CourseService {
     return this.courseRepository.create({
       title: payload.title,
       description: payload.description,
+      coverImageUrl: payload.coverImageUrl,
       status: payload.status,
       instructor: {
         connect: {
@@ -96,6 +98,7 @@ export class CourseService {
     const data: {
       title?: string;
       description?: string | null;
+      coverImageUrl?: string | null;
       status?: CourseStatus;
       archivedAt?: Date | null;
     } = {};
@@ -105,6 +108,9 @@ export class CourseService {
     }
     if (payload.description !== undefined) {
       data.description = payload.description;
+    }
+    if (payload.coverImageUrl !== undefined) {
+      data.coverImageUrl = payload.coverImageUrl;
     }
     if (payload.status !== undefined) {
       data.status = payload.status;
@@ -140,7 +146,7 @@ export class CourseService {
     return this.courseRepository.archiveById(id);
   }
 
-  async listCourseEnrollments(user: Express.UserClaims | undefined, courseId: string) {
+  async listCourseEnrollments(user: Express.UserClaims | undefined, courseId: string, page: number, limit: number, search?: string) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
     }
@@ -155,6 +161,14 @@ export class CourseService {
       throw new AppError("Forbidden", 403, "FORBIDDEN");
     }
 
-    return this.enrollmentRepository.findByCourseId(courseId);
+    const { items, total } = await this.enrollmentRepository.findByCourseId(courseId, page, limit, search);
+    return {
+      items,
+      pagination: {
+        page,
+        limit,
+        total
+      }
+    };
   }
 }

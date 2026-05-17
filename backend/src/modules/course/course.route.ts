@@ -6,7 +6,7 @@ import { CourseController } from "./course.controller";
 import { CourseRepository } from "./course.repository";
 import { CourseService } from "./course.service";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
-import { courseIdParamSchema, createCourseSchema, listCoursesSchema, updateCourseSchema } from "./course.schema";
+import { courseEnrollmentsSchema, courseIdParamSchema, createCourseSchema, listCoursesSchema, updateCourseSchema } from "./course.schema";
 
 const courseRepository = new CourseRepository();
 const enrollmentRepository = new EnrollmentRepository();
@@ -19,7 +19,7 @@ courseRouter.get("/", optionalAuthMiddleware, validateRequest(listCoursesSchema)
 courseRouter.get(
   "/:id/enrollments",
   authMiddleware,
-  validateRequest(courseIdParamSchema),
+  validateRequest(courseEnrollmentsSchema),
   asyncHandler(courseController.listCourseEnrollments)
 );
 courseRouter.delete("/:id", authMiddleware, validateRequest(courseIdParamSchema), asyncHandler(courseController.archiveCourse));
