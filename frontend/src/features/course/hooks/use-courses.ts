@@ -1,10 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CourseStatus } from "../../../constants/business";
 import { courseService, type CreateLessonPayload, type Lesson, type UpdateCoursePayload, type UpdateLessonPayload } from "../../../services/course.service";
 
-export function useCourses() {
+export function useCourses(status?: CourseStatus) {
   return useQuery({
-    queryKey: ["courses"],
-    queryFn: courseService.getCourses
+    queryKey: ["courses", status],
+    queryFn: () => courseService.getCourses({ status })
+  });
+}
+
+export function useInfiniteCourses(status: CourseStatus | undefined, limit = 12, search = "") {
+  const normalizedSearch = search.trim();
+
+  return useInfiniteQuery({
+    queryKey: ["courses", "infinite", status, limit, normalizedSearch],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => courseService.getCourses({ status, page: pageParam, limit, search: normalizedSearch }),
+    getNextPageParam: (lastPage) => {
+      const { page, limit: pageSize, total } = lastPage.pagination;
+      return page * pageSize < total ? page + 1 : undefined;
+    }
   });
 }
 

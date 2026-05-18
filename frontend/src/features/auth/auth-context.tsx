@@ -2,6 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { queryClient } from "../../lib/react-query";
+import type { UserRole } from "../../constants/business";
 import { authService, type SignUpResult } from "../../services/auth.service";
 
 type AuthContextValue = {
@@ -10,7 +11,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   userEmail: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<SignUpResult>;
+  signUp: (email: string, password: string, role: Extract<UserRole, "USER" | "INSTRUCTOR">) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
 };
 
@@ -50,9 +51,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (session?.access_token) {
-      void authService.syncBackendSession(session.access_token);
+      const role = typeof session.user.user_metadata?.role === "string" ? (session.user.user_metadata.role as UserRole) : null;
+      void authService.syncBackendSession(session.access_token, role);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, session?.user.user_metadata?.role]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -63,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn: async (email, password) => {
         await authService.signIn(email, password);
       },
-      signUp: async (email, password) => authService.signUp(email, password),
+      signUp: async (email, password, role) => authService.signUp(email, password, role),
       signOut: async () => {
         await authService.signOut();
         setSession(null);

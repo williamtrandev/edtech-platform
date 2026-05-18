@@ -34,7 +34,8 @@ export class UserService {
     try {
       return await this.userRepository.upsertAuthUser({
         id: user.id,
-        email: user.email
+        email: user.email,
+        role: user.signupRole
       });
     } catch (error: unknown) {
       if (error instanceof PrismaClientKnownRequestError && error.code === "P2002") {

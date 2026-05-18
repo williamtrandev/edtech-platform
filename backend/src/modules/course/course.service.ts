@@ -21,7 +21,8 @@ export class CourseService {
     user: Express.UserClaims | undefined,
     page: number,
     limit: number,
-    status?: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+    status?: "DRAFT" | "PUBLISHED" | "ARCHIVED",
+    search?: string
   ) {
     let effectiveStatus: CourseStatus | undefined = CourseStatus.PUBLISHED;
     if (!user?.id || user.role === USER_ROLE.user) {
@@ -32,7 +33,7 @@ export class CourseService {
       effectiveStatus = undefined;
     }
 
-    const { items, total } = await this.courseRepository.findMany(page, limit, effectiveStatus);
+    const { items, total } = await this.courseRepository.findMany(page, limit, effectiveStatus, search);
     return {
       items,
       pagination: {
@@ -62,7 +63,7 @@ export class CourseService {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const canCreate = user.role === USER_ROLE.instructor || user.role === USER_ROLE.admin;
+    const canCreate = user.role === USER_ROLE.instructor;
     if (!canCreate) {
       throw new AppError("Forbidden", 403, "FORBIDDEN");
     }

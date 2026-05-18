@@ -75,7 +75,7 @@ export function HomeRedirect() {
   return <Navigate to="/courses" replace />;
 }
 
-/** Instructor workspace: list + create courses — not for plain students. */
+/** Course workspace: instructors create; admins manage; learners browse Explore. */
 export function CoursesWorkspaceGate() {
   const { isAuthenticated, isBootstrapping } = useAuth();
   const me = useCurrentUser(isAuthenticated && !isBootstrapping);
@@ -90,6 +90,25 @@ export function CoursesWorkspaceGate() {
 
   if (me.data?.role === USER_ROLE.user) {
     return <Navigate to="/explore" replace />;
+  }
+
+  return <Outlet />;
+}
+
+export function InstructorCreateCourseGate() {
+  const { isAuthenticated, isBootstrapping } = useAuth();
+  const me = useCurrentUser(isAuthenticated && !isBootstrapping);
+
+  if (isBootstrapping || (isAuthenticated && me.isLoading)) {
+    return <FullScreenLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (me.data?.role !== USER_ROLE.instructor) {
+    return <Navigate to="/courses" replace />;
   }
 
   return <Outlet />;

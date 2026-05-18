@@ -16,8 +16,8 @@ export function AccountSettingsPage() {
   const { isAuthenticated, isBootstrapping, userEmail } = useAuth();
   const currentUser = useCurrentUser(isAuthenticated && !isBootstrapping);
   const { t } = useI18n();
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordMessageKey, setPasswordMessageKey] = useState<I18nKey | null>(null);
+  const [passwordError, setPasswordError] = useState<unknown>(null);
 
   const passwordForm = useForm<PasswordUpdateFormValues>({
     resolver: zodResolver(createPasswordUpdateFormSchema(t)),
@@ -31,14 +31,14 @@ export function AccountSettingsPage() {
   const roleLabel = role ? t(`role.${role}` as I18nKey) : "—";
 
   const onPasswordSubmit = async (values: PasswordUpdateFormValues) => {
-    setPasswordMessage(null);
+    setPasswordMessageKey(null);
     setPasswordError(null);
     try {
       await authService.updatePassword(values.password);
       passwordForm.reset();
-      setPasswordMessage(t("settings.passwordSuccess"));
+      setPasswordMessageKey("settings.passwordSuccess");
     } catch (error: unknown) {
-      setPasswordError(getLocalizedErrorMessage(error, "auth.resetFallbackError", t));
+      setPasswordError(error);
     }
   };
 
@@ -100,14 +100,14 @@ export function AccountSettingsPage() {
                 />
               </FormField>
 
-              {passwordMessage ? (
+              {passwordMessageKey ? (
                 <div className="rounded-xl border border-border/70 bg-muted/40 px-3 py-2 text-sm text-foreground" role="status">
-                  {passwordMessage}
+                  {t(passwordMessageKey)}
                 </div>
               ) : null}
               {passwordError ? (
                 <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                  {passwordError}
+                  {getLocalizedErrorMessage(passwordError, "auth.resetFallbackError", t)}
                 </div>
               ) : null}
 

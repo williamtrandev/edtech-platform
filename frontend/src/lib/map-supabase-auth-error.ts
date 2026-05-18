@@ -33,6 +33,9 @@ export function mapSupabaseAuthErrorToMessage(error: AuthError): string {
   if (code === SUPABASE_AUTH_ERROR_CODE.INVALID_CREDENTIALS || code === SUPABASE_AUTH_ERROR_CODE.SESSION_NOT_FOUND) {
     return SUPABASE_AUTH_USER_MESSAGE.invalidCredentials;
   }
+  if (code === SUPABASE_AUTH_ERROR_CODE.EMAIL_NOT_CONFIRMED) {
+    return SUPABASE_AUTH_USER_MESSAGE.emailNotConfirmed;
+  }
 
   const lower = message.toLowerCase();
   if (lower.includes("already registered") || lower.includes("already been registered")) {
@@ -46,6 +49,9 @@ export function mapSupabaseAuthErrorToMessage(error: AuthError): string {
   }
   if (lower.includes("invalid login credentials") || lower.includes("invalid credentials")) {
     return SUPABASE_AUTH_USER_MESSAGE.invalidCredentials;
+  }
+  if (lower.includes("email not confirmed") || lower.includes("email_not_confirmed")) {
+    return SUPABASE_AUTH_USER_MESSAGE.emailNotConfirmed;
   }
   if (lower.includes("auth session") || lower.includes("session missing")) {
     return SUPABASE_AUTH_USER_MESSAGE.recoverySessionMissing;

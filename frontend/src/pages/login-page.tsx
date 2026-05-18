@@ -15,9 +15,10 @@ export function LoginPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { signIn } = useAuth();
   const { t } = useI18n();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [banner, setBanner] = useState<{ title: string; body: string } | null>(null);
+  const [authError, setAuthError] = useState<unknown>(null);
+  const [banner, setBanner] = useState<"confirm" | "ready" | null>(null);
   const consumedRegisterQuery = useRef(false);
+  const errorMessage = authError ? getLocalizedErrorMessage(authError, "auth.loginFallbackError", t) : null;
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(createLoginFormSchema(t)),
@@ -45,31 +46,22 @@ export function LoginPage() {
 
     consumedRegisterQuery.current = true;
     const needsVerify = searchParams.get("verify") === "1";
-
-    if (needsVerify) {
-      const title = t("auth.signup.confirmTitle");
-      const body = t("auth.signup.confirmBody");
-      setBanner({ title, body });
-    } else {
-      const title = t("auth.signup.readyTitle");
-      const body = t("auth.signup.readyBody");
-      setBanner({ title, body });
-    }
+    setBanner(needsVerify ? "confirm" : "ready");
 
     const next = new URLSearchParams(searchParams);
     next.delete("registered");
     next.delete("verify");
     next.delete("confirmed");
     setSearchParams(next, { replace: true });
-  }, [navigate, searchParams, setSearchParams, t]);
+  }, [navigate, searchParams, setSearchParams]);
 
   const onSubmit = async (values: LoginFormValues) => {
-    setErrorMessage(null);
+    setAuthError(null);
     try {
       await signIn(values.email, values.password);
       navigate("/", { replace: true });
     } catch (error: unknown) {
-      setErrorMessage(getLocalizedErrorMessage(error, "auth.loginFallbackError", t));
+      setAuthError(error);
     }
   };
 
@@ -89,8 +81,8 @@ export function LoginPage() {
     >
       {banner ? (
         <div className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-foreground shadow-sm mb-5">
-          <p className="font-semibold">{banner.title}</p>
-          <p className="mt-1 text-muted-foreground">{banner.body}</p>
+          <p className="font-semibold">{t(banner === "confirm" ? "auth.signup.confirmTitle" : "auth.signup.readyTitle")}</p>
+          <p className="mt-1 text-muted-foreground">{t(banner === "confirm" ? "auth.signup.confirmBody" : "auth.signup.readyBody")}</p>
         </div>
       ) : null}
 

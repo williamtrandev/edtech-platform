@@ -9,6 +9,7 @@ import { UserRepository } from "../../modules/user/user.repository";
 type JwtPayload = {
   sub: string;
   email?: string;
+  signupRole?: "USER" | "INSTRUCTOR";
 };
 
 const SYMMETRIC_ALGS = ["HS256", "HS384", "HS512"] as const;
@@ -106,7 +107,8 @@ function verifySymmetric(token: string, alg: string): JwtPayload {
 
     return {
       sub: String(decoded.sub ?? ""),
-      email: typeof decoded.email === "string" ? decoded.email : undefined
+      email: typeof decoded.email === "string" ? decoded.email : undefined,
+      signupRole: getSignupRoleFromMetadata(decoded.user_metadata)
     };
   } catch (err: unknown) {
     throw mapJwtLibError(err);
@@ -134,7 +136,8 @@ async function verifyAsymmetric(token: string): Promise<JwtPayload> {
     });
     return {
       sub: String(payload.sub ?? ""),
-      email: typeof payload.email === "string" ? payload.email : undefined
+      email: typeof payload.email === "string" ? payload.email : undefined,
+      signupRole: getSignupRoleFromMetadata(payload.user_metadata)
     };
   } catch (err: unknown) {
     if (err instanceof jose.errors.JWTExpired) {
@@ -145,6 +148,15 @@ async function verifyAsymmetric(token: string): Promise<JwtPayload> {
     }
     throw new AppError("Invalid or expired token", 401, "INVALID_TOKEN");
   }
+}
+
+function getSignupRoleFromMetadata(metadata: unknown): "USER" | "INSTRUCTOR" | undefined {
+  if (!metadata || typeof metadata !== "object") {
+    return undefined;
+  }
+
+  const role = (metadata as { role?: unknown }).role;
+  return role === USER_ROLE.instructor || role === USER_ROLE.user ? role : undefined;
 }
 
 async function verifySupabaseAccessToken(token: string): Promise<JwtPayload> {
@@ -188,7 +200,8 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
       req.user = {
         id: userId,
         email: payload.email,
-        role: await getApplicationRole(userId)
+        role: await getApplicationRole(userId),
+        signupRole: payload.signupRole
       };
       next();
     } catch (err: unknown) {
@@ -220,7 +233,8 @@ export function optionalAuthMiddleware(req: Request, _res: Response, next: NextF
       req.user = {
         id: userId,
         email: payload.email,
-        role: await getApplicationRole(userId)
+        role: await getApplicationRole(userId),
+        signupRole: payload.signupRole
       };
       next();
     } catch (err: unknown) {

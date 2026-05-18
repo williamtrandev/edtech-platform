@@ -21,7 +21,13 @@ export function CoursesPage() {
   const enrollMutation = useEnrollCourse();
   const { t } = useI18n();
 
-  const canCreateCourse = meQuery.data?.role === USER_ROLE.instructor || meQuery.data?.role === USER_ROLE.admin;
+  const canCreateCourse = meQuery.data?.role === USER_ROLE.instructor;
+  const canManageCourses = meQuery.data?.role === USER_ROLE.instructor || meQuery.data?.role === USER_ROLE.admin;
+  const emptyDescription = canCreateCourse
+    ? t("courseStudio.noCoursesCreate")
+    : canManageCourses
+      ? t("courseStudio.noCoursesManage")
+      : t("courseStudio.noCoursesBrowse");
   const courses = data?.items ?? [];
   const publishedCount = courses.filter((course) => course.status === COURSE_STATUS.published).length;
   const draftCount = courses.filter((course) => course.status === COURSE_STATUS.draft).length;
@@ -37,7 +43,7 @@ export function CoursesPage() {
       subtitle={t("courseStudio.subtitle")}
       actions={
         canCreateCourse ? (
-          <Button asChild size="sm" className="h-9 rounded-lg gap-1.5 px-3 shadow-none">
+          <Button asChild size="sm" className="h-10 rounded-lg gap-1.5 px-4 shadow-none">
             <Link to="/courses/new">
               <Plus className="size-4" aria-hidden />
               {t("courseStudio.createCourse")}
@@ -69,11 +75,8 @@ export function CoursesPage() {
             <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
               <div>
                 <CardTitle className="text-base">{t("courseStudio.courses")}</CardTitle>
-                <CardDescription>{canCreateCourse ? t("courseStudio.manageDescription") : t("courseStudio.catalogDescription")}</CardDescription>
+                <CardDescription>{canManageCourses ? t("courseStudio.manageDescription") : t("courseStudio.catalogDescription")}</CardDescription>
               </div>
-              <Button asChild variant="outline" size="sm" className="h-9 rounded-lg px-3">
-                <Link to="/explore">{t("courseStudio.viewCatalog")}</Link>
-              </Button>
             </CardHeader>
             <CardContent>
               {isLoading ? <CourseListSkeleton rows={5} /> : null}
@@ -88,9 +91,9 @@ export function CoursesPage() {
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {courses.map((course) => (
                       <article key={course.id} className="overflow-hidden rounded-lg border border-border/70 bg-card transition-colors hover:border-border">
-                        <div className="relative aspect-video bg-muted/30">
+                          <div className="relative aspect-video bg-muted/30">
                           {course.coverImageUrl ? (
-                            <img src={toMediaUrl(course.coverImageUrl)} alt="" className="size-full object-cover" />
+                            <img src={toMediaUrl(course.coverImageUrl)} alt="" className="size-full object-cover" loading="lazy" decoding="async" />
                           ) : (
                             <div className="grid size-full place-items-center text-muted-foreground">
                               <BookOpen className="size-7" aria-hidden />
@@ -108,11 +111,11 @@ export function CoursesPage() {
                             </p>
                           </div>
                           <div className="mt-auto flex items-center justify-between gap-2">
-                            {!canCreateCourse ? (
+                            {!canManageCourses ? (
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-9 rounded-md px-3"
+                                className="h-10 rounded-md px-4"
                                 disabled={enrollMutation.isPending || course.status !== COURSE_STATUS.published}
                                 onClick={() => void enrollMutation.mutateAsync(course.id)}
                                 type="button"
@@ -122,7 +125,7 @@ export function CoursesPage() {
                             ) : (
                               <span className="text-xs text-muted-foreground">{t("courseStudio.id")} {course.id.slice(0, 8)}</span>
                             )}
-                            <Button asChild size="sm" className="h-9 rounded-md gap-1.5 px-3">
+                            <Button asChild size="sm" className="h-10 rounded-md gap-1.5 px-4">
                               <Link to={`/courses/${course.id}`}>
                                 {t("courseStudio.open")}
                                 <ArrowUpRight className="size-4" aria-hidden />
@@ -137,7 +140,7 @@ export function CoursesPage() {
                   <EmptyState
                     icon={BookOpen}
                     title={t("courseStudio.noCourses")}
-                    description={canCreateCourse ? t("courseStudio.noCoursesCreate") : t("courseStudio.noCoursesBrowse")}
+                    description={emptyDescription}
                   />
                 )
               ) : null}

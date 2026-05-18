@@ -14,11 +14,13 @@ import { MetricCard } from "../components/metric-card";
 import { MetricCardSkeleton, TableSkeleton } from "../components/skeleton";
 import { USER_ROLE } from "../constants/business";
 import { useCreateUser, useUsers } from "../features/user/hooks/use-users";
+import { type I18nKey, useI18n } from "../i18n";
 import { createUserFormSchema, CreateUserFormValues } from "../schemas/user.schema";
 
 export function UsersPage() {
   const { data, isLoading, isError, error } = useUsers();
   const createUserMutation = useCreateUser();
+  const { t } = useI18n();
 
   const form = useForm<CreateUserFormValues>({
     resolver: zodResolver(createUserFormSchema),
@@ -80,9 +82,9 @@ export function UsersPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={USER_ROLE.user}>User</SelectItem>
-                          <SelectItem value={USER_ROLE.instructor}>Instructor</SelectItem>
-                          <SelectItem value={USER_ROLE.admin}>Admin</SelectItem>
+                          <SelectItem value={USER_ROLE.user}>{t("role.USER")}</SelectItem>
+                          <SelectItem value={USER_ROLE.instructor}>{t("role.INSTRUCTOR")}</SelectItem>
+                          <SelectItem value={USER_ROLE.admin}>{t("role.ADMIN")}</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
@@ -129,7 +131,7 @@ export function UsersPage() {
                             <TableCell className="px-4 py-3 font-medium text-foreground">{user.email}</TableCell>
                             <TableCell className="px-4 py-3">
                               <Badge variant="outline" className="rounded-md font-medium">
-                                {user.role}
+                                {t(`role.${user.role}` as I18nKey)}
                               </Badge>
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate px-4 py-3 font-mono text-xs text-muted-foreground">{user.id}</TableCell>

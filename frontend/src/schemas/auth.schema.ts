@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { USER_ROLE } from "../constants/business";
 import type { I18nKey } from "../i18n";
 
 type Translate = (key: I18nKey) => string;
@@ -34,6 +35,9 @@ export function createRegisterFormSchema(t: Translate) {
   return z
     .object({
       email: emailSchema(t),
+      role: z.enum([USER_ROLE.user, USER_ROLE.instructor], {
+        required_error: t("validation.roleRequired")
+      }),
       password: createPasswordSchema(t),
       confirmPassword: z.string().min(1, t("validation.confirmPasswordRequired")).max(72, t("validation.passwordTooLong"))
     })

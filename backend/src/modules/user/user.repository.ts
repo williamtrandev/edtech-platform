@@ -36,13 +36,13 @@ export class UserRepository {
     });
   }
 
-  async upsertAuthUser(data: { id: string; email: string }): Promise<User> {
+  async upsertAuthUser(data: { id: string; email: string; role?: "USER" | "INSTRUCTOR" }): Promise<User> {
     return prisma.user.upsert({
       where: { id: data.id },
       create: {
         id: data.id,
         email: data.email,
-        role: USER_ROLE.user
+        role: data.role ?? USER_ROLE.user
       },
       update: {
         email: data.email

@@ -1,11 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { BookOpen, GraduationCap } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { AuthShell } from "../components/auth-shell";
 import { FormField } from "../components/form-field";
+import { USER_ROLE } from "../constants/business";
 import { useAuth } from "../features/auth/auth-context";
 import { getLocalizedErrorMessage, useI18n } from "../i18n";
 import { RegisterFormValues, createRegisterFormSchema } from "../schemas/auth.schema";
@@ -14,21 +17,23 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const { signUp, signOut } = useAuth();
   const { t } = useI18n();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<unknown>(null);
+  const errorMessage = authError ? getLocalizedErrorMessage(authError, "auth.registerFallbackError", t) : null;
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(createRegisterFormSchema(t)),
     defaultValues: {
       email: "",
+      role: USER_ROLE.user,
       password: "",
       confirmPassword: ""
     }
   });
 
   const onSubmit = async (values: RegisterFormValues) => {
-    setErrorMessage(null);
+    setAuthError(null);
     try {
-      const result = await signUp(values.email, values.password);
+      const result = await signUp(values.email, values.password, values.role);
 
       if (result.hasSession) {
         await signOut();
@@ -43,7 +48,7 @@ export function RegisterPage() {
 
       navigate("/login?registered=1", { replace: true });
     } catch (error: unknown) {
-      setErrorMessage(getLocalizedErrorMessage(error, "auth.registerFallbackError", t));
+      setAuthError(error);
     }
   };
 
@@ -71,6 +76,48 @@ export function RegisterPage() {
             className="h-12 rounded-2xl border-border/70 bg-background/80 px-4 shadow-sm"
             {...form.register("email")}
           />
+        </FormField>
+
+        <FormField id="register-role" label={t("auth.roleLabel")} error={form.formState.errors.role?.message}>
+          <div id="register-role" className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={t("auth.roleLabel")}>
+            {[
+              {
+                value: USER_ROLE.user,
+                icon: BookOpen,
+                title: t("auth.roleLearnerTitle"),
+                description: t("auth.roleLearnerDescription")
+              },
+              {
+                value: USER_ROLE.instructor,
+                icon: GraduationCap,
+                title: t("auth.roleInstructorTitle"),
+                description: t("auth.roleInstructorDescription")
+              }
+            ].map((option) => {
+              const Icon = option.icon;
+              const active = form.watch("role") === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
+                    active ? "border-foreground bg-foreground text-background" : "border-border/70 bg-background/80 hover:bg-muted/50"
+                  )}
+                  onClick={() => form.setValue("role", option.value, { shouldDirty: true, shouldValidate: true })}
+                >
+                  <Icon className={cn("mt-0.5 size-4 shrink-0", active ? "text-background" : "text-muted-foreground")} aria-hidden />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{option.title}</span>
+                    <span className={cn("mt-1 block text-xs leading-5", active ? "text-background/75" : "text-muted-foreground")}>{option.description}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </FormField>
 
         <FormField

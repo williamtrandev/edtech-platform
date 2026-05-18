@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, PublicOnly, RequireAuth } from "../components/route-guards";
+import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, InstructorCreateCourseGate, PublicOnly, RequireAuth } from "../components/route-guards";
 import { AccountSettingsPage } from "../pages/account-settings-page";
 import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
@@ -85,7 +85,13 @@ export const router = createBrowserRouter([
           },
           {
             path: "new",
-            element: <CourseCreatePage />
+            element: <InstructorCreateCourseGate />,
+            children: [
+              {
+                index: true,
+                element: <CourseCreatePage />
+              }
+            ]
           }
         ]
       },

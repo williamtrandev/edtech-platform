@@ -6,6 +6,7 @@ declare global {
       id: string;
       email?: string;
       role?: "USER" | "INSTRUCTOR" | "ADMIN";
+      signupRole?: "USER" | "INSTRUCTOR";
     }
 
     interface Request {

@@ -1,4 +1,5 @@
 import type { AuthError } from "@supabase/supabase-js";
+import type { UserRole } from "../constants/business";
 import { SUPABASE_AUTH_USER_MESSAGE } from "../constants/supabase-auth";
 import { mapSupabaseAuthErrorToMessage } from "../lib/map-supabase-auth-error";
 import { httpClient } from "../lib/http-client";
@@ -31,11 +32,14 @@ export const authService = {
     return response.data.session;
   },
 
-  async signUp(email: string, password: string): Promise<SignUpResult> {
+  async signUp(email: string, password: string, role: Extract<UserRole, "USER" | "INSTRUCTOR">): Promise<SignUpResult> {
     const response = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
+        data: {
+          role
+        },
         emailRedirectTo: `${window.location.origin}/email-confirmed`
       }
     });
@@ -79,7 +83,7 @@ export const authService = {
     backendSessionSync = null;
   },
 
-  async syncBackendSession(accessToken?: string | null) {
+  async syncBackendSession(accessToken?: string | null, role?: UserRole | null) {
     if (!accessToken) {
       return;
     }
@@ -93,7 +97,7 @@ export const authService = {
     }
 
     const promise = httpClient
-      .post("/auth-sessions", {})
+      .post("/auth-sessions", role ? { role } : {})
       .then(() => {
         syncedBackendAccessToken = accessToken;
       })

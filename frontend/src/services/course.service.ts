@@ -13,6 +13,7 @@ export type Course = {
   coverImageUrl?: string | null;
   status: CourseStatus;
   instructorId: string;
+  enrollmentCount?: number;
   archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -46,6 +47,13 @@ export type PaginatedCourses = {
     limit: number;
     total: number;
   };
+};
+
+export type CourseListParams = {
+  status?: CourseStatus;
+  page?: number;
+  limit?: number;
+  search?: string;
 };
 
 export type Lesson = {
@@ -86,8 +94,15 @@ export type UpdateLessonPayload = {
 };
 
 export const courseService = {
-  async getCourses(): Promise<PaginatedCourses> {
-    const response = await httpClient.get<ApiResponse<PaginatedCourses>>("/courses");
+  async getCourses(params: CourseListParams = {}): Promise<PaginatedCourses> {
+    const response = await httpClient.get<ApiResponse<PaginatedCourses>>("/courses", {
+      params: {
+        ...(params.status ? { status: params.status } : {}),
+        ...(params.page ? { page: params.page } : {}),
+        ...(params.limit ? { limit: params.limit } : {}),
+        ...(params.search?.trim() ? { search: params.search.trim() } : {})
+      }
+    });
     return response.data.data;
   },
   async createCourse(payload: CreateCoursePayload) {

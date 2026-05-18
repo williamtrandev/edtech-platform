@@ -13,8 +13,9 @@ import { authService } from "../services/auth.service";
 export function ForgotPasswordPage() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<unknown>(null);
   const [isSent, setIsSent] = useState(false);
+  const errorMessage = authError ? getLocalizedErrorMessage(authError, "auth.resetRequestFallbackError", t) : null;
 
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(createForgotPasswordFormSchema(t)),
@@ -24,7 +25,7 @@ export function ForgotPasswordPage() {
   });
 
   const onSubmit = async (values: ForgotPasswordFormValues) => {
-    setErrorMessage(null);
+    setAuthError(null);
     setIsSent(false);
 
     try {
@@ -32,7 +33,7 @@ export function ForgotPasswordPage() {
       setIsSent(true);
       form.reset();
     } catch (error: unknown) {
-      setErrorMessage(getLocalizedErrorMessage(error, "auth.resetRequestFallbackError", t));
+      setAuthError(error);
     }
   };
 

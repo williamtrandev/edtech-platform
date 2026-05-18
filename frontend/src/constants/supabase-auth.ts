@@ -6,7 +6,8 @@ export const SUPABASE_AUTH_ERROR_CODE = {
   OVER_REQUEST_RATE_LIMIT: "over_request_rate_limit",
   SAME_PASSWORD: "same_password",
   SESSION_NOT_FOUND: "session_not_found",
-  INVALID_CREDENTIALS: "invalid_credentials"
+  INVALID_CREDENTIALS: "invalid_credentials",
+  EMAIL_NOT_CONFIRMED: "email_not_confirmed"
 } as const;
 
 export const SUPABASE_AUTH_EVENT = {
@@ -38,5 +39,6 @@ export const SUPABASE_AUTH_USER_MESSAGE = {
   invalidEmail: "auth.error.invalidEmail",
   network: "auth.error.network",
   invalidCredentials: "auth.error.invalidCredentials",
+  emailNotConfirmed: "auth.error.emailNotConfirmed",
   recoverySessionMissing: "auth.reset.invalidSession"
 } as const;

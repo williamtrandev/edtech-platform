@@ -20,8 +20,9 @@ export function ResetPasswordPage() {
   const { t } = useI18n();
   const [state, setState] = useState<ResetState>("checking");
   const [callbackDetail, setCallbackDetail] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<unknown>(null);
   const hasCompletedReset = useRef(false);
+  const errorMessage = authError ? getLocalizedErrorMessage(authError, "auth.resetFallbackError", t) : null;
 
   const form = useForm<PasswordUpdateFormValues>({
     resolver: zodResolver(createPasswordUpdateFormSchema(t)),
@@ -74,10 +75,10 @@ export function ResetPasswordPage() {
   }, []);
 
   const onSubmit = async (values: PasswordUpdateFormValues) => {
-    setErrorMessage(null);
+    setAuthError(null);
 
     if (state !== "ready") {
-      setErrorMessage(t("auth.reset.invalidSession"));
+      setAuthError(new Error("auth.reset.invalidSession"));
       return;
     }
 
@@ -88,7 +89,7 @@ export function ResetPasswordPage() {
       setState("updated");
       await authService.signOut();
     } catch (error: unknown) {
-      setErrorMessage(getLocalizedErrorMessage(error, "auth.resetFallbackError", t));
+      setAuthError(error);
     }
   };
 
