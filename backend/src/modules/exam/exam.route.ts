@@ -1,0 +1,40 @@
+import { Router } from "express";
+import { authMiddleware } from "../../common/middleware/auth-middleware";
+import { validateRequest } from "../../common/middleware/validate-request";
+import { asyncHandler } from "../../common/utils/async-handler";
+import { AuditRepository } from "../audit/audit.repository";
+import { CourseRepository } from "../course/course.repository";
+import { EnrollmentRepository } from "../enrollment/enrollment.repository";
+import { ExamAttemptController } from "../exam-attempt/exam-attempt.controller";
+import { ExamAttemptRepository } from "../exam-attempt/exam-attempt.repository";
+import { startExamAttemptSchema } from "../exam-attempt/exam-attempt.schema";
+import { ExamAttemptService } from "../exam-attempt/exam-attempt.service";
+import { ExamQuestionController } from "../exam-question/exam-question.controller";
+import { ExamQuestionRepository } from "../exam-question/exam-question.repository";
+import { createExamQuestionSchema, examQuestionsParamSchema } from "../exam-question/exam-question.schema";
+import { ExamQuestionService } from "../exam-question/exam-question.service";
+import { ExamController } from "./exam.controller";
+import { ExamRepository } from "./exam.repository";
+import { ExamService } from "./exam.service";
+import { examIdParamSchema, updateExamSchema } from "./exam.schema";
+
+const examRepository = new ExamRepository();
+const courseRepository = new CourseRepository();
+const enrollmentRepository = new EnrollmentRepository();
+const auditRepository = new AuditRepository();
+const examService = new ExamService(examRepository, courseRepository, auditRepository);
+const examController = new ExamController(examService);
+const examAttemptRepository = new ExamAttemptRepository();
+const examAttemptService = new ExamAttemptService(examAttemptRepository, courseRepository, enrollmentRepository);
+const examAttemptController = new ExamAttemptController(examAttemptService);
+const examQuestionRepository = new ExamQuestionRepository();
+const examQuestionService = new ExamQuestionService(examQuestionRepository, examRepository, courseRepository, auditRepository);
+const examQuestionController = new ExamQuestionController(examQuestionService);
+
+export const examRouter = Router();
+
+examRouter.post("/:examId/attempts", authMiddleware, validateRequest(startExamAttemptSchema), asyncHandler(examAttemptController.startAttempt));
+examRouter.get("/:examId/questions", authMiddleware, validateRequest(examQuestionsParamSchema), asyncHandler(examQuestionController.listExamQuestions));
+examRouter.post("/:examId/questions", authMiddleware, validateRequest(createExamQuestionSchema), asyncHandler(examQuestionController.createExamQuestion));
+examRouter.patch("/:examId", authMiddleware, validateRequest(updateExamSchema), asyncHandler(examController.updateExam));
+examRouter.delete("/:examId", authMiddleware, validateRequest(examIdParamSchema), asyncHandler(examController.archiveExam));
