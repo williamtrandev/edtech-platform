@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("SUPABASE_DB_URL")
   directUrl = env("SUPABASE_DIRECT_URL")
 }
@@ -12,6 +12,11 @@ enum UserRole {
   USER
   INSTRUCTOR
   ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
 }
 
 enum CourseStatus {
@@ -26,35 +31,179 @@ enum LessonContentType {
   RESOURCE
 }
 
-model User {
-  id        String   @id
-  email     String   @unique
-  role      UserRole @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
 
-  createdCourses  Course[]        @relation("CourseInstructor")
-  enrollments     Enrollment[]
-  lessonProgress  LessonProgress[]
+enum ExamQuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  FREE_TEXT
+}
+
+enum ExamAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+}
+
+model User {
+  id        String     @id
+  email     String     @unique
+  role      UserRole   @default(USER)
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  createdCourses Course[]         @relation("CourseInstructor")
+  enrollments    Enrollment[]
+  lessonProgress LessonProgress[]
+  auditLogs      AuditLog[]       @relation("AuditActor")
+  courseReviews  CourseReview[]
+  examAttempts   ExamAttempt[]
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model Course {
-  id            String       @id @default(cuid())
-  title         String
-  description   String?
-  coverImageUrl String?
-  status        CourseStatus @default(DRAFT)
-  instructorId  String
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  archivedAt    DateTime?
+  id              String       @id @default(cuid())
+  title           String
+  description     String?
+  category        String?
+  level           String?
+  language        String?
+  durationMinutes Int?
+  requirements    String?
+  outcomes        String?
+  coverImageUrl   String?
+  ratingAverage   Float        @default(0)
+  ratingCount     Int          @default(0)
+  status          CourseStatus @default(DRAFT)
+  instructorId    String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  archivedAt      DateTime?
 
-  instructor    User         @relation("CourseInstructor", fields: [instructorId], references: [id])
-  lessons       Lesson[]
-  enrollments   Enrollment[]
+  instructor  User           @relation("CourseInstructor", fields: [instructorId], references: [id])
+  lessons     Lesson[]
+  exams       Exam[]
+  enrollments Enrollment[]
+  reviews     CourseReview[]
 
   @@index([status])
   @@index([instructorId])
+}
+
+model Exam {
+  id              String     @id @default(cuid())
+  courseId        String
+  title           String
+  description     String?
+  status          ExamStatus @default(DRAFT)
+  durationMinutes Int?
+  passingScore    Int?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  archivedAt      DateTime?
+
+  course    Course         @relation(fields: [courseId], references: [id])
+  questions ExamQuestion[]
+  attempts  ExamAttempt[]
+
+  @@index([courseId])
+  @@index([status])
+}
+
+model ExamQuestion {
+  id             String           @id @default(cuid())
+  examId         String
+  type           ExamQuestionType
+  prompt         String
+  options        Json?
+  correctAnswers Json?
+  explanation    String?
+  points         Int              @default(1)
+  sortOrder      Int
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  exam    Exam         @relation(fields: [examId], references: [id])
+  answers ExamAnswer[]
+
+  @@unique([examId, sortOrder])
+  @@index([examId])
+  @@index([type])
+}
+
+model ExamAttempt {
+  id            String            @id @default(cuid())
+  examId        String
+  userId        String
+  status        ExamAttemptStatus @default(IN_PROGRESS)
+  attemptNumber Int
+  startedAt     DateTime          @default(now())
+  submittedAt   DateTime?
+  gradedAt      DateTime?
+  score         Int?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  exam    Exam         @relation(fields: [examId], references: [id])
+  user    User         @relation(fields: [userId], references: [id])
+  answers ExamAnswer[]
+
+  @@unique([userId, examId, attemptNumber])
+  @@index([examId])
+  @@index([userId])
+  @@index([status])
+}
+
+model ExamAnswer {
+  id         String   @id @default(cuid())
+  attemptId  String
+  questionId String
+  answer     Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  attempt  ExamAttempt  @relation(fields: [attemptId], references: [id])
+  question ExamQuestion @relation(fields: [questionId], references: [id])
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+}
+
+model CourseReview {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([userId])
 }
 
 model Lesson {
@@ -67,21 +216,21 @@ model Lesson {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
-  course      Course            @relation(fields: [courseId], references: [id])
-  progress    LessonProgress[]
+  course   Course           @relation(fields: [courseId], references: [id])
+  progress LessonProgress[]
 
   @@unique([courseId, sortOrder])
   @@index([courseId])
 }
 
 model Enrollment {
-  id          String   @id @default(cuid())
-  userId      String
-  courseId    String
-  enrolledAt  DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  enrolledAt DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id])
-  course      Course   @relation(fields: [courseId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
 
   @@unique([userId, courseId])
   @@index([courseId])
@@ -89,15 +238,15 @@ model Enrollment {
 }
 
 model LessonProgress {
-  id           String   @id @default(cuid())
-  userId       String
-  lessonId     String
-  isCompleted  Boolean  @default(true)
-  completedAt  DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String
+  lessonId    String
+  isCompleted Boolean  @default(true)
+  completedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user         User     @relation(fields: [userId], references: [id])
-  lesson       Lesson   @relation(fields: [lessonId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  lesson Lesson @relation(fields: [lessonId], references: [id])
 
   @@unique([userId, lessonId])
   @@index([userId])
