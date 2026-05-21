@@ -10,8 +10,21 @@ export class CourseController {
     const limit = Number(req.query.limit ?? 20);
     const status = req.query.status as CourseStatus | undefined;
     const search = typeof req.query.search === "string" ? req.query.search : undefined;
-    const courses = await this.courseService.listCourses(req.user, page, limit, status, search);
+    const courses = await this.courseService.listCourses(req.user, page, limit, status, search, {
+      category: typeof req.query.category === "string" ? req.query.category : undefined,
+      level: typeof req.query.level === "string" ? req.query.level : undefined,
+      language: typeof req.query.language === "string" ? req.query.language : undefined,
+      instructorId: typeof req.query.instructorId === "string" ? req.query.instructorId : undefined,
+      enrollment: req.query.enrollment as "all" | "enrolled" | "not-enrolled" | undefined,
+      sort: req.query.sort as "newest" | "oldest" | "popular" | "highest-rated" | "title" | undefined
+    });
     res.status(200).json({ success: true, data: courses });
+  };
+
+  listCourseFacets = async (req: Request, res: Response): Promise<void> => {
+    const status = req.query.status as CourseStatus | undefined;
+    const facets = await this.courseService.listCourseFacets(req.user, status);
+    res.status(200).json({ success: true, data: facets });
   };
 
   listCourseEnrollments = async (req: Request, res: Response): Promise<void> => {

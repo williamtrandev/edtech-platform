@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 const courseStatusSchema = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
+const courseSortSchema = z.enum(["newest", "oldest", "popular", "highest-rated", "title"]);
+const enrollmentFilterSchema = z.enum(["all", "enrolled", "not-enrolled"]);
+const optionalTrimmedString = (max: number) => z.string().trim().max(max).optional();
+const optionalNullableTrimmedString = (max: number) => optionalTrimmedString(max).nullable();
 const mediaUrlSchema = z
   .string()
   .min(1)
@@ -14,7 +18,19 @@ export const listCoursesSchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     status: courseStatusSchema.optional(),
-    search: z.string().trim().max(200).optional()
+    search: z.string().trim().max(200).optional(),
+    category: optionalTrimmedString(100),
+    level: optionalTrimmedString(100),
+    language: optionalTrimmedString(100),
+    instructorId: optionalTrimmedString(200),
+    enrollment: enrollmentFilterSchema.default("all"),
+    sort: courseSortSchema.default("newest")
+  })
+});
+
+export const courseFacetsSchema = z.object({
+  query: z.object({
+    status: courseStatusSchema.optional()
   })
 });
 
@@ -39,6 +55,12 @@ export const createCourseSchema = z.object({
   body: z.object({
     title: z.string().min(3).max(200),
     description: z.string().max(1000).optional(),
+    category: optionalNullableTrimmedString(100),
+    level: optionalNullableTrimmedString(100),
+    language: optionalNullableTrimmedString(100),
+    durationMinutes: z.coerce.number().int().min(1).max(100000).nullable().optional(),
+    requirements: optionalNullableTrimmedString(2000),
+    outcomes: optionalNullableTrimmedString(2000),
     coverImageUrl: mediaUrlSchema.optional(),
     status: courseStatusSchema.default("DRAFT")
   })
@@ -51,6 +73,12 @@ export const updateCourseSchema = z.object({
   body: z.object({
     title: z.string().min(3).max(200).optional(),
     description: z.string().max(1000).optional(),
+    category: optionalNullableTrimmedString(100),
+    level: optionalNullableTrimmedString(100),
+    language: optionalNullableTrimmedString(100),
+    durationMinutes: z.coerce.number().int().min(1).max(100000).nullable().optional(),
+    requirements: optionalNullableTrimmedString(2000),
+    outcomes: optionalNullableTrimmedString(2000),
     coverImageUrl: mediaUrlSchema.nullable().optional(),
     status: courseStatusSchema.optional()
   })
