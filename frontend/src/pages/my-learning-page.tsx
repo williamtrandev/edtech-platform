@@ -7,7 +7,7 @@ import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { MetricCard } from "../components/metric-card";
 import { MetricCardSkeleton } from "../components/skeleton";
-import { useMyEnrollments } from "../features/enrollment/hooks/use-enrollments";
+import { useMyEnrollments } from "../hooks/use-enrollments";
 import { toMediaUrl } from "../lib/media-url";
 
 export function MyLearningPage() {

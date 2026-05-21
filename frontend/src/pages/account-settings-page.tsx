@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { AppShell } from "../components/app-shell";
 import { FormField } from "../components/form-field";
-import { useAuth } from "../features/auth/auth-context";
-import { useCurrentUser } from "../features/user/hooks/use-current-user";
+import { useAuth } from "../hooks/use-auth";
+import { useCurrentUser } from "../hooks/use-current-user";
 import { getLocalizedErrorMessage, type I18nKey, useI18n } from "../i18n";
 import { PasswordUpdateFormValues, createPasswordUpdateFormSchema } from "../schemas/auth.schema";
 import { authService } from "../services/auth.service";

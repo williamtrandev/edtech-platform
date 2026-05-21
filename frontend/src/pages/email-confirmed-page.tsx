@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "../components/auth-shell";
-import { useAuth } from "../features/auth/auth-context";
+import { useAuth } from "../hooks/use-auth";
 import { useI18n } from "../i18n";
 
 export function EmailConfirmedPage() {

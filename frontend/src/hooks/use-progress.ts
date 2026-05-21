@@ -1,10 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { progressService } from "../../../services/progress.service";
+import { progressService } from "../services/progress.service";
 
 export function useCourseProgress(courseId: string, enabled = true) {
   return useQuery({
     queryKey: ["progress", courseId],
     queryFn: () => progressService.getMyCourseProgress(courseId),
+    enabled: Boolean(courseId) && enabled
+  });
+}
+
+export function useCourseLessonProgress(courseId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["lesson-progress", courseId],
+    queryFn: () => progressService.getMyLessonProgress(courseId),
     enabled: Boolean(courseId) && enabled
   });
 }
@@ -16,6 +24,7 @@ export function useCompleteLesson(courseId: string) {
     mutationFn: progressService.completeLesson,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["progress", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["lesson-progress", courseId] });
       await queryClient.invalidateQueries({ queryKey: ["lessons", courseId] });
     }
   });

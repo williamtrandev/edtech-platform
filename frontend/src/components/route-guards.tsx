@@ -1,8 +1,8 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { Skeleton } from "./skeleton";
 import { USER_ROLE } from "../constants/business";
-import { useAuth } from "../features/auth/auth-context";
-import { useCurrentUser } from "../features/user/hooks/use-current-user";
+import { useAuth } from "../hooks/use-auth";
+import { useCurrentUser } from "../hooks/use-current-user";
 import { useI18n } from "../i18n";
 
 function FullScreenLoader() {

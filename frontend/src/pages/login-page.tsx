@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell } from "../components/auth-shell";
 import { FormField } from "../components/form-field";
-import { useAuth } from "../features/auth/auth-context";
+import { useAuth } from "../hooks/use-auth";
 import { getLocalizedErrorMessage, useI18n } from "../i18n";
 import { LoginFormValues, createLoginFormSchema } from "../schemas/auth.schema";
 
@@ -19,6 +19,8 @@ export function LoginPage() {
   const [banner, setBanner] = useState<"confirm" | "ready" | null>(null);
   const consumedRegisterQuery = useRef(false);
   const errorMessage = authError ? getLocalizedErrorMessage(authError, "auth.loginFallbackError", t) : null;
+  const redirectTo = searchParams.get("redirect");
+  const safeRedirectTo = redirectTo?.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/";
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(createLoginFormSchema(t)),
@@ -59,7 +61,7 @@ export function LoginPage() {
     setAuthError(null);
     try {
       await signIn(values.email, values.password);
-      navigate("/", { replace: true });
+      navigate(safeRedirectTo, { replace: true });
     } catch (error: unknown) {
       setAuthError(error);
     }

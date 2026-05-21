@@ -1,4 +1,4 @@
-import { BookMarked, Compass, GraduationCap, Library, LogIn, LogOut, Settings, Users } from "lucide-react";
+import { BookMarked, ClipboardList, Compass, GraduationCap, Library, LogIn, LogOut, Settings, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { USER_ROLE } from "../constants/business";
-import { useAuth } from "../features/auth/auth-context";
+import { useAuth } from "../hooks/use-auth";
 import { LanguageSelect, ThemeSelect } from "../features/preferences/preference-selectors";
-import { useCurrentUser } from "../features/user/hooks/use-current-user";
+import { useCurrentUser } from "../hooks/use-current-user";
 import { type I18nKey, useI18n } from "../i18n";
 
 type NavItem = {
@@ -28,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/courses", labelKey: "nav.courseStudio", icon: BookMarked, roles: [USER_ROLE.instructor, USER_ROLE.admin], activePath: "/courses" },
   { to: "/my-progress", labelKey: "nav.progress", icon: GraduationCap, roles: [USER_ROLE.user, USER_ROLE.instructor, USER_ROLE.admin] },
   { to: "/users", labelKey: "nav.users", icon: Users, roles: [USER_ROLE.admin] },
+  { to: "/audit", labelKey: "nav.audit", icon: ClipboardList, roles: [USER_ROLE.admin] },
   { to: "/settings", labelKey: "nav.settings", icon: Settings, roles: [USER_ROLE.user, USER_ROLE.instructor, USER_ROLE.admin] }
 ];
 

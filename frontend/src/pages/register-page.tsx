@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { AuthShell } from "../components/auth-shell";
 import { FormField } from "../components/form-field";
 import { USER_ROLE } from "../constants/business";
-import { useAuth } from "../features/auth/auth-context";
+import { useAuth } from "../hooks/use-auth";
 import { getLocalizedErrorMessage, useI18n } from "../i18n";
 import { RegisterFormValues, createRegisterFormSchema } from "../schemas/auth.schema";
 
