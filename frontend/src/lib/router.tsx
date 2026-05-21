@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, InstructorCreateCourseGate, PublicOnly, RequireAuth } from "../components/route-guards";
 import { AccountSettingsPage } from "../pages/account-settings-page";
+import { AuditLogsPage } from "../pages/audit-logs-page";
 import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
 import { CoursesPage } from "../pages/courses-page";
@@ -102,6 +103,16 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <UsersPage />
+          }
+        ]
+      },
+      {
+        path: "/audit",
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <AuditLogsPage />
           }
         ]
       }

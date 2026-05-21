@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Shield, Users } from "lucide-react";
+import { Ban, RotateCcw, Search, Shield, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,14 +13,23 @@ import { EmptyState } from "../components/empty-state";
 import { FormField } from "../components/form-field";
 import { MetricCard } from "../components/metric-card";
 import { MetricCardSkeleton, TableSkeleton } from "../components/skeleton";
-import { USER_ROLE } from "../constants/business";
-import { useCreateUser, useUsers } from "../features/user/hooks/use-users";
-import { type I18nKey, useI18n } from "../i18n";
+import { USER_ROLE, USER_STATUS, type UserRole, type UserStatus } from "../constants/business";
+import { useCreateUser, useUpdateUser, useUsers } from "../hooks/use-users";
+import { useI18n } from "../i18n";
 import { createUserFormSchema, CreateUserFormValues } from "../schemas/user.schema";
 
 export function UsersPage() {
-  const { data, isLoading, isError, error } = useUsers();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | UserRole>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | UserStatus>("ALL");
+  const { data, isLoading, isError, error } = useUsers({
+    search: debouncedSearch,
+    role: roleFilter === "ALL" ? undefined : roleFilter,
+    status: statusFilter === "ALL" ? undefined : statusFilter
+  });
   const createUserMutation = useCreateUser();
+  const updateUserMutation = useUpdateUser();
   const { t } = useI18n();
 
   const form = useForm<CreateUserFormValues>({
@@ -31,15 +41,43 @@ export function UsersPage() {
     }
   });
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
   const onSubmit = async (values: CreateUserFormValues) => {
-    await createUserMutation.mutateAsync(values);
-    form.reset({ id: "", email: "", role: USER_ROLE.user });
+    try {
+      await createUserMutation.mutateAsync(values);
+      form.reset({ id: "", email: "", role: USER_ROLE.user });
+      toast.success(t("users.created"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("users.createFailed"));
+    }
+  };
+
+  const onRoleChange = async (userId: string, role: UserRole) => {
+    try {
+      await updateUserMutation.mutateAsync({ id: userId, payload: { role } });
+      toast.success(t("users.updated"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("users.updateFailed"));
+    }
+  };
+
+  const onStatusToggle = async (userId: string, status: UserStatus) => {
+    try {
+      await updateUserMutation.mutateAsync({ id: userId, payload: { status } });
+      toast.success(t(status === USER_STATUS.suspended ? "users.suspended" : "users.reactivated"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("users.statusUpdateFailed"));
+    }
   };
 
   return (
     <AppShell
-      title="Users"
-      subtitle="Provision accounts and review identities synced with your auth provider."
+      title={t("users.title")}
+      subtitle={t("users.subtitle")}
     >
       <div className="space-y-8">
         <section className="grid gap-4 sm:grid-cols-2">
@@ -50,8 +88,8 @@ export function UsersPage() {
             </>
           ) : (
             <>
-              <MetricCard icon={Users} label="Users on page" value={data?.items.length ?? 0} hint="Current list window" />
-              <MetricCard icon={Shield} label="Roles" value="RBAC" hint="USER · INSTRUCTOR · ADMIN" />
+              <MetricCard icon={Users} label={t("users.usersOnPage")} value={data?.items.length ?? 0} hint={t("users.currentListWindow")} />
+              <MetricCard icon={Shield} label={t("users.roles")} value="RBAC" hint="USER · INSTRUCTOR · ADMIN" />
             </>
           )}
         </section>
@@ -59,20 +97,20 @@ export function UsersPage() {
         <section className="grid gap-6 lg:grid-cols-12 lg:items-start">
           <Card className="rounded-2xl border-border/60 bg-card/90 shadow-sm lg:col-span-5">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-lg font-semibold">Create user</CardTitle>
-              <CardDescription className="text-sm leading-relaxed">Manual onboarding for external auth user IDs.</CardDescription>
+              <CardTitle className="text-lg font-semibold">{t("users.createUser")}</CardTitle>
+              <CardDescription className="text-sm leading-relaxed">{t("users.createDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="grid gap-5" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-                <FormField id="user-id" label="User ID" hint="Supabase UUID" error={form.formState.errors.id?.message}>
+                <FormField id="user-id" label={t("users.userId")} hint={t("users.userIdHint")} error={form.formState.errors.id?.message}>
                   <Input id="user-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" {...form.register("id")} />
                 </FormField>
 
-                <FormField id="user-email" label="Email" error={form.formState.errors.email?.message}>
+                <FormField id="user-email" label={t("users.email")} error={form.formState.errors.email?.message}>
                   <Input id="user-email" type="email" placeholder="name@company.com" {...form.register("email")} />
                 </FormField>
 
-                <FormField id="user-role" label="Role" error={form.formState.errors.role?.message}>
+                <FormField id="user-role" label={t("users.role")} error={form.formState.errors.role?.message}>
                   <Controller
                     control={form.control}
                     name="role"
@@ -92,7 +130,7 @@ export function UsersPage() {
                 </FormField>
 
                 <Button className="h-10 rounded-xl font-medium shadow-sm" type="submit" disabled={createUserMutation.isPending}>
-                  {createUserMutation.isPending ? "Creating…" : "Create user"}
+                  {createUserMutation.isPending ? t("users.creating") : t("users.createUser")}
                 </Button>
               </form>
             </CardContent>
@@ -101,12 +139,46 @@ export function UsersPage() {
           <Card className="rounded-2xl border-border/60 bg-card/90 shadow-sm lg:col-span-7">
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-4">
               <div>
-                <CardTitle className="text-lg font-semibold">Directory</CardTitle>
-                <CardDescription className="mt-1 text-sm">Workspace members visible to your session.</CardDescription>
+                <CardTitle className="text-lg font-semibold">{t("users.directory")}</CardTitle>
+                <CardDescription className="mt-1 text-sm">{t("users.directoryDescription")}</CardDescription>
+              </div>
+              <div className="grid w-full gap-2 sm:w-auto sm:min-w-[30rem] sm:grid-cols-[minmax(0,1fr)_10rem_10rem]">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder={t("users.searchPlaceholder")}
+                    className="h-10 rounded-md border-border/80 pl-9 shadow-none"
+                    type="search"
+                    aria-label={t("users.searchPlaceholder")}
+                  />
+                </div>
+                <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as typeof roleFilter)}>
+                  <SelectTrigger className="h-10 rounded-md border-border/80 shadow-none" aria-label={t("users.role")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">{t("users.roleAll")}</SelectItem>
+                    <SelectItem value={USER_ROLE.user}>{t("role.USER")}</SelectItem>
+                    <SelectItem value={USER_ROLE.instructor}>{t("role.INSTRUCTOR")}</SelectItem>
+                    <SelectItem value={USER_ROLE.admin}>{t("role.ADMIN")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                  <SelectTrigger className="h-10 rounded-md border-border/80 shadow-none" aria-label={t("users.status")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">{t("users.statusAll")}</SelectItem>
+                    <SelectItem value={USER_STATUS.active}>{t("users.statusActive")}</SelectItem>
+                    <SelectItem value={USER_STATUS.suspended}>{t("users.statusSuspended")}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent>
-              {isLoading ? <TableSkeleton cols={3} rows={6} /> : null}
+              {isLoading ? <TableSkeleton cols={5} rows={6} /> : null}
               {isError ? (
                 <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                   {(error as Error).message}
@@ -121,7 +193,9 @@ export function UsersPage() {
                           <TableHead className="h-11 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             Email
                           </TableHead>
-                          <TableHead className="h-11 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Role</TableHead>
+                          <TableHead className="h-11 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("users.role")}</TableHead>
+                          <TableHead className="h-11 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("users.status")}</TableHead>
+                          <TableHead className="h-11 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("users.actions")}</TableHead>
                           <TableHead className="h-11 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">ID</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -130,9 +204,34 @@ export function UsersPage() {
                           <TableRow key={user.id} className="border-border/60">
                             <TableCell className="px-4 py-3 font-medium text-foreground">{user.email}</TableCell>
                             <TableCell className="px-4 py-3">
-                              <Badge variant="outline" className="rounded-md font-medium">
-                                {t(`role.${user.role}` as I18nKey)}
-                              </Badge>
+                              <Select value={user.role} onValueChange={(value) => void onRoleChange(user.id, value as typeof user.role)}>
+                                <SelectTrigger className="h-9 w-40 rounded-md border-border/80 shadow-none" disabled={updateUserMutation.isPending} aria-label={t("users.role")}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={USER_ROLE.user}>{t("role.USER")}</SelectItem>
+                                  <SelectItem value={USER_ROLE.instructor}>{t("role.INSTRUCTOR")}</SelectItem>
+                                  <SelectItem value={USER_ROLE.admin}>{t("role.ADMIN")}</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-sm">
+                              <span className={user.status === USER_STATUS.active ? "font-medium text-emerald-700 dark:text-emerald-400" : "font-medium text-destructive"}>
+                                {t(user.status === USER_STATUS.active ? "users.statusActive" : "users.statusSuspended")}
+                              </span>
+                            </TableCell>
+                            <TableCell className="px-4 py-3">
+                              <Button
+                                type="button"
+                                variant={user.status === USER_STATUS.active ? "outline" : "secondary"}
+                                size="sm"
+                                className="h-9 rounded-md px-3 shadow-none"
+                                disabled={updateUserMutation.isPending}
+                                onClick={() => void onStatusToggle(user.id, user.status === USER_STATUS.active ? USER_STATUS.suspended : USER_STATUS.active)}
+                              >
+                                {user.status === USER_STATUS.active ? <Ban className="mr-1.5 size-4" aria-hidden /> : <RotateCcw className="mr-1.5 size-4" aria-hidden />}
+                                {t(user.status === USER_STATUS.active ? "users.suspend" : "users.reactivate")}
+                              </Button>
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate px-4 py-3 font-mono text-xs text-muted-foreground">{user.id}</TableCell>
                           </TableRow>
@@ -143,14 +242,14 @@ export function UsersPage() {
                 ) : (
                   <EmptyState
                     icon={Users}
-                    title="No users found"
-                    description="Create a user using the form to populate this directory."
+                    title={t("users.noUsers")}
+                    description={t("users.noUsersDescription")}
                   />
                 )
               ) : null}
               {!isLoading && !isError ? (
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Page {data?.pagination.page ?? 1} · {data?.pagination.limit ?? 20} per page
+                  Page {data?.pagination.page ?? 1} · {data?.pagination.limit ?? 20} {t("users.pageSize")} · {data?.pagination.total ?? 0} total
                 </p>
               ) : null}
             </CardContent>
