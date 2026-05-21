@@ -1,4 +1,4 @@
-import { ArrowUpRight, BookOpen, FileText, GraduationCap, Layers, Plus } from "lucide-react";
+import { ArrowUpRight, BookOpen, FileText, GraduationCap, Layers, Plus, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +7,10 @@ import { CourseStatusBadge } from "../components/course-status-badge";
 import { EmptyState } from "../components/empty-state";
 import { CourseListSkeleton } from "../components/skeleton";
 import { COURSE_STATUS, USER_ROLE } from "../constants/business";
-import { useAuth } from "../features/auth/auth-context";
-import { useCourses } from "../features/course/hooks/use-courses";
-import { useEnrollCourse } from "../features/enrollment/hooks/use-enrollments";
-import { useCurrentUser } from "../features/user/hooks/use-current-user";
+import { useAuth } from "../hooks/use-auth";
+import { useCourses } from "../hooks/use-courses";
+import { useEnrollCourse } from "../hooks/use-enrollments";
+import { useCurrentUser } from "../hooks/use-current-user";
 import { toMediaUrl } from "../lib/media-url";
 import { type I18nKey, useI18n } from "../i18n";
 
@@ -22,7 +22,10 @@ export function CoursesPage() {
   const { t } = useI18n();
 
   const canCreateCourse = meQuery.data?.role === USER_ROLE.instructor;
+  const isAdmin = meQuery.data?.role === USER_ROLE.admin;
   const canManageCourses = meQuery.data?.role === USER_ROLE.instructor || meQuery.data?.role === USER_ROLE.admin;
+  const pageTitle = isAdmin ? t("courseStudio.adminTitle") : t("courseStudio.title");
+  const pageSubtitle = isAdmin ? t("courseStudio.adminSubtitle") : t("courseStudio.subtitle");
   const emptyDescription = canCreateCourse
     ? t("courseStudio.noCoursesCreate")
     : canManageCourses
@@ -39,8 +42,8 @@ export function CoursesPage() {
 
   return (
     <AppShell
-      title={t("courseStudio.title")}
-      subtitle={t("courseStudio.subtitle")}
+      title={pageTitle}
+      subtitle={pageSubtitle}
       actions={
         canCreateCourse ? (
           <Button asChild size="sm" className="h-10 rounded-lg gap-1.5 px-4 shadow-none">
@@ -53,6 +56,27 @@ export function CoursesPage() {
       }
     >
       <div className="space-y-6">
+        <section className="rounded-lg border border-border/70 bg-card px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+                {isAdmin ? <ShieldCheck className="size-4" aria-hidden /> : <BookOpen className="size-4" aria-hidden />}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{isAdmin ? t("courseStudio.adminMode") : t("courseStudio.instructorMode")}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {isAdmin ? t("courseStudio.adminModeDescription") : t("courseStudio.instructorModeDescription")}
+                </p>
+              </div>
+            </div>
+            {isAdmin ? (
+              <Button asChild variant="outline" size="sm" className="h-10 rounded-md px-4 shadow-none">
+                <Link to="/audit">{t("nav.audit")}</Link>
+              </Button>
+            ) : null}
+          </div>
+        </section>
+
         <section className="grid gap-3 sm:grid-cols-3" aria-label="Course summary">
           {stats.map((item) => {
             const Icon = item.icon;

@@ -10,7 +10,15 @@ export type Course = {
   id: string;
   title: string;
   description?: string;
+  category?: string | null;
+  level?: string | null;
+  language?: string | null;
+  durationMinutes?: number | null;
+  requirements?: string | null;
+  outcomes?: string | null;
   coverImageUrl?: string | null;
+  ratingAverage: number;
+  ratingCount: number;
   status: CourseStatus;
   instructorId: string;
   enrollmentCount?: number;
@@ -49,11 +57,50 @@ export type PaginatedCourses = {
   };
 };
 
+export type CourseFacets = {
+  categories: string[];
+  levels: string[];
+  languages: string[];
+  instructors: Array<{
+    id: string;
+    email: string;
+  }>;
+};
+
 export type CourseListParams = {
   status?: CourseStatus;
   page?: number;
   limit?: number;
   search?: string;
+  category?: string;
+  level?: string;
+  language?: string;
+  instructorId?: string;
+  enrollment?: "all" | "enrolled" | "not-enrolled";
+  sort?: "newest" | "oldest" | "popular" | "highest-rated" | "title";
+};
+
+export type CourseReview = {
+  id: string;
+  userId: string;
+  courseId: string;
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    email: string;
+  };
+};
+
+export type PaginatedCourseReviews = {
+  items: CourseReview[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
 };
 
 export type Lesson = {
@@ -68,6 +115,12 @@ export type Lesson = {
 export type CreateCoursePayload = {
   title: string;
   description?: string;
+  category?: string | null;
+  level?: string | null;
+  language?: string | null;
+  durationMinutes?: number | null;
+  requirements?: string | null;
+  outcomes?: string | null;
   coverImageUrl?: string | null;
   status: CourseStatus;
 };
@@ -75,6 +128,12 @@ export type CreateCoursePayload = {
 export type UpdateCoursePayload = {
   title?: string;
   description?: string;
+  category?: string | null;
+  level?: string | null;
+  language?: string | null;
+  durationMinutes?: number | null;
+  requirements?: string | null;
+  outcomes?: string | null;
   coverImageUrl?: string | null;
   status?: CourseStatus;
 };
@@ -100,7 +159,21 @@ export const courseService = {
         ...(params.status ? { status: params.status } : {}),
         ...(params.page ? { page: params.page } : {}),
         ...(params.limit ? { limit: params.limit } : {}),
-        ...(params.search?.trim() ? { search: params.search.trim() } : {})
+        ...(params.search?.trim() ? { search: params.search.trim() } : {}),
+        ...(params.category?.trim() ? { category: params.category.trim() } : {}),
+        ...(params.level?.trim() ? { level: params.level.trim() } : {}),
+        ...(params.language?.trim() ? { language: params.language.trim() } : {}),
+        ...(params.instructorId?.trim() ? { instructorId: params.instructorId.trim() } : {}),
+        ...(params.enrollment && params.enrollment !== "all" ? { enrollment: params.enrollment } : {}),
+        ...(params.sort ? { sort: params.sort } : {})
+      }
+    });
+    return response.data.data;
+  },
+  async getCourseFacets(status?: CourseStatus): Promise<CourseFacets> {
+    const response = await httpClient.get<ApiResponse<CourseFacets>>("/courses/facets", {
+      params: {
+        ...(status ? { status } : {})
       }
     });
     return response.data.data;
@@ -132,6 +205,19 @@ export const courseService = {
   async archiveCourse(id: string): Promise<Course> {
     const response = await httpClient.delete<ApiResponse<Course>>(`/courses/${id}`);
     return response.data.data;
+  },
+  async getCourseReviews(courseId: string, page = 1, limit = 20): Promise<PaginatedCourseReviews> {
+    const response = await httpClient.get<ApiResponse<PaginatedCourseReviews>>(`/courses/${courseId}/reviews`, {
+      params: { page, limit }
+    });
+    return response.data.data;
+  },
+  async upsertMyCourseReview(courseId: string, payload: { rating: number; comment?: string | null }): Promise<CourseReview> {
+    const response = await httpClient.put<ApiResponse<CourseReview>>(`/courses/${courseId}/reviews/me`, payload);
+    return response.data.data;
+  },
+  async deleteMyCourseReview(courseId: string): Promise<void> {
+    await httpClient.delete(`/courses/${courseId}/reviews/me`);
   },
   async getCourseLessons(courseId: string): Promise<Lesson[]> {
     const response = await httpClient.get<ApiResponse<Lesson[]>>(`/lessons/courses/${courseId}/lessons`);
