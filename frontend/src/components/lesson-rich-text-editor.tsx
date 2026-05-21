@@ -2,7 +2,7 @@ import { Editor } from "@tinymce/tinymce-react";
 import type { Editor as TinyMceEditor } from "tinymce";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useTheme } from "../features/preferences/theme-context";
+import { useTheme } from "../hooks/use-theme";
 import { useI18n } from "../i18n";
 import { createLessonTinyMceInit } from "../lib/tinymce-lesson-config";
 import { uploadService } from "../services/upload.service";

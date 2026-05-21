@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, BookOpenText, CheckCircle2, GripVertical, ListOrdered, Paperclip, PlayCircle, Search, Trash2, Users } from "lucide-react";
+import { ArrowLeft, BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Globe2, GripVertical, Layers3, ListOrdered, Paperclip, PlayCircle, Search, Star, Target, Trash2, Users } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -31,25 +31,30 @@ import { FormField } from "../components/form-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { TextareaField } from "../components/textarea-field";
-import { COURSE_STATUS, LESSON_CONTENT_TYPE, USER_ROLE } from "../constants/business";
-import { useAuth } from "../features/auth/auth-context";
+import { COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, LESSON_CONTENT_TYPE, USER_ROLE } from "../constants/business";
+import { useAuth } from "../hooks/use-auth";
 import {
   useArchiveCourse,
   useCourseDetail,
   useCourseEnrollments,
   useCourseLessons,
+  useCourseReviews,
   useCreateLesson,
+  useDeleteMyCourseReview,
   useDeleteLesson,
   useReorderLessons,
+  useUpsertMyCourseReview,
   useUpdateLesson,
   useUpdateCourse
-} from "../features/course/hooks/use-courses";
-import { useEnrollCourse } from "../features/enrollment/hooks/use-enrollments";
-import { useCurrentUser } from "../features/user/hooks/use-current-user";
-import { useCompleteLesson, useCourseProgress } from "../features/progress/hooks/use-progress";
+} from "../hooks/use-courses";
+import { useEnrollCourse, useMyEnrollments } from "../hooks/use-enrollments";
+import { useArchiveExam, useCourseExams, useCreateExam, useCreateExamQuestion, useDeleteExamQuestion, useExamAttempt, useExamQuestions, useStartExamAttempt, useSubmitExamAttempt, useUpdateExam, useUpdateExamQuestion } from "../hooks/use-exams";
+import { useCurrentUser } from "../hooks/use-current-user";
+import { useCompleteLesson, useCourseLessonProgress, useCourseProgress } from "../hooks/use-progress";
 import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
-import { createLessonFormSchema, CreateLessonFormValues, updateCourseFormSchema, UpdateCourseFormValues } from "../schemas/course.schema";
+import { createExamFormSchema, createExamQuestionFormSchema, createLessonFormSchema, CreateLessonFormValues, ExamFormValues, ExamQuestionFormValues, updateCourseFormSchema, UpdateCourseFormValues } from "../schemas/course.schema";
 import { uploadService, type UploadedFile } from "../services/upload.service";
+import type { Exam, ExamAttemptSession, ExamQuestion, ExamQuestionOption } from "../services/exam.service";
 import type { Lesson } from "../services/course.service";
 import { type I18nKey, useI18n } from "../i18n";
 
@@ -58,7 +63,62 @@ function getNextLessonSortOrder(lessons: { sortOrder: number }[] | undefined) {
   return maxSortOrder + 1;
 }
 
-type CourseDetailTab = "curriculum" | "learners" | "settings";
+function hasText(value: string | null | undefined) {
+  return Boolean(value?.trim());
+}
+
+function toQuestionOptionId(index: number) {
+  return String.fromCharCode(65 + index);
+}
+
+function parseQuestionOptions(value: string | undefined) {
+  return (value ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const explicitIdMatch = /^([A-Za-z0-9]{1,6})[\).:-]\s+(.+)$/.exec(line);
+      return {
+        id: explicitIdMatch ? explicitIdMatch[1].toUpperCase() : toQuestionOptionId(index),
+        text: explicitIdMatch ? explicitIdMatch[2].trim() : line
+      };
+    });
+}
+
+function formatQuestionOptions(options: ExamQuestionOption[] | null | undefined) {
+  return (options ?? []).map((option) => `${option.id}. ${option.text}`).join("\n");
+}
+
+function renderLearnerLessonContent(lesson: Lesson) {
+  const parsed = parseLessonContent(lesson.content, lesson.contentType);
+
+  if (parsed.kind === LESSON_CONTENT_TYPE.text && parsed.body) {
+    return <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: parsed.body }} />;
+  }
+
+  if (parsed.kind === LESSON_CONTENT_TYPE.video && parsed.url) {
+    return <video controls className="w-full rounded-lg border border-border/70 bg-black" src={parsed.url} />;
+  }
+
+  if (parsed.kind === LESSON_CONTENT_TYPE.resource && parsed.url) {
+    return (
+      <a className="inline-flex h-10 items-center rounded-md border border-border/70 px-4 text-sm font-medium hover:bg-muted/40" href={parsed.url} rel="noreferrer" target="_blank">
+        {parsed.fileName ?? parsed.url}
+      </a>
+    );
+  }
+
+  return null;
+}
+
+function parseCorrectAnswers(value: string | undefined) {
+  return (value ?? "")
+    .split(",")
+    .map((answer) => answer.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+type CourseDetailTab = "curriculum" | "exams" | "reviews" | "learners" | "settings";
 
 export function CourseDetailPage() {
   const { courseId = "" } = useParams();
@@ -66,16 +126,22 @@ export function CourseDetailPage() {
   const { isAuthenticated, isBootstrapping } = useAuth();
   const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const courseQuery = useCourseDetail(courseId);
-  const lessonQuery = useCourseLessons(courseId, Boolean(courseQuery.data));
-  const progressQuery = useCourseProgress(courseId, isAuthenticated && !isBootstrapping);
+  const myEnrollmentsQuery = useMyEnrollments(isAuthenticated && !isBootstrapping);
   const enrollMutation = useEnrollCourse();
   const createLessonMutation = useCreateLesson(courseId);
   const updateLessonMutation = useUpdateLesson(courseId);
   const reorderLessonsMutation = useReorderLessons(courseId);
   const deleteLessonMutation = useDeleteLesson(courseId);
+  const createExamMutation = useCreateExam(courseId);
+  const updateExamMutation = useUpdateExam(courseId);
+  const archiveExamMutation = useArchiveExam(courseId);
+  const startExamAttemptMutation = useStartExamAttempt(courseId);
+  const submitExamAttemptMutation = useSubmitExamAttempt(courseId);
   const completeLessonMutation = useCompleteLesson(courseId);
   const archiveCourseMutation = useArchiveCourse();
   const updateCourseMutation = useUpdateCourse(courseId);
+  const upsertReviewMutation = useUpsertMyCourseReview(courseId);
+  const deleteReviewMutation = useDeleteMyCourseReview(courseId);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isUploadingLessonFile, setIsUploadingLessonFile] = useState(false);
   const [uploadedLessonFile, setUploadedLessonFile] = useState<UploadedFile | null>(null);
@@ -87,6 +153,14 @@ export function CourseDetailPage() {
   const [draggingLessonId, setDraggingLessonId] = useState<string | null>(null);
   const [hasSubmittedLessonForm, setHasSubmittedLessonForm] = useState(false);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null);
+  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+  const [examPendingArchive, setExamPendingArchive] = useState<Exam | null>(null);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [questionPendingDelete, setQuestionPendingDelete] = useState<ExamQuestion | null>(null);
+  const [activeExamSession, setActiveExamSession] = useState<ExamAttemptSession | null>(null);
+  const [attemptAnswers, setAttemptAnswers] = useState<Record<string, string | string[]>>({});
+  const [reviewRating, setReviewRating] = useState("5");
+  const [reviewComment, setReviewComment] = useState("");
   const reorderSaveTimerRef = useRef<number | null>(null);
   const lessonContentReaderRef = useRef<(() => string) | null>(null);
   const { t } = useI18n();
@@ -97,6 +171,19 @@ export function CourseDetailPage() {
 
   const isLearner = meQuery.data?.role === USER_ROLE.user;
   const isCoursePublished = courseQuery.data?.status === COURSE_STATUS.published;
+  const isEnrolled = myEnrollmentsQuery.data?.some((enrollment) => enrollment.courseId === courseId) ?? false;
+  const canReadLessons = Boolean(canManageCourse || isEnrolled);
+  const lessonQuery = useCourseLessons(courseId, Boolean(courseQuery.data && canReadLessons));
+  const courseReviewsQuery = useCourseReviews(courseId, Boolean(courseQuery.data));
+  const courseExamsQuery = useCourseExams(courseId, Boolean(courseQuery.data));
+  const examQuestionsQuery = useExamQuestions(courseId, selectedExamId, Boolean(canManageCourse && selectedExamId));
+  const createExamQuestionMutation = useCreateExamQuestion(courseId, selectedExamId);
+  const updateExamQuestionMutation = useUpdateExamQuestion(courseId, selectedExamId);
+  const deleteExamQuestionMutation = useDeleteExamQuestion(courseId, selectedExamId);
+  const progressQuery = useCourseProgress(courseId, isAuthenticated && !isBootstrapping && canReadLessons);
+  const lessonProgressQuery = useCourseLessonProgress(courseId, isAuthenticated && !isBootstrapping && canReadLessons && !canManageCourse);
+  const pollExamAttempt = activeExamSession?.attempt.status === EXAM_ATTEMPT_STATUS.submitted;
+  const examAttemptQuery = useExamAttempt(activeExamSession?.attempt.id ?? null, Boolean(activeExamSession), pollExamAttempt);
   const nextLessonSortOrder = getNextLessonSortOrder(lessonQuery.data);
 
   const enrollmentsQuery = useCourseEnrollments(courseId, Boolean(canManageCourse && courseQuery.data), enrollmentPage, learnerSearch.trim());
@@ -104,12 +191,27 @@ export function CourseDetailPage() {
   const enrollmentsTotal = enrollmentsQuery.data?.pagination.total ?? 0;
   const enrollmentsTotalPages = Math.max(1, Math.ceil(enrollmentsTotal / 20));
   const lessons = orderedLessons;
+  const selectedLesson = selectedLessonId ? lessons.find((lesson) => lesson.id === selectedLessonId) : undefined;
+  const selectedLessonIndex = selectedLesson ? lessons.findIndex((lesson) => lesson.id === selectedLesson.id) : -1;
+  const completedLessonIds = new Set(
+    (lessonProgressQuery.data?.items ?? []).filter((item) => item.isCompleted).map((item) => item.lessonId)
+  );
+  const reviews = courseReviewsQuery.data?.items ?? [];
+  const myReview = meQuery.data?.id ? reviews.find((review) => review.userId === meQuery.data.id) : undefined;
+  const exams = courseExamsQuery.data ?? [];
+  const examQuestions = examQuestionsQuery.data ?? [];
 
   const courseForm = useForm<UpdateCourseFormValues>({
     resolver: zodResolver(updateCourseFormSchema(t)),
     defaultValues: {
       title: "",
       description: "",
+      category: "",
+      level: "",
+      language: "",
+      durationMinutes: "",
+      requirements: "",
+      outcomes: "",
       coverImageUrl: "",
       status: COURSE_STATUS.draft
     }
@@ -125,6 +227,30 @@ export function CourseDetailPage() {
     }
   });
 
+  const examForm = useForm<ExamFormValues>({
+    resolver: zodResolver(createExamFormSchema(t)),
+    defaultValues: {
+      title: "",
+      description: "",
+      status: EXAM_STATUS.draft,
+      durationMinutes: "",
+      passingScore: ""
+    }
+  });
+
+  const questionForm = useForm<ExamQuestionFormValues>({
+    resolver: zodResolver(createExamQuestionFormSchema(t)),
+    defaultValues: {
+      type: EXAM_QUESTION_TYPE.singleChoice,
+      prompt: "",
+      optionsText: "",
+      correctAnswersText: "",
+      explanation: "",
+      points: 1,
+      sortOrder: 1
+    }
+  });
+
   useEffect(() => {
     if (!courseQuery.data) {
       return;
@@ -133,6 +259,12 @@ export function CourseDetailPage() {
     courseForm.reset({
       title: courseQuery.data.title,
       description: courseQuery.data.description ?? "",
+      category: courseQuery.data.category ?? "",
+      level: courseQuery.data.level ?? "",
+      language: courseQuery.data.language ?? "",
+      durationMinutes: courseQuery.data.durationMinutes ?? "",
+      requirements: courseQuery.data.requirements ?? "",
+      outcomes: courseQuery.data.outcomes ?? "",
       coverImageUrl: courseQuery.data.coverImageUrl ?? "",
       status: courseQuery.data.status
     });
@@ -144,11 +276,71 @@ export function CourseDetailPage() {
   }, [lessonQuery.data]);
 
   useEffect(() => {
+    if (!myReview) {
+      return;
+    }
+    setReviewRating(String(myReview.rating));
+    setReviewComment(myReview.comment ?? "");
+  }, [myReview]);
+
+  useEffect(() => {
     const nextLessons = lessonQuery.data ?? [];
     if (selectedLessonId && !nextLessons.some((lesson) => lesson.id === selectedLessonId)) {
       setSelectedLessonId(null);
     }
   }, [lessonQuery.data, selectedLessonId]);
+
+  useEffect(() => {
+    if (canManageCourse || !canReadLessons || selectedLessonId || !lessons.length) {
+      return;
+    }
+
+    setSelectedLessonId(lessons[0]?.id ?? null);
+  }, [canManageCourse, canReadLessons, lessons, selectedLessonId]);
+
+  useEffect(() => {
+    if (!examAttemptQuery.data) {
+      return;
+    }
+
+    setActiveExamSession(examAttemptQuery.data);
+  }, [examAttemptQuery.data]);
+
+  useEffect(() => {
+    const nextExams = courseExamsQuery.data ?? [];
+    if (selectedExamId && !nextExams.some((exam) => exam.id === selectedExamId)) {
+      setSelectedExamId(null);
+      setSelectedQuestionId(null);
+      examForm.reset({
+        title: "",
+        description: "",
+        status: EXAM_STATUS.draft,
+        durationMinutes: "",
+        passingScore: ""
+      });
+    }
+  }, [courseExamsQuery.data, examForm, selectedExamId]);
+
+  useEffect(() => {
+    setSelectedQuestionId(null);
+    questionForm.clearErrors();
+    questionForm.reset({
+      type: EXAM_QUESTION_TYPE.singleChoice,
+      prompt: "",
+      optionsText: "",
+      correctAnswersText: "",
+      explanation: "",
+      points: 1,
+      sortOrder: (examQuestionsQuery.data?.length ?? 0) + 1
+    });
+  }, [examQuestionsQuery.data?.length, questionForm, selectedExamId]);
+
+  useEffect(() => {
+    const nextQuestions = examQuestionsQuery.data ?? [];
+    if (selectedQuestionId && !nextQuestions.some((question) => question.id === selectedQuestionId)) {
+      setSelectedQuestionId(null);
+    }
+  }, [examQuestionsQuery.data, selectedQuestionId]);
 
   useEffect(() => {
     return () => {
@@ -220,16 +412,287 @@ export function CourseDetailPage() {
   };
 
   const onUpdateCourse = async (values: UpdateCourseFormValues) => {
+    if (values.status === COURSE_STATUS.published && !canPublish) {
+      toast.error(t("courseDetail.publishRequirementsMissing"));
+      return;
+    }
+
     try {
       await updateCourseMutation.mutateAsync({
         title: values.title,
         description: values.description ?? "",
+        category: values.category || null,
+        level: values.level || null,
+        language: values.language || null,
+        durationMinutes: values.durationMinutes === "" ? null : Number(values.durationMinutes),
+        requirements: values.requirements || null,
+        outcomes: values.outcomes || null,
         coverImageUrl: values.coverImageUrl || null,
         status: values.status
       });
       toast.success(t("courseDetail.courseUpdated"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("courseDetail.courseUpdateFailed"));
+    }
+  };
+
+  const onSaveReview = async () => {
+    try {
+      await upsertReviewMutation.mutateAsync({
+        rating: Number(reviewRating),
+        comment: reviewComment.trim() || null
+      });
+      toast.success(t("courseDetail.reviewSaved"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("courseDetail.reviewSaveFailed"));
+    }
+  };
+
+  const onSubmitExam = async (values: ExamFormValues) => {
+    const payload = {
+      title: values.title,
+      description: values.description || null,
+      status: values.status,
+      durationMinutes: values.durationMinutes === "" ? null : Number(values.durationMinutes),
+      passingScore: values.passingScore === "" ? null : Number(values.passingScore)
+    };
+
+    try {
+      if (selectedExamId) {
+        await updateExamMutation.mutateAsync({ examId: selectedExamId, payload });
+        toast.success(t("courseDetail.examUpdated"));
+      } else {
+        await createExamMutation.mutateAsync(payload);
+        toast.success(t("courseDetail.examCreated"));
+        examForm.reset({
+          title: "",
+          description: "",
+          status: EXAM_STATUS.draft,
+          durationMinutes: "",
+          passingScore: ""
+        });
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t(selectedExamId ? "courseDetail.examSaveFailed" : "courseDetail.examCreateFailed"));
+    }
+  };
+
+  const onSelectExam = (exam: Exam) => {
+    setSelectedExamId(exam.id);
+    setSelectedQuestionId(null);
+    examForm.clearErrors();
+    questionForm.clearErrors();
+    examForm.reset({
+      title: exam.title,
+      description: exam.description ?? "",
+      status: exam.status,
+      durationMinutes: exam.durationMinutes ?? "",
+      passingScore: exam.passingScore ?? ""
+    });
+    questionForm.reset({
+      type: EXAM_QUESTION_TYPE.singleChoice,
+      prompt: "",
+      optionsText: "",
+      correctAnswersText: "",
+      explanation: "",
+      points: 1,
+      sortOrder: (examQuestionsQuery.data?.length ?? 0) + 1
+    });
+  };
+
+  const onNewExam = () => {
+    setSelectedExamId(null);
+    setSelectedQuestionId(null);
+    examForm.clearErrors();
+    questionForm.clearErrors();
+    examForm.reset({
+      title: "",
+      description: "",
+      status: EXAM_STATUS.draft,
+      durationMinutes: "",
+      passingScore: ""
+    });
+    questionForm.reset({
+      type: EXAM_QUESTION_TYPE.singleChoice,
+      prompt: "",
+      optionsText: "",
+      correctAnswersText: "",
+      explanation: "",
+      points: 1,
+      sortOrder: 1
+    });
+  };
+
+  const onSelectQuestion = (question: ExamQuestion) => {
+    setSelectedQuestionId(question.id);
+    questionForm.clearErrors();
+    questionForm.reset({
+      type: question.type,
+      prompt: question.prompt,
+      optionsText: formatQuestionOptions(question.options),
+      correctAnswersText: (question.correctAnswers ?? []).join(", "),
+      explanation: question.explanation ?? "",
+      points: question.points,
+      sortOrder: question.sortOrder
+    });
+  };
+
+  const onNewQuestion = () => {
+    setSelectedQuestionId(null);
+    questionForm.clearErrors();
+    questionForm.reset({
+      type: EXAM_QUESTION_TYPE.singleChoice,
+      prompt: "",
+      optionsText: "",
+      correctAnswersText: "",
+      explanation: "",
+      points: 1,
+      sortOrder: examQuestions.length + 1
+    });
+  };
+
+  const onSubmitQuestion = async (values: ExamQuestionFormValues) => {
+    if (!selectedExamId) {
+      toast.error(t("courseDetail.selectExamFirst"));
+      return;
+    }
+
+    const options = values.type === EXAM_QUESTION_TYPE.freeText ? [] : parseQuestionOptions(values.optionsText);
+    const correctAnswers = values.type === EXAM_QUESTION_TYPE.freeText ? [] : parseCorrectAnswers(values.correctAnswersText);
+    if (values.type !== EXAM_QUESTION_TYPE.freeText && options.length < 2) {
+      questionForm.setError("optionsText", { message: t("validation.examQuestionOptionsMin") });
+      return;
+    }
+    if (values.type !== EXAM_QUESTION_TYPE.freeText && correctAnswers.length < 1) {
+      questionForm.setError("correctAnswersText", { message: t("validation.examQuestionAnswersRequired") });
+      return;
+    }
+
+    const payload = {
+      type: values.type,
+      prompt: values.prompt,
+      options,
+      correctAnswers,
+      explanation: values.explanation || null,
+      points: Number(values.points),
+      sortOrder: Number(values.sortOrder)
+    };
+
+    try {
+      if (selectedQuestionId) {
+        await updateExamQuestionMutation.mutateAsync({ questionId: selectedQuestionId, payload });
+        toast.success(t("courseDetail.questionUpdated"));
+      } else {
+        await createExamQuestionMutation.mutateAsync(payload);
+        toast.success(t("courseDetail.questionCreated"));
+        onNewQuestion();
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t(selectedQuestionId ? "courseDetail.questionSaveFailed" : "courseDetail.questionCreateFailed"));
+    }
+  };
+
+  const confirmArchiveExam = async () => {
+    if (!examPendingArchive) {
+      return;
+    }
+
+    try {
+      await archiveExamMutation.mutateAsync(examPendingArchive.id);
+      if (selectedExamId === examPendingArchive.id) {
+        onNewExam();
+      }
+      setExamPendingArchive(null);
+      toast.success(t("courseDetail.examArchived"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("courseDetail.examArchiveFailed"));
+    }
+  };
+
+  const confirmDeleteQuestion = async () => {
+    if (!questionPendingDelete) {
+      return;
+    }
+
+    try {
+      await deleteExamQuestionMutation.mutateAsync(questionPendingDelete.id);
+      if (selectedQuestionId === questionPendingDelete.id) {
+        onNewQuestion();
+      }
+      setQuestionPendingDelete(null);
+      toast.success(t("courseDetail.questionDeleted"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("courseDetail.questionDeleteFailed"));
+    }
+  };
+
+  const onStartExamAttempt = async (examId: string) => {
+    try {
+      const session = await startExamAttemptMutation.mutateAsync(examId);
+      setActiveExamSession(session);
+      const nextAnswers = session.attempt.answers.reduce<Record<string, string | string[]>>((acc, item) => {
+        if (typeof item.answer === "string" || Array.isArray(item.answer)) {
+          acc[item.questionId] = item.answer;
+        }
+        return acc;
+      }, {});
+      setAttemptAnswers(nextAnswers);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("courseDetail.examStartFailed"));
+    }
+  };
+
+  const onChangeAttemptAnswer = (questionId: string, answer: string | string[]) => {
+    setAttemptAnswers((current) => ({
+      ...current,
+      [questionId]: answer
+    }));
+  };
+
+  const onToggleAttemptAnswer = (questionId: string, optionId: string) => {
+    setAttemptAnswers((current) => {
+      const existing = Array.isArray(current[questionId]) ? current[questionId] : [];
+      const next = existing.includes(optionId) ? existing.filter((item) => item !== optionId) : [...existing, optionId];
+      return {
+        ...current,
+        [questionId]: next
+      };
+    });
+  };
+
+  const onSubmitAttempt = async () => {
+    if (!activeExamSession) {
+      return;
+    }
+
+    const answers = activeExamSession.exam.questions.map((question) => ({
+      questionId: question.id,
+      answer: attemptAnswers[question.id] ?? null
+    }));
+
+    try {
+      const submitted = await submitExamAttemptMutation.mutateAsync({
+        attemptId: activeExamSession.attempt.id,
+        answers
+      });
+      setActiveExamSession({
+        ...activeExamSession,
+        attempt: submitted.attempt
+      });
+      toast.success(t("courseDetail.examSubmitted"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("courseDetail.examSubmitFailed"));
+    }
+  };
+
+  const onDeleteReview = async () => {
+    try {
+      await deleteReviewMutation.mutateAsync();
+      setReviewRating("5");
+      setReviewComment("");
+      toast.success(t("courseDetail.reviewDeleted"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("courseDetail.reviewDeleteFailed"));
     }
   };
 
@@ -317,6 +780,10 @@ export function CourseDetailPage() {
     scheduleLessonOrderSave(nextLessons.map((lesson) => lesson.id));
   };
 
+  const onSelectLessonForLearner = (lesson: Lesson) => {
+    setSelectedLessonId(lesson.id);
+  };
+
   const onSelectLesson = (lesson: Lesson) => {
     const parsedContent = parseLessonContent(lesson.content, lesson.contentType);
     setSelectedLessonId(lesson.id);
@@ -378,7 +845,18 @@ export function CourseDetailPage() {
   const loadingMetrics = courseQuery.isLoading || lessonQuery.isLoading || (isAuthenticated && progressQuery.isLoading);
   const lessonContentType = form.watch("contentType");
   const lessonContentValue = form.watch("content");
+  const courseStatus = courseForm.watch("status");
+  const courseTitle = courseForm.watch("title");
+  const courseCoverImageUrl = courseForm.watch("coverImageUrl");
+  const courseCategory = courseForm.watch("category");
+  const courseLevel = courseForm.watch("level");
+  const courseLanguage = courseForm.watch("language");
+  const courseDurationMinutes = courseForm.watch("durationMinutes");
+  const courseRequirements = courseForm.watch("requirements");
+  const courseOutcomes = courseForm.watch("outcomes");
+  const questionType = questionForm.watch("type");
   const isLessonSubmitPending = createLessonMutation.isPending || updateLessonMutation.isPending;
+  const isQuestionSubmitPending = createExamQuestionMutation.isPending || updateExamQuestionMutation.isPending;
   const lessonSubmitLabel = updateLessonMutation.isPending
     ? t("courseDetail.savingLesson")
     : createLessonMutation.isPending
@@ -406,6 +884,18 @@ export function CourseDetailPage() {
       description: t("courseDetail.resourceTypeHint")
     }
   ];
+  const publishChecks = [
+    { label: t("courseDetail.publishRequirementTitle"), done: hasText(courseTitle) },
+    { label: t("courseDetail.publishRequirementCover"), done: hasText(courseCoverImageUrl) },
+    {
+      label: t("courseDetail.publishRequirementMetadata"),
+      done: hasText(courseCategory) && hasText(courseLevel) && hasText(courseLanguage) && courseDurationMinutes !== "" && Number(courseDurationMinutes) > 0
+    },
+    { label: t("courseDetail.publishRequirementRequirements"), done: hasText(courseRequirements) },
+    { label: t("courseDetail.publishRequirementOutcomes"), done: hasText(courseOutcomes) },
+    { label: t("courseDetail.publishRequirementLessons"), done: lessons.length > 0 }
+  ];
+  const canPublish = publishChecks.every((item) => item.done);
 
   const syncLessonEditorContent = () => {
     if (lessonContentType !== LESSON_CONTENT_TYPE.text) {
@@ -420,10 +910,26 @@ export function CourseDetailPage() {
   const getLessonError = (message?: string) => (hasSubmittedLessonForm ? message : undefined);
   const tabItems: { id: CourseDetailTab; label: I18nKey; count?: number; managerOnly?: boolean }[] = [
     { id: "curriculum", label: "courseDetail.tabCurriculum", count: lessons.length },
+    { id: "exams", label: "courseDetail.tabExams", count: exams.length },
+    { id: "reviews", label: "courseDetail.reviews", count: courseQuery.data?.ratingCount ?? 0 },
     { id: "learners", label: "courseDetail.tabLearners", count: enrollmentsTotal, managerOnly: true },
     { id: "settings", label: "courseDetail.tabSettings", managerOnly: true }
   ];
   const visibleTabs = tabItems.filter((item) => !item.managerOnly || canManageCourse);
+  const loginRedirectTo = `/login?redirect=${encodeURIComponent(`/courses/${courseId}`)}`;
+  const courseMetadata = courseQuery.data
+    ? [
+        { icon: Layers3, label: t("courseDetail.courseCategory"), value: courseQuery.data.category },
+        { icon: Target, label: t("courseDetail.courseLevel"), value: courseQuery.data.level },
+        { icon: Globe2, label: t("courseDetail.courseLanguage"), value: courseQuery.data.language },
+        {
+          icon: Clock3,
+          label: t("courseDetail.courseDuration"),
+          value: courseQuery.data.durationMinutes ? `${courseQuery.data.durationMinutes} ${t("courseDetail.courseDurationUnit")}` : null
+        }
+      ].filter((item) => Boolean(item.value))
+    : [];
+  const hasLongMetadata = Boolean(courseQuery.data?.requirements || courseQuery.data?.outcomes);
 
   return (
     <AppShell
@@ -433,10 +939,15 @@ export function CourseDetailPage() {
         <div className="flex flex-wrap items-center gap-2">
           {!isAuthenticated && isCoursePublished ? (
             <Button asChild size="sm" className="rounded-lg shadow-none">
-              <Link to="/login">{t("courseDetail.signInToEnroll")}</Link>
+              <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
             </Button>
           ) : null}
-          {isAuthenticated && isLearner && isCoursePublished ? (
+          {isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
+            <Button size="sm" className="rounded-lg shadow-none" type="button" onClick={() => setActiveTab("curriculum")}>
+              {t("courseDetail.continueLearning")}
+            </Button>
+          ) : null}
+          {isAuthenticated && isLearner && isCoursePublished && !isEnrolled ? (
             <Button
               size="sm"
               className="rounded-lg shadow-none"
@@ -447,6 +958,7 @@ export function CourseDetailPage() {
                   try {
                     await enrollMutation.mutateAsync(courseId);
                     toast.success(t("courseDetail.enrolled"));
+                    setActiveTab("curriculum");
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : t("courseDetail.enrollFailed"));
                   }
@@ -504,9 +1016,10 @@ export function CourseDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { icon: ListOrdered, label: t("courseDetail.metricLessons"), value: lessons.length },
-                { icon: CheckCircle2, label: t("courseDetail.metricCompletion"), value: isAuthenticated ? `${progressQuery.data?.percentage ?? 0}%` : t("courseDetail.signIn") },
-                { icon: Users, label: t("courseDetail.metricLearners"), value: enrollmentsTotal }
+                { icon: ListOrdered, label: t("courseDetail.metricLessons"), value: canReadLessons ? lessons.length : "—" },
+                { icon: CheckCircle2, label: t("courseDetail.metricCompletion"), value: canReadLessons ? `${progressQuery.data?.percentage ?? 0}%` : isAuthenticated ? "—" : t("courseDetail.signIn") },
+                { icon: Users, label: t("courseDetail.metricLearners"), value: enrollmentsTotal },
+                { icon: Star, label: t("courseDetail.metricRating"), value: courseQuery.data?.ratingCount ? courseQuery.data.ratingAverage.toFixed(1) : "—" }
               ].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -520,6 +1033,47 @@ export function CourseDetailPage() {
             </div>
           </div>
         </section>
+
+        {courseMetadata.length || hasLongMetadata ? (
+          <section className="grid gap-3 rounded-lg border border-border/70 bg-card p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold">{t("courseDetail.courseMetadata")}</h2>
+              {courseQuery.data?.category ? <Badge variant="secondary">{courseQuery.data.category}</Badge> : null}
+            </div>
+            {courseMetadata.length ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {courseMetadata.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="min-w-0 rounded-md border border-border/60 bg-muted/20 px-3 py-3">
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                        <Icon className="size-4 shrink-0" aria-hidden />
+                        <span className="truncate">{item.label}</span>
+                      </div>
+                      <p className="mt-2 truncate text-sm font-medium">{item.value}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+            {hasLongMetadata ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {courseQuery.data?.requirements ? (
+                  <div className="rounded-md border border-border/60 bg-background px-3 py-3">
+                    <h3 className="text-sm font-semibold">{t("courseDetail.courseRequirements")}</h3>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">{courseQuery.data.requirements}</p>
+                  </div>
+                ) : null}
+                {courseQuery.data?.outcomes ? (
+                  <div className="rounded-md border border-border/60 bg-background px-3 py-3">
+                    <h3 className="text-sm font-semibold">{t("courseDetail.courseOutcomes")}</h3>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">{courseQuery.data.outcomes}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/20 p-1">
           {visibleTabs.map((item) => (
@@ -538,7 +1092,89 @@ export function CourseDetailPage() {
         </div>
 
         {activeTab === "curriculum" ? (
-          <section className={cn("grid gap-4", canManageCourse ? "xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start" : undefined)}>
+          <section
+            className={cn(
+              "grid gap-4",
+              canManageCourse ? "xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start" : canReadLessons ? "lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start" : undefined
+            )}
+          >
+            {!canManageCourse && canReadLessons ? (
+              <Card className="rounded-lg border-border/70 shadow-none">
+                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-base">{selectedLesson?.title ?? t("courseDetail.selectLesson")}</CardTitle>
+                    <CardDescription>
+                      {selectedLesson
+                        ? `${progressQuery.data?.completedLessons ?? 0}/${progressQuery.data?.totalLessons ?? lessons.length} ${t("courseDetail.lessonsCompletedLabel")}`
+                        : t("courseDetail.selectLessonDescription")}
+                    </CardDescription>
+                  </div>
+                  {selectedLesson && completedLessonIds.has(selectedLesson.id) ? (
+                    <Badge variant="default" className="rounded-md">
+                      <CheckCircle2 className="mr-1 size-3.5" aria-hidden />
+                      {t("courseDetail.lessonCompleted")}
+                    </Badge>
+                  ) : null}
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  {selectedLesson ? (
+                    <>
+                      <div className="min-h-48">{renderLearnerLessonContent(selectedLesson)}</div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 rounded-md shadow-none"
+                            disabled={selectedLessonIndex <= 0}
+                            onClick={() => {
+                              const previousLesson = lessons[selectedLessonIndex - 1];
+                              if (previousLesson) {
+                                onSelectLessonForLearner(previousLesson);
+                              }
+                            }}
+                          >
+                            <ChevronLeft className="mr-1 size-4" aria-hidden />
+                            {t("courseDetail.previousLesson")}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 rounded-md shadow-none"
+                            disabled={selectedLessonIndex < 0 || selectedLessonIndex >= lessons.length - 1}
+                            onClick={() => {
+                              const nextLesson = lessons[selectedLessonIndex + 1];
+                              if (nextLesson) {
+                                onSelectLessonForLearner(nextLesson);
+                              }
+                            }}
+                          >
+                            {t("courseDetail.nextLesson")}
+                            <ChevronRight className="ml-1 size-4" aria-hidden />
+                          </Button>
+                        </div>
+                        {isAuthenticated ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-9 rounded-md shadow-none"
+                            disabled={completeLessonMutation.isPending || completedLessonIds.has(selectedLesson.id)}
+                            onClick={() => void completeLessonMutation.mutateAsync(selectedLesson.id)}
+                          >
+                            {completedLessonIds.has(selectedLesson.id) ? t("courseDetail.lessonCompleted") : t("courseDetail.markComplete")}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : (
+                    <EmptyState icon={BookOpenText} title={t("courseDetail.selectLesson")} description={t("courseDetail.selectLessonDescription")} />
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+
             {canManageCourse ? (
               <Card className="rounded-lg border-border/70 shadow-none">
                 <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
@@ -716,13 +1352,46 @@ export function CourseDetailPage() {
                 ) : null}
               </CardHeader>
               <CardContent>
-                {lessonQuery.isLoading ? <CourseListSkeleton rows={5} /> : null}
-                {lessonQuery.isError ? (
+                {!canReadLessons ? (
+                  <EmptyState
+                    icon={BookOpenText}
+                    title={t("courseDetail.lessonsLockedTitle")}
+                    description={isAuthenticated ? t("courseDetail.lessonsLockedEnrollDescription") : t("courseDetail.lessonsLockedSignInDescription")}
+                    action={
+                      !isAuthenticated ? (
+                        <Button asChild className="h-10 rounded-md px-4" size="sm">
+                          <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
+                        </Button>
+                      ) : isLearner && isCoursePublished ? (
+                        <Button
+                          className="h-10 rounded-md px-4"
+                          size="sm"
+                          disabled={enrollMutation.isPending}
+                          type="button"
+                          onClick={() => {
+                            void (async () => {
+                              try {
+                                await enrollMutation.mutateAsync(courseId);
+                                toast.success(t("courseDetail.enrolled"));
+                              } catch (e) {
+                                toast.error(e instanceof Error ? e.message : t("courseDetail.enrollFailed"));
+                              }
+                            })();
+                          }}
+                        >
+                          {enrollMutation.isPending ? t("courseDetail.enrolling") : t("courseDetail.enroll")}
+                        </Button>
+                      ) : null
+                    }
+                  />
+                ) : null}
+                {canReadLessons && lessonQuery.isLoading ? <CourseListSkeleton rows={5} /> : null}
+                {canReadLessons && lessonQuery.isError ? (
                   <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                     {t("courseDetail.lessonsLoadFailed")}
                   </div>
                 ) : null}
-                {!lessonQuery.isLoading && !lessonQuery.isError ? (
+                {canReadLessons && !lessonQuery.isLoading && !lessonQuery.isError ? (
                   lessons.length ? (
                     <div className="max-h-[calc(100vh-18rem)] min-h-80 overflow-auto rounded-lg border border-border/70 p-2">
                       <div className="grid gap-1" role="list" aria-label={t("courseDetail.curriculum")}>
@@ -734,7 +1403,7 @@ export function CourseDetailPage() {
                               key={lesson.id}
                               draggable={canManageCourse}
                               role="listitem"
-                              tabIndex={canManageCourse ? 0 : undefined}
+                              tabIndex={canReadLessons ? 0 : undefined}
                               className={cn(
                                 "group flex cursor-pointer items-start gap-2 rounded-md border px-2.5 py-2.5 text-left transition-colors",
                                 selected ? "border-foreground bg-muted/70" : "border-transparent hover:border-border/70 hover:bg-muted/40",
@@ -744,15 +1413,20 @@ export function CourseDetailPage() {
                               onClick={() => {
                                 if (canManageCourse) {
                                   onSelectLesson(lesson);
-                                }
-                              }}
-                              onKeyDown={(event) => {
-                                if (!canManageCourse) {
                                   return;
                                 }
+
+                                onSelectLessonForLearner(lesson);
+                              }}
+                              onKeyDown={(event) => {
                                 if (event.key === "Enter" || event.key === " ") {
                                   event.preventDefault();
-                                  onSelectLesson(lesson);
+                                  if (canManageCourse) {
+                                    onSelectLesson(lesson);
+                                    return;
+                                  }
+
+                                  onSelectLessonForLearner(lesson);
                                 }
                               }}
                               onDragStart={(event) => {
@@ -781,6 +1455,9 @@ export function CourseDetailPage() {
                                   </Badge>
                                 </div>
                                 <p className="mt-1 truncate text-sm font-medium text-foreground">{lesson.title}</p>
+                                {!canManageCourse && completedLessonIds.has(lesson.id) ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.lessonCompleted")}</p>
+                                ) : null}
                               </div>
                               {canManageCourse ? (
                                 <Button
@@ -820,6 +1497,583 @@ export function CourseDetailPage() {
                 ) : null}
               </CardContent>
             </Card>
+          </section>
+        ) : null}
+
+        {activeTab === "exams" ? (
+          <section className={cn("grid gap-4", canManageCourse ? "lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start" : undefined)}>
+            <Card className="rounded-lg border-border/70 shadow-none">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+                <div>
+                  <CardTitle className="text-base">{t("courseDetail.exams")}</CardTitle>
+                  <CardDescription>{t("courseDetail.examsDescription")}</CardDescription>
+                </div>
+                {canManageCourse ? (
+                  <Button type="button" variant="outline" size="sm" className="h-9 rounded-md shadow-none" onClick={onNewExam}>
+                    {t("courseDetail.newExam")}
+                  </Button>
+                ) : null}
+              </CardHeader>
+              <CardContent>
+                {courseExamsQuery.isLoading ? <CourseListSkeleton rows={4} /> : null}
+                {courseExamsQuery.isError ? (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                    {t("courseDetail.examsLoadFailed")}
+                  </div>
+                ) : null}
+                {!courseExamsQuery.isLoading && !courseExamsQuery.isError ? (
+                  exams.length ? (
+                    <div className="grid gap-3">
+                      {exams.map((exam) => {
+                        const selected = selectedExamId === exam.id;
+                        return (
+                          <article
+                            key={exam.id}
+                            className={cn(
+                              "rounded-lg border border-border/70 bg-background px-4 py-3 transition-colors",
+                              canManageCourse ? "cursor-pointer hover:bg-muted/30" : undefined,
+                              selected ? "border-foreground bg-muted/40" : undefined
+                            )}
+                            onClick={() => {
+                              if (canManageCourse) {
+                                onSelectExam(exam);
+                              }
+                            }}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="truncate text-sm font-semibold">{exam.title}</h3>
+                                  <Badge
+                                    variant={exam.status === EXAM_STATUS.published ? "default" : exam.status === EXAM_STATUS.archived ? "destructive" : "secondary"}
+                                    className="rounded-md"
+                                  >
+                                    {t(`examStatus.${exam.status}` as I18nKey)}
+                                  </Badge>
+                                </div>
+                                {exam.description ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{exam.description}</p> : null}
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                  {exam.durationMinutes ? (
+                                    <span className="rounded-md bg-muted px-2 py-1">
+                                      {exam.durationMinutes} {t("courseDetail.examMinutes")}
+                                    </span>
+                                  ) : null}
+                                  {exam.passingScore !== null && exam.passingScore !== undefined ? (
+                                    <span className="rounded-md bg-muted px-2 py-1">
+                                      {t("courseDetail.examPassingScore")}: {exam.passingScore}%
+                                    </span>
+                                  ) : null}
+                                  <span className="rounded-md bg-muted px-2 py-1">
+                                    {exam.questionCount ?? 0} {t("courseDetail.questions")}
+                                  </span>
+                                  <span className="rounded-md bg-muted px-2 py-1">{new Date(exam.updatedAt).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                              {canManageCourse ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="size-8 shrink-0 rounded-md p-0 text-muted-foreground hover:text-destructive"
+                                  disabled={archiveExamMutation.isPending || exam.status === EXAM_STATUS.archived}
+                                  aria-label={t("courseDetail.archiveExam")}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setExamPendingArchive(exam);
+                                  }}
+                                >
+                                  <Trash2 className="size-4" aria-hidden />
+                                </Button>
+                              ) : isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-9 rounded-md shadow-none"
+                                  disabled={startExamAttemptMutation.isPending || exam.status !== EXAM_STATUS.published || (exam.questionCount ?? 0) < 1}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void onStartExamAttempt(exam.id);
+                                  }}
+                                >
+                                  {startExamAttemptMutation.isPending ? t("courseDetail.startingExam") : t("courseDetail.startExam")}
+                                </Button>
+                              ) : (
+                                <Button asChild type="button" size="sm" className="h-9 rounded-md shadow-none">
+                                  <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
+                                </Button>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState icon={ClipboardCheck} title={t("courseDetail.noExams")} description={t("courseDetail.noExamsDescription")} />
+                  )
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {canManageCourse ? (
+              <Card className="rounded-lg border-border/70 shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{selectedExamId ? t("courseDetail.editExam") : t("courseDetail.addExam")}</CardTitle>
+                  <CardDescription>{t("courseDetail.addExamDescription")}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form className="grid gap-4" onSubmit={examForm.handleSubmit(onSubmitExam)} noValidate>
+                    <FormField id="exam-title" label={t("courseDetail.examTitle")} error={examForm.formState.errors.title?.message}>
+                      <Input id="exam-title" placeholder={t("courseDetail.examTitlePlaceholder")} {...examForm.register("title")} />
+                    </FormField>
+                    <FormField id="exam-description" label={t("courseDetail.examDescription")} hint={t("courseDetail.optional")} error={examForm.formState.errors.description?.message}>
+                      <TextareaField id="exam-description" rows={4} placeholder={t("courseDetail.examDescriptionPlaceholder")} {...examForm.register("description")} />
+                    </FormField>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <FormField id="exam-duration" label={t("courseDetail.examDuration")} hint={t("courseDetail.examMinutes")} error={examForm.formState.errors.durationMinutes?.message}>
+                        <Input id="exam-duration" inputMode="numeric" min={1} type="number" placeholder="45" {...examForm.register("durationMinutes")} />
+                      </FormField>
+                      <FormField id="exam-passing-score" label={t("courseDetail.examPassingScore")} hint="%" error={examForm.formState.errors.passingScore?.message}>
+                        <Input id="exam-passing-score" inputMode="numeric" min={0} max={100} type="number" placeholder="70" {...examForm.register("passingScore")} />
+                      </FormField>
+                    </div>
+                    <FormField id="exam-status" label={t("courseDetail.status")} error={examForm.formState.errors.status?.message}>
+                      <Controller
+                        control={examForm.control}
+                        name="status"
+                        render={({ field }) => (
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger id="exam-status" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={EXAM_STATUS.draft}>{t("examStatus.DRAFT")}</SelectItem>
+                              <SelectItem value={EXAM_STATUS.published}>{t("examStatus.PUBLISHED")}</SelectItem>
+                              <SelectItem value={EXAM_STATUS.archived}>{t("examStatus.ARCHIVED")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </FormField>
+                    <div className="flex justify-end gap-2 border-t border-border/60 pt-2">
+                      {selectedExamId ? (
+                        <Button type="button" variant="outline" className="h-10 rounded-md shadow-none" onClick={onNewExam}>
+                          {t("courseDetail.newExam")}
+                        </Button>
+                      ) : null}
+                      <Button className="h-10 rounded-md font-medium shadow-none" disabled={createExamMutation.isPending || updateExamMutation.isPending} type="submit">
+                        {createExamMutation.isPending || updateExamMutation.isPending
+                          ? t("courseDetail.savingExam")
+                          : selectedExamId
+                            ? t("courseDetail.saveExam")
+                            : t("courseDetail.createExam")}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {canManageCourse ? (
+              <Card className="rounded-lg border-border/70 shadow-none lg:col-span-2">
+                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+                  <div>
+                    <CardTitle className="text-base">{t("courseDetail.examQuestions")}</CardTitle>
+                    <CardDescription>
+                      {selectedExamId ? t("courseDetail.examQuestionsDescription") : t("courseDetail.selectExamFirst")}
+                    </CardDescription>
+                  </div>
+                  {selectedExamId ? (
+                    <Button type="button" variant="outline" size="sm" className="h-9 rounded-md shadow-none" onClick={onNewQuestion}>
+                      {t("courseDetail.newQuestion")}
+                    </Button>
+                  ) : null}
+                </CardHeader>
+                <CardContent>
+                  {!selectedExamId ? (
+                    <EmptyState icon={ClipboardCheck} title={t("courseDetail.noExamSelected")} description={t("courseDetail.noExamSelectedDescription")} />
+                  ) : (
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_25rem] xl:items-start">
+                      <div className="min-h-72 rounded-lg border border-border/70 p-2">
+                        {examQuestionsQuery.isLoading ? <CourseListSkeleton rows={4} /> : null}
+                        {examQuestionsQuery.isError ? (
+                          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                            {t("courseDetail.questionsLoadFailed")}
+                          </div>
+                        ) : null}
+                        {!examQuestionsQuery.isLoading && !examQuestionsQuery.isError ? (
+                          examQuestions.length ? (
+                            <div className="grid gap-2" role="list" aria-label={t("courseDetail.examQuestions")}>
+                              {examQuestions.map((question, index) => {
+                                const selected = selectedQuestionId === question.id;
+                                return (
+                                  <div
+                                    key={question.id}
+                                    role="listitem"
+                                    tabIndex={0}
+                                    className={cn(
+                                      "group grid w-full cursor-pointer gap-2 rounded-md border px-3 py-3 text-left transition-colors",
+                                      selected ? "border-foreground bg-muted/60" : "border-transparent hover:border-border/70 hover:bg-muted/40"
+                                    )}
+                                    onClick={() => onSelectQuestion(question)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+                                        onSelectQuestion(question);
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="font-mono text-[11px] text-muted-foreground">#{index + 1}</span>
+                                          <Badge variant="outline" className="h-5 rounded-md px-1.5 text-[10px] font-medium">
+                                            {t(`examQuestionType.${question.type}` as I18nKey)}
+                                          </Badge>
+                                          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                            {question.points} {t("courseDetail.points")}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 line-clamp-2 text-sm font-medium text-foreground">{question.prompt}</p>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        type="button"
+                                        className="size-8 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+                                        disabled={deleteExamQuestionMutation.isPending}
+                                        aria-label={t("courseDetail.deleteQuestion")}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setQuestionPendingDelete(question);
+                                        }}
+                                      >
+                                        <Trash2 className="size-4" aria-hidden />
+                                      </Button>
+                                    </div>
+                                    {question.options?.length ? (
+                                      <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                                        {question.options.slice(0, 4).map((option) => (
+                                          <span key={option.id} className="truncate rounded bg-muted px-2 py-1">
+                                            {option.id}. {option.text}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <EmptyState icon={ClipboardCheck} title={t("courseDetail.noQuestions")} description={t("courseDetail.noQuestionsDescription")} />
+                          )
+                        ) : null}
+                      </div>
+
+                      <form className="grid gap-4 rounded-lg border border-border/70 bg-muted/10 p-4" onSubmit={questionForm.handleSubmit(onSubmitQuestion)} noValidate>
+                        <div>
+                          <h3 className="text-sm font-semibold">{selectedQuestionId ? t("courseDetail.editQuestion") : t("courseDetail.addQuestion")}</h3>
+                          <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.questionFormDescription")}</p>
+                        </div>
+                        <FormField id="question-type" label={t("courseDetail.questionType")} error={questionForm.formState.errors.type?.message}>
+                          <Controller
+                            control={questionForm.control}
+                            name="type"
+                            render={({ field }) => (
+                              <Select
+                                value={field.value}
+                                onValueChange={(value) => {
+                                  field.onChange(value);
+                                  if (value === EXAM_QUESTION_TYPE.freeText) {
+                                    questionForm.setValue("optionsText", "", { shouldDirty: true });
+                                    questionForm.setValue("correctAnswersText", "", { shouldDirty: true });
+                                  }
+                                }}
+                              >
+                                <SelectTrigger id="question-type" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={EXAM_QUESTION_TYPE.singleChoice}>{t("examQuestionType.SINGLE_CHOICE")}</SelectItem>
+                                  <SelectItem value={EXAM_QUESTION_TYPE.multipleChoice}>{t("examQuestionType.MULTIPLE_CHOICE")}</SelectItem>
+                                  <SelectItem value={EXAM_QUESTION_TYPE.freeText}>{t("examQuestionType.FREE_TEXT")}</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </FormField>
+                        <FormField id="question-prompt" label={t("courseDetail.questionPrompt")} error={questionForm.formState.errors.prompt?.message}>
+                          <TextareaField id="question-prompt" rows={4} placeholder={t("courseDetail.questionPromptPlaceholder")} {...questionForm.register("prompt")} />
+                        </FormField>
+                        {questionType !== EXAM_QUESTION_TYPE.freeText ? (
+                          <>
+                            <FormField id="question-options" label={t("courseDetail.questionOptions")} hint={t("courseDetail.questionOptionsHint")} error={questionForm.formState.errors.optionsText?.message}>
+                              <TextareaField id="question-options" rows={5} placeholder={t("courseDetail.questionOptionsPlaceholder")} {...questionForm.register("optionsText")} />
+                            </FormField>
+                            <FormField id="question-answers" label={t("courseDetail.correctAnswers")} hint={t("courseDetail.correctAnswersHint")} error={questionForm.formState.errors.correctAnswersText?.message}>
+                              <Input id="question-answers" placeholder="A, C" {...questionForm.register("correctAnswersText")} />
+                            </FormField>
+                          </>
+                        ) : null}
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <FormField id="question-points" label={t("courseDetail.points")} error={questionForm.formState.errors.points?.message}>
+                            <Input id="question-points" inputMode="numeric" min={1} type="number" {...questionForm.register("points")} />
+                          </FormField>
+                          <FormField id="question-order" label={t("courseDetail.order")} error={questionForm.formState.errors.sortOrder?.message}>
+                            <Input id="question-order" inputMode="numeric" min={1} type="number" {...questionForm.register("sortOrder")} />
+                          </FormField>
+                        </div>
+                        <FormField id="question-explanation" label={t("courseDetail.questionExplanation")} hint={t("courseDetail.optional")} error={questionForm.formState.errors.explanation?.message}>
+                          <TextareaField id="question-explanation" rows={3} placeholder={t("courseDetail.questionExplanationPlaceholder")} {...questionForm.register("explanation")} />
+                        </FormField>
+                        <div className="flex justify-end gap-2 border-t border-border/60 pt-2">
+                          {selectedQuestionId ? (
+                            <Button type="button" variant="outline" className="h-10 rounded-md shadow-none" onClick={onNewQuestion}>
+                              {t("courseDetail.newQuestion")}
+                            </Button>
+                          ) : null}
+                          <Button className="h-10 rounded-md font-medium shadow-none" disabled={isQuestionSubmitPending} type="submit">
+                            {isQuestionSubmitPending
+                              ? t("courseDetail.savingQuestion")
+                              : selectedQuestionId
+                                ? t("courseDetail.saveQuestion")
+                                : t("courseDetail.createQuestion")}
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {!canManageCourse && activeExamSession ? (
+              <Card className="rounded-lg border-border/70 shadow-none">
+                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+                  <div>
+                    <CardTitle className="text-base">{activeExamSession.exam.title}</CardTitle>
+                    <CardDescription>
+                      {activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.graded
+                        ? t("courseDetail.examGradedDescription")
+                        : activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.submitted
+                          ? t("courseDetail.examSubmittedDescription")
+                          : t("courseDetail.examAttemptDescription")}
+                    </CardDescription>
+                  </div>
+                  <Badge variant={activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.inProgress ? "secondary" : "default"} className="rounded-md">
+                    {t(`examAttemptStatus.${activeExamSession.attempt.status}` as I18nKey)}
+                  </Badge>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  {activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.graded && activeExamSession.attempt.score !== null && activeExamSession.attempt.score !== undefined ? (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                        <p className="text-xs text-muted-foreground">{t("courseDetail.examScore")}</p>
+                        <p className="mt-1 text-lg font-semibold">{activeExamSession.attempt.score}%</p>
+                      </div>
+                      <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                        <p className="text-xs text-muted-foreground">{t("courseDetail.examPassingScore")}</p>
+                        <p className="mt-1 text-lg font-semibold">{activeExamSession.exam.passingScore ?? "—"}%</p>
+                      </div>
+                      <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                        <p className="text-xs text-muted-foreground">{t("courseDetail.examAttempt")}</p>
+                        <p className="mt-1 text-lg font-semibold">
+                          {activeExamSession.exam.passingScore !== null &&
+                          activeExamSession.exam.passingScore !== undefined &&
+                          activeExamSession.attempt.score >= activeExamSession.exam.passingScore
+                            ? t("courseDetail.examPassed")
+                            : t("courseDetail.examFailed")}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.submitted ? (
+                    <p className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">{t("courseDetail.examAwaitingManualGrade")}</p>
+                  ) : null}
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                      <p className="text-xs text-muted-foreground">{t("courseDetail.examAttempt")}</p>
+                      <p className="mt-1 text-lg font-semibold">#{activeExamSession.attempt.attemptNumber}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                      <p className="text-xs text-muted-foreground">{t("courseDetail.questions")}</p>
+                      <p className="mt-1 text-lg font-semibold">{activeExamSession.exam.questions.length}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                      <p className="text-xs text-muted-foreground">{t("courseDetail.examDuration")}</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {activeExamSession.exam.durationMinutes ? `${activeExamSession.exam.durationMinutes} ${t("courseDetail.examMinutes")}` : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {activeExamSession.exam.questions.map((question, index) => {
+                      const answer = attemptAnswers[question.id];
+                      const submitted = activeExamSession.attempt.status !== EXAM_ATTEMPT_STATUS.inProgress;
+                      return (
+                        <article key={question.id} className="rounded-lg border border-border/70 bg-background px-4 py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground">#{index + 1}</span>
+                            <Badge variant="outline" className="rounded-md">
+                              {t(`examQuestionType.${question.type}` as I18nKey)}
+                            </Badge>
+                            <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                              {question.points} {t("courseDetail.points")}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 text-sm font-semibold leading-6">{question.prompt}</h3>
+                          {question.type === EXAM_QUESTION_TYPE.freeText ? (
+                            <TextareaField
+                              className="mt-3"
+                              rows={5}
+                              value={typeof answer === "string" ? answer : ""}
+                              disabled={submitted}
+                              onChange={(event) => onChangeAttemptAnswer(question.id, event.target.value)}
+                              placeholder={t("courseDetail.freeTextAnswerPlaceholder")}
+                            />
+                          ) : (
+                            <div className="mt-3 grid gap-2">
+                              {(question.options ?? []).map((option) => {
+                                const checked =
+                                  question.type === EXAM_QUESTION_TYPE.singleChoice
+                                    ? answer === option.id
+                                    : Array.isArray(answer) && answer.includes(option.id);
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    disabled={submitted}
+                                    className={cn(
+                                      "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3 text-left text-sm transition-colors disabled:cursor-default",
+                                      checked ? "border-foreground bg-muted/70" : "border-border/70 hover:bg-muted/40"
+                                    )}
+                                    onClick={() => {
+                                      if (question.type === EXAM_QUESTION_TYPE.singleChoice) {
+                                        onChangeAttemptAnswer(question.id, option.id);
+                                      } else {
+                                        onToggleAttemptAnswer(question.id, option.id);
+                                      }
+                                    }}
+                                  >
+                                    <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded border border-border text-xs font-medium">
+                                      {option.id}
+                                    </span>
+                                    <span className="leading-6">{option.text}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.inProgress ? (
+                    <div className="flex justify-end border-t border-border/60 pt-2">
+                      <Button className="h-10 rounded-md shadow-none" disabled={submitExamAttemptMutation.isPending} onClick={() => void onSubmitAttempt()} type="button">
+                        {submitExamAttemptMutation.isPending ? t("courseDetail.submittingExam") : t("courseDetail.submitExam")}
+                      </Button>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeTab === "reviews" ? (
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+            <Card className="rounded-lg border-border/70 shadow-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{t("courseDetail.reviews")}</CardTitle>
+                <CardDescription>{t("courseDetail.reviewsDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {courseReviewsQuery.isLoading ? <CourseListSkeleton rows={4} /> : null}
+                {courseReviewsQuery.isError ? (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                    {t("courseDetail.reviewLoadFailed")}
+                  </div>
+                ) : null}
+                {!courseReviewsQuery.isLoading && !courseReviewsQuery.isError ? (
+                  reviews.length ? (
+                    <div className="grid gap-3">
+                      {reviews.map((review) => (
+                        <article key={review.id} className="rounded-lg border border-border/70 bg-background px-4 py-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{review.user.email}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{new Date(review.updatedAt).toLocaleString()}</p>
+                            </div>
+                            <div className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-sm font-medium">
+                              <Star className="size-4 fill-current" aria-hidden />
+                              {review.rating}
+                            </div>
+                          </div>
+                          {review.comment ? <p className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">{review.comment}</p> : null}
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState icon={Star} title={t("courseDetail.noReviews")} description={t("courseDetail.noReviewsDescription")} />
+                  )
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
+              <Card className="rounded-lg border-border/70 shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{t("courseDetail.yourReview")}</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <FormField id="course-review-rating" label={t("courseDetail.rating")}>
+                    <Select value={reviewRating} onValueChange={setReviewRating}>
+                      <SelectTrigger id="course-review-rating" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[5, 4, 3, 2, 1].map((value) => (
+                          <SelectItem key={value} value={String(value)}>{value}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField id="course-review-comment" label={t("courseDetail.comment")}>
+                    <TextareaField
+                      id="course-review-comment"
+                      rows={5}
+                      maxLength={1000}
+                      value={reviewComment}
+                      onChange={(event) => setReviewComment(event.target.value)}
+                      placeholder={t("courseDetail.commentPlaceholder")}
+                    />
+                  </FormField>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {myReview ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 rounded-md shadow-none"
+                        disabled={deleteReviewMutation.isPending || upsertReviewMutation.isPending}
+                        onClick={() => void onDeleteReview()}
+                      >
+                        {t("courseDetail.deleteReview")}
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      className="h-10 rounded-md shadow-none"
+                      disabled={upsertReviewMutation.isPending || deleteReviewMutation.isPending}
+                      onClick={() => void onSaveReview()}
+                    >
+                      {upsertReviewMutation.isPending ? t("courseDetail.savingReview") : t("courseDetail.saveReview")}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
           </section>
         ) : null}
 
@@ -951,6 +2205,33 @@ export function CourseDetailPage() {
                       <TextareaField id="edit-course-description" placeholder={t("courseDetail.courseDescriptionPlaceholder")} rows={5} {...courseForm.register("description")} />
                     </FormField>
 
+                    <div className="grid gap-3 rounded-lg border border-border/70 bg-muted/15 p-4">
+                      <div>
+                        <h2 className="text-sm font-semibold">{t("courseDetail.courseMetadata")}</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.courseSettingsDescription")}</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <FormField id="edit-course-category" label={t("courseDetail.courseCategory")} hint={t("courseDetail.optional")} error={courseForm.formState.errors.category?.message}>
+                          <Input id="edit-course-category" placeholder={t("courseDetail.courseCategoryPlaceholder")} {...courseForm.register("category")} />
+                        </FormField>
+                        <FormField id="edit-course-level" label={t("courseDetail.courseLevel")} hint={t("courseDetail.optional")} error={courseForm.formState.errors.level?.message}>
+                          <Input id="edit-course-level" placeholder={t("courseDetail.courseLevelPlaceholder")} {...courseForm.register("level")} />
+                        </FormField>
+                        <FormField id="edit-course-language" label={t("courseDetail.courseLanguage")} hint={t("courseDetail.optional")} error={courseForm.formState.errors.language?.message}>
+                          <Input id="edit-course-language" placeholder={t("courseDetail.courseLanguagePlaceholder")} {...courseForm.register("language")} />
+                        </FormField>
+                        <FormField id="edit-course-duration" label={t("courseDetail.courseDuration")} hint={t("courseDetail.courseDurationUnit")} error={courseForm.formState.errors.durationMinutes?.message}>
+                          <Input id="edit-course-duration" inputMode="numeric" min={1} placeholder={t("courseDetail.courseDurationPlaceholder")} type="number" {...courseForm.register("durationMinutes")} />
+                        </FormField>
+                      </div>
+                      <FormField id="edit-course-requirements" label={t("courseDetail.courseRequirements")} hint={t("courseDetail.optional")} error={courseForm.formState.errors.requirements?.message}>
+                        <TextareaField id="edit-course-requirements" placeholder={t("courseDetail.courseRequirementsPlaceholder")} rows={4} {...courseForm.register("requirements")} />
+                      </FormField>
+                      <FormField id="edit-course-outcomes" label={t("courseDetail.courseOutcomes")} hint={t("courseDetail.optional")} error={courseForm.formState.errors.outcomes?.message}>
+                        <TextareaField id="edit-course-outcomes" placeholder={t("courseDetail.courseOutcomesPlaceholder")} rows={4} {...courseForm.register("outcomes")} />
+                      </FormField>
+                    </div>
+
                     <FormField id="edit-course-status" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>
                       <Controller
                         control={courseForm.control}
@@ -970,8 +2251,29 @@ export function CourseDetailPage() {
                       />
                     </FormField>
 
+                    {courseStatus === COURSE_STATUS.published ? (
+                      <div className="grid gap-3 rounded-lg border border-border/70 bg-background p-4">
+                        <div>
+                          <h2 className="text-sm font-semibold">{t("courseDetail.publishRequirements")}</h2>
+                          <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.publishRequirementsDescription")}</p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {publishChecks.map((item) => (
+                            <div key={item.label} className="flex items-center gap-2 text-sm">
+                              <CheckCircle2 className={cn("size-4 shrink-0", item.done ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/45")} aria-hidden />
+                              <span className={item.done ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="flex justify-end">
-                      <Button className="h-10 rounded-md font-medium shadow-none" disabled={updateCourseMutation.isPending || !courseForm.formState.isDirty} type="submit">
+                      <Button
+                        className="h-10 rounded-md font-medium shadow-none"
+                        disabled={updateCourseMutation.isPending || (courseStatus === COURSE_STATUS.published && !canPublish) || !courseForm.formState.isDirty}
+                        type="submit"
+                      >
                         {updateCourseMutation.isPending ? t("courseDetail.saving") : t("common.save")}
                       </Button>
                     </div>
@@ -1002,6 +2304,54 @@ export function CourseDetailPage() {
               }}
             >
               {deleteLessonMutation.isPending ? t("courseDetail.lessonDeletePending") : t("courseDetail.deleteLesson")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(examPendingArchive)} onOpenChange={(open) => !open && setExamPendingArchive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("courseDetail.archiveExam")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("courseDetail.archiveExamConfirm")}
+              {examPendingArchive ? <span className="mt-2 block font-medium text-foreground">{examPendingArchive.title}</span> : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={archiveExamMutation.isPending}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
+              disabled={archiveExamMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmArchiveExam();
+              }}
+            >
+              {archiveExamMutation.isPending ? t("courseDetail.examArchivePending") : t("courseDetail.archiveExam")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(questionPendingDelete)} onOpenChange={(open) => !open && setQuestionPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("courseDetail.deleteQuestion")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("courseDetail.deleteQuestionConfirm")}
+              {questionPendingDelete ? <span className="mt-2 block font-medium text-foreground">{questionPendingDelete.prompt}</span> : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteExamQuestionMutation.isPending}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
+              disabled={deleteExamQuestionMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDeleteQuestion();
+              }}
+            >
+              {deleteExamQuestionMutation.isPending ? t("courseDetail.questionDeletePending") : t("courseDetail.deleteQuestion")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

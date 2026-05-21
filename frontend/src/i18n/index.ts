@@ -1,5 +1,5 @@
 import { type Language } from "../constants/preferences";
-import { useLanguage } from "../features/preferences/language-context";
+import { useLanguage } from "../hooks/use-language";
 import enAuth from "./locales/en/auth.json";
 import enHome from "./locales/en/home.json";
 import enProfile from "./locales/en/profile.json";

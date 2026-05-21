@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, BookOpenText, GripVertical, ListOrdered, Paperclip, PlayCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpenText, CheckCircle2, GripVertical, ListOrdered, Paperclip, PlayCircle, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
@@ -30,7 +30,7 @@ import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
 import { COURSE_STATUS, LESSON_CONTENT_TYPE } from "../constants/business";
-import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useUpdateCourse, useUpdateLesson } from "../features/course/hooks/use-courses";
+import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
 import { createCourseFormSchema, CreateCourseFormValues, createLessonFormSchema, CreateLessonFormValues } from "../schemas/course.schema";
 import type { Lesson } from "../services/course.service";
@@ -40,6 +40,10 @@ import { type I18nKey, useI18n } from "../i18n";
 function getNextLessonSortOrder(lessons: { sortOrder: number }[] | undefined) {
   const maxSortOrder = lessons?.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0) ?? 0;
   return maxSortOrder + 1;
+}
+
+function hasText(value: string | null | undefined) {
+  return Boolean(value?.trim());
 }
 
 type CourseCreateTab = "curriculum" | "settings";
@@ -76,6 +80,12 @@ export function CourseCreatePage() {
     defaultValues: {
       title: "",
       description: "",
+      category: "",
+      level: "",
+      language: "",
+      durationMinutes: "",
+      requirements: "",
+      outcomes: "",
       coverImageUrl: "",
       status: COURSE_STATUS.draft
     }
@@ -94,6 +104,13 @@ export function CourseCreatePage() {
 
   const coverImageUrl = courseForm.watch("coverImageUrl");
   const courseStatus = courseForm.watch("status");
+  const courseTitle = courseForm.watch("title");
+  const courseCategory = courseForm.watch("category");
+  const courseLevel = courseForm.watch("level");
+  const courseLanguage = courseForm.watch("language");
+  const courseDurationMinutes = courseForm.watch("durationMinutes");
+  const courseRequirements = courseForm.watch("requirements");
+  const courseOutcomes = courseForm.watch("outcomes");
   const lessonContentType = lessonForm.watch("contentType");
   const lessonContentValue = lessonForm.watch("content");
   const nextLessonSortOrder = getNextLessonSortOrder(orderedLessons);
@@ -127,6 +144,18 @@ export function CourseCreatePage() {
       description: t("courseDetail.resourceTypeHint")
     }
   ];
+  const publishChecks = [
+    { label: t("courseDetail.publishRequirementTitle"), done: hasText(courseTitle) },
+    { label: t("courseDetail.publishRequirementCover"), done: hasText(coverImageUrl) },
+    {
+      label: t("courseDetail.publishRequirementMetadata"),
+      done: hasText(courseCategory) && hasText(courseLevel) && hasText(courseLanguage) && courseDurationMinutes !== "" && Number(courseDurationMinutes) > 0
+    },
+    { label: t("courseDetail.publishRequirementRequirements"), done: hasText(courseRequirements) },
+    { label: t("courseDetail.publishRequirementOutcomes"), done: hasText(courseOutcomes) },
+    { label: t("courseDetail.publishRequirementLessons"), done: lessons.length > 0 }
+  ];
+  const canPublish = publishChecks.every((item) => item.done);
 
   useEffect(() => {
     setCourseId(courseIdFromUrl);
@@ -143,6 +172,12 @@ export function CourseCreatePage() {
     courseForm.reset({
       title: courseQuery.data.title,
       description: courseQuery.data.description ?? "",
+      category: courseQuery.data.category ?? "",
+      level: courseQuery.data.level ?? "",
+      language: courseQuery.data.language ?? "",
+      durationMinutes: courseQuery.data.durationMinutes ?? "",
+      requirements: courseQuery.data.requirements ?? "",
+      outcomes: courseQuery.data.outcomes ?? "",
       coverImageUrl: courseQuery.data.coverImageUrl ?? "",
       status: courseQuery.data.status
     });
@@ -168,10 +203,21 @@ export function CourseCreatePage() {
   }, []);
 
   const onSaveCourse = async (values: CreateCourseFormValues) => {
+    if (values.status === COURSE_STATUS.published && !canPublish) {
+      toast.error(t("courseDetail.publishRequirementsMissing"));
+      return;
+    }
+
     try {
       const payload = {
         ...values,
         description: values.description ?? "",
+        category: values.category || null,
+        level: values.level || null,
+        language: values.language || null,
+        durationMinutes: values.durationMinutes === "" ? null : Number(values.durationMinutes),
+        requirements: values.requirements || null,
+        outcomes: values.outcomes || null,
         coverImageUrl: values.coverImageUrl || null
       };
       const course = courseId
@@ -186,6 +232,12 @@ export function CourseCreatePage() {
       courseForm.reset({
         title: course.title,
         description: course.description ?? "",
+        category: course.category ?? "",
+        level: course.level ?? "",
+        language: course.language ?? "",
+        durationMinutes: course.durationMinutes ?? "",
+        requirements: course.requirements ?? "",
+        outcomes: course.outcomes ?? "",
         coverImageUrl: course.coverImageUrl ?? "",
         status: course.status
       });
@@ -521,6 +573,33 @@ export function CourseCreatePage() {
                   <TextareaField id="course-description" placeholder={t("courseStudio.courseDescriptionPlaceholder")} rows={5} {...courseForm.register("description")} />
                 </FormField>
 
+                <div className="grid gap-3 rounded-lg border border-border/70 bg-muted/15 p-4">
+                  <div>
+                    <h2 className="text-sm font-semibold">{t("courseStudio.courseMetadata")}</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("courseStudio.draftHint")}</p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FormField id="course-category" label={t("courseStudio.courseCategory")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.category?.message}>
+                      <Input id="course-category" placeholder={t("courseStudio.courseCategoryPlaceholder")} {...courseForm.register("category")} />
+                    </FormField>
+                    <FormField id="course-level" label={t("courseStudio.courseLevel")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.level?.message}>
+                      <Input id="course-level" placeholder={t("courseStudio.courseLevelPlaceholder")} {...courseForm.register("level")} />
+                    </FormField>
+                    <FormField id="course-language" label={t("courseStudio.courseLanguage")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.language?.message}>
+                      <Input id="course-language" placeholder={t("courseStudio.courseLanguagePlaceholder")} {...courseForm.register("language")} />
+                    </FormField>
+                    <FormField id="course-duration" label={t("courseStudio.courseDuration")} hint={t("courseStudio.courseDurationUnit")} error={courseForm.formState.errors.durationMinutes?.message}>
+                      <Input id="course-duration" inputMode="numeric" min={1} placeholder={t("courseStudio.courseDurationPlaceholder")} type="number" {...courseForm.register("durationMinutes")} />
+                    </FormField>
+                  </div>
+                  <FormField id="course-requirements" label={t("courseStudio.courseRequirements")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.requirements?.message}>
+                    <TextareaField id="course-requirements" placeholder={t("courseStudio.courseRequirementsPlaceholder")} rows={4} {...courseForm.register("requirements")} />
+                  </FormField>
+                  <FormField id="course-outcomes" label={t("courseStudio.courseOutcomes")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.outcomes?.message}>
+                    <TextareaField id="course-outcomes" placeholder={t("courseStudio.courseOutcomesPlaceholder")} rows={4} {...courseForm.register("outcomes")} />
+                  </FormField>
+                </div>
+
                 <FormField id="course-status" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>
                   <Controller
                     control={courseForm.control}
@@ -540,6 +619,23 @@ export function CourseCreatePage() {
                   />
                 </FormField>
 
+                {courseStatus === COURSE_STATUS.published ? (
+                  <div className="grid gap-3 rounded-lg border border-border/70 bg-background p-4">
+                    <div>
+                      <h2 className="text-sm font-semibold">{t("courseDetail.publishRequirements")}</h2>
+                      <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.publishRequirementsDescription")}</p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {publishChecks.map((item) => (
+                        <div key={item.label} className="flex items-center gap-2 text-sm">
+                          <CheckCircle2 className={cn("size-4 shrink-0", item.done ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/45")} aria-hidden />
+                          <span className={item.done ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="flex flex-wrap justify-end gap-2">
                   {courseId ? (
                     <Button asChild variant="outline" className="h-10 rounded-md font-medium shadow-none">
@@ -548,7 +644,13 @@ export function CourseCreatePage() {
                   ) : null}
                   <Button
                     className="h-10 rounded-md font-medium shadow-none"
-                    disabled={createCourseMutation.isPending || updateCourseMutation.isPending || isUploadingCover || (Boolean(courseId) && !courseForm.formState.isDirty)}
+                    disabled={
+                      createCourseMutation.isPending ||
+                      updateCourseMutation.isPending ||
+                      isUploadingCover ||
+                      (courseStatus === COURSE_STATUS.published && !canPublish) ||
+                      (Boolean(courseId) && !courseForm.formState.isDirty)
+                    }
                     type="submit"
                   >
                     {createCourseMutation.isPending
