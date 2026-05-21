@@ -12,3 +12,5 @@ export const courseProgressParamSchema = z.object({
     courseId: z.string().min(1)
   })
 });
+
+export const courseLessonProgressParamSchema = courseProgressParamSchema;

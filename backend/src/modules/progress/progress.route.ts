@@ -7,7 +7,7 @@ import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { ProgressController } from "./progress.controller";
 import { ProgressRepository } from "./progress.repository";
 import { ProgressService } from "./progress.service";
-import { courseProgressParamSchema, createLessonProgressSchema } from "./progress.schema";
+import { courseLessonProgressParamSchema, courseProgressParamSchema, createLessonProgressSchema } from "./progress.schema";
 
 const progressRepository = new ProgressRepository();
 const enrollmentRepository = new EnrollmentRepository();
@@ -24,4 +24,9 @@ progressRouter.get(
   "/courses/:courseId/me",
   validateRequest(courseProgressParamSchema),
   asyncHandler(progressController.getMyCourseProgress)
+);
+progressRouter.get(
+  "/courses/:courseId/me/lessons",
+  validateRequest(courseLessonProgressParamSchema),
+  asyncHandler(progressController.getMyLessonProgress)
 );

@@ -13,4 +13,9 @@ export class ProgressController {
     const progress = await this.progressService.getMyCourseProgress(req.user, req.params.courseId);
     res.status(200).json({ success: true, data: progress });
   };
+
+  getMyLessonProgress = async (req: Request, res: Response): Promise<void> => {
+    const progress = await this.progressService.getMyLessonProgress(req.user, req.params.courseId);
+    res.status(200).json({ success: true, data: progress });
+  };
 }

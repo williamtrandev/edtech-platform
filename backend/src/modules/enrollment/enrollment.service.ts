@@ -2,12 +2,14 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AppError } from "../../common/errors/app-error";
 import { COURSE_STATUS } from "../../common/constants/business";
 import { CourseRepository } from "../course/course.repository";
+import { ProgressRepository } from "../progress/progress.repository";
 import { EnrollmentRepository } from "./enrollment.repository";
 
 export class EnrollmentService {
   constructor(
     private readonly enrollmentRepository: EnrollmentRepository,
-    private readonly courseRepository: CourseRepository
+    private readonly courseRepository: CourseRepository,
+    private readonly progressRepository: ProgressRepository
   ) {}
 
   async listMyEnrollments(user: Express.UserClaims | undefined) {
@@ -33,15 +35,31 @@ export class EnrollmentService {
     }
 
     try {
-      return await this.enrollmentRepository.create(user.id, payload.courseId);
+      const enrollment = await this.enrollmentRepository.create(user.id, payload.courseId);
+      return this.withProgressSnapshot(enrollment, user.id, payload.courseId);
     } catch (error: unknown) {
       if (error instanceof PrismaClientKnownRequestError && error.code === "P2002") {
         const existing = await this.enrollmentRepository.findByUserAndCourse(user.id, payload.courseId);
         if (existing) {
-          return existing;
+          return this.withProgressSnapshot(existing, user.id, payload.courseId);
         }
       }
       throw error;
     }
+  }
+
+  private async withProgressSnapshot<T extends { courseId: string }>(enrollment: T, userId: string, courseId: string) {
+    const totalLessons = await this.progressRepository.countCourseLessons(courseId);
+    const completedLessons = await this.progressRepository.countCompletedCourseLessons(userId, courseId);
+
+    return {
+      ...enrollment,
+      progress: {
+        courseId,
+        totalLessons,
+        completedLessons,
+        percentage: totalLessons === 0 ? 0 : Math.round((completedLessons / totalLessons) * 100)
+      }
+    };
   }
 }

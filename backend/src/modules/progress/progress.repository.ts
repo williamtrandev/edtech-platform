@@ -48,6 +48,28 @@ export class ProgressRepository {
     });
   }
 
+  async findMyLessonProgressByCourse(userId: string, courseId: string) {
+    return prisma.lessonProgress.findMany({
+      where: {
+        userId,
+        lesson: {
+          courseId
+        }
+      },
+      select: {
+        lessonId: true,
+        isCompleted: true,
+        completedAt: true,
+        updatedAt: true
+      },
+      orderBy: {
+        lesson: {
+          sortOrder: "asc"
+        }
+      }
+    });
+  }
+
   async findLessonById(lessonId: string) {
     return prisma.lesson.findUnique({
       where: { id: lessonId },

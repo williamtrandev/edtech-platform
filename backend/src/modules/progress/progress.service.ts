@@ -67,4 +67,26 @@ export class ProgressService {
       percentage: totalLessons === 0 ? 0 : Math.round((completedLessons / totalLessons) * 100)
     };
   }
+
+  async getMyLessonProgress(user: Express.UserClaims | undefined, courseId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    const canAccessCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
+    if (!canAccessCourse) {
+      const enrollment = await this.enrollmentRepository.findByUserAndCourse(user.id, courseId);
+      if (!enrollment) {
+        throw new AppError("Forbidden", 403, "COURSE_ACCESS_DENIED");
+      }
+    }
+
+    const items = await this.progressRepository.findMyLessonProgressByCourse(user.id, courseId);
+    return { courseId, items };
+  }
 }
