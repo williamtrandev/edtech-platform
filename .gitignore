@@ -35,3 +35,10 @@ backend/uploads/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Local agent/spec docs (not versioned)
+AGENTS.md
+.agents/
+backend/AGENTS.md
+frontend/AGENTS.md
+system-feats.md
