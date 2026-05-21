@@ -39,17 +39,14 @@ export class LessonService {
     }
 
     if (!user?.id) {
-      if (course.status !== COURSE_STATUS.published) {
-        throw new AppError("Course is not available", 403, "FORBIDDEN");
-      }
-      return this.lessonRepository.findByCourseId(courseId);
+      throw new AppError("Sign in and enroll to access lessons", 403, "COURSE_ENROLLMENT_REQUIRED");
     }
 
     const canAccessCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
     if (!canAccessCourse) {
       const enrollment = await this.enrollmentRepository.findByUserAndCourse(user.id, courseId);
-      if (!enrollment && course.status !== COURSE_STATUS.published) {
-        throw new AppError("Forbidden", 403, "COURSE_ACCESS_DENIED");
+      if (!enrollment) {
+        throw new AppError("Enroll in this course to access lessons", 403, "COURSE_ENROLLMENT_REQUIRED");
       }
     }
 

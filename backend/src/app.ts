@@ -4,8 +4,12 @@ import path from "path";
 import { errorHandler } from "./common/middleware/error-handler";
 import { requestContextMiddleware } from "./common/middleware/request-context";
 import { authRouter } from "./modules/auth/auth.route";
+import { auditRouter } from "./modules/audit/audit.route";
 import { courseRouter } from "./modules/course/course.route";
 import { enrollmentRouter } from "./modules/enrollment/enrollment.route";
+import { examQuestionRouter } from "./modules/exam-question/exam-question.route";
+import { examAttemptRouter } from "./modules/exam-attempt/exam-attempt.route";
+import { examRouter } from "./modules/exam/exam.route";
 import { lessonRouter } from "./modules/lesson/lesson.route";
 import { progressRouter } from "./modules/progress/progress.route";
 import { uploadRouter } from "./modules/upload/upload.route";
@@ -24,9 +28,13 @@ export function createApp() {
   });
 
   app.use("/auth-sessions", authRouter);
+  app.use("/audit-logs", auditRouter);
   app.use("/users", userRouter);
   app.use("/courses", courseRouter);
   app.use("/enrollments", enrollmentRouter);
+  app.use("/exams", examRouter);
+  app.use("/exam-attempts", examAttemptRouter);
+  app.use("/exam-questions", examQuestionRouter);
   app.use("/lessons", lessonRouter);
   app.use("/lesson-progress", progressRouter);
   app.use("/uploads", uploadRouter);

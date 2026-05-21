@@ -179,6 +179,9 @@ async function verifySupabaseAccessToken(token: string): Promise<JwtPayload> {
 
 async function getApplicationRole(userId: string): Promise<Express.UserClaims["role"]> {
   const user = await userRepository.findById(userId);
+  if (user?.status === "SUSPENDED") {
+    throw new AppError("User account is suspended", 403, "USER_SUSPENDED");
+  }
   return user?.role ?? USER_ROLE.user;
 }
 
