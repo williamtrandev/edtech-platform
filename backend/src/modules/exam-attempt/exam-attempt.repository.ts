@@ -65,6 +65,68 @@ export class ExamAttemptRepository {
     });
   }
 
+  async findByExamIdForReview(examId: string, page: number, limit: number, status?: ExamAttemptStatus) {
+    const where: Prisma.ExamAttemptWhereInput = {
+      examId,
+      ...(status ? { status } : {})
+    };
+    const [items, total] = await Promise.all([
+      prisma.examAttempt.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          examId: true,
+          userId: true,
+          status: true,
+          attemptNumber: true,
+          startedAt: true,
+          submittedAt: true,
+          gradedAt: true,
+          score: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              role: true
+            }
+          },
+          answers: {
+            select: {
+              id: true,
+              questionId: true,
+              answer: true,
+              updatedAt: true,
+              question: {
+                select: {
+                  id: true,
+                  type: true,
+                  prompt: true,
+                  options: true,
+                  correctAnswers: true,
+                  points: true,
+                  sortOrder: true
+                }
+              }
+            },
+            orderBy: {
+              question: {
+                sortOrder: "asc"
+              }
+            }
+          }
+        },
+        orderBy: [{ submittedAt: "desc" }, { startedAt: "desc" }]
+      }),
+      prisma.examAttempt.count({ where })
+    ]);
+
+    return { items, total };
+  }
+
   async findInProgressAttempt(userId: string, examId: string) {
     return prisma.examAttempt.findFirst({
       where: {

@@ -14,7 +14,9 @@ const statusClassName: Record<CourseStatus, string> = {
   [COURSE_STATUS.published]:
     "border-emerald-700 bg-emerald-700 text-white dark:border-emerald-600 dark:bg-emerald-600 dark:text-white",
   [COURSE_STATUS.archived]:
-    "border-zinc-800 bg-zinc-700 text-white dark:border-zinc-600 dark:bg-zinc-600 dark:text-white"
+    "border-zinc-800 bg-zinc-700 text-white dark:border-zinc-600 dark:bg-zinc-600 dark:text-white",
+  [COURSE_STATUS.locked]:
+    "border-red-700 bg-red-700 text-white dark:border-red-600 dark:bg-red-600 dark:text-white"
 };
 
 export function CourseStatusBadge({ status, label, className }: CourseStatusBadgeProps) {

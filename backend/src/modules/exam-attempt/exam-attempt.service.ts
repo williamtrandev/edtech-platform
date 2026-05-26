@@ -2,6 +2,7 @@ import { ExamAttemptStatus, ExamStatus, Prisma } from "@prisma/client";
 import { redisConnection } from "../../config/redis";
 import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
+import { assertCourseInstructor } from "../../common/auth/course-access";
 import { examGradingQueue } from "../../jobs/exam-grading.queue";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
@@ -23,6 +24,12 @@ type SaveExamAnswersPayload = {
 
 type GradeExamAttemptPayload = {
   score: number;
+};
+
+type ListExamAttemptsPayload = {
+  page: number;
+  limit: number;
+  status?: ExamAttemptStatus;
 };
 
 export class ExamAttemptService {
@@ -95,6 +102,39 @@ export class ExamAttemptService {
     return {
       exam,
       attempt
+    };
+  }
+
+  async listExamAttempts(user: Express.UserClaims | undefined, examId: string, payload: ListExamAttemptsPayload) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const exam = await this.examAttemptRepository.findExamForAttempt(examId);
+    if (!exam) {
+      throw new AppError("Exam not found", 404, "EXAM_NOT_FOUND");
+    }
+
+    const course = await this.courseRepository.findById(exam.courseId);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    this.assertCanManageCourse(user, course.instructorId);
+    const { items, total } = await this.examAttemptRepository.findByExamIdForReview(
+      examId,
+      payload.page,
+      payload.limit,
+      payload.status
+    );
+
+    return {
+      items,
+      pagination: {
+        page: payload.page,
+        limit: payload.limit,
+        total
+      }
     };
   }
 
@@ -219,11 +259,7 @@ export class ExamAttemptService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canGrade =
-      user.role === USER_ROLE.admin || (user.role === USER_ROLE.instructor && course.instructorId === user.id);
-    if (!canGrade) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    this.assertCanManageCourse(user, course.instructorId);
 
     if (attempt.status !== ExamAttemptStatus.SUBMITTED && attempt.status !== ExamAttemptStatus.GRADED) {
       throw new AppError("Attempt is not ready for grading", 409, "EXAM_ATTEMPT_NOT_SUBMITTED");
@@ -231,6 +267,10 @@ export class ExamAttemptService {
 
     const gradedAttempt = await this.examAttemptRepository.markAttemptManuallyGraded(attemptId, payload.score);
     return { attempt: gradedAttempt };
+  }
+
+  private assertCanManageCourse(user: Express.UserClaims, instructorId: string) {
+    assertCourseInstructor(user, instructorId);
   }
 
   private toJsonAnswer(answer: string | string[] | null): Prisma.InputJsonValue | null {

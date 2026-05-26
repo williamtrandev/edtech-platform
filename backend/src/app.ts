@@ -5,12 +5,16 @@ import { errorHandler } from "./common/middleware/error-handler";
 import { requestContextMiddleware } from "./common/middleware/request-context";
 import { authRouter } from "./modules/auth/auth.route";
 import { auditRouter } from "./modules/audit/audit.route";
+import { assignmentRouter } from "./modules/assignment/assignment.route";
+import { assignmentSubmissionRouter } from "./modules/assignment-submission/assignment-submission.route";
+import { certificateRouter } from "./modules/certificate/certificate.route";
 import { courseRouter } from "./modules/course/course.route";
 import { enrollmentRouter } from "./modules/enrollment/enrollment.route";
 import { examQuestionRouter } from "./modules/exam-question/exam-question.route";
 import { examAttemptRouter } from "./modules/exam-attempt/exam-attempt.route";
 import { examRouter } from "./modules/exam/exam.route";
 import { lessonRouter } from "./modules/lesson/lesson.route";
+import { notificationRouter } from "./modules/notification/notification.route";
 import { progressRouter } from "./modules/progress/progress.route";
 import { uploadRouter } from "./modules/upload/upload.route";
 import { userRouter } from "./modules/user/user.route";
@@ -29,6 +33,9 @@ export function createApp() {
 
   app.use("/auth-sessions", authRouter);
   app.use("/audit-logs", auditRouter);
+  app.use("/assignments", assignmentRouter);
+  app.use("/assignment-submissions", assignmentSubmissionRouter);
+  app.use("/certificates", certificateRouter);
   app.use("/users", userRouter);
   app.use("/courses", courseRouter);
   app.use("/enrollments", enrollmentRouter);
@@ -36,6 +43,7 @@ export function createApp() {
   app.use("/exam-attempts", examAttemptRouter);
   app.use("/exam-questions", examQuestionRouter);
   app.use("/lessons", lessonRouter);
+  app.use("/notifications", notificationRouter);
   app.use("/lesson-progress", progressRouter);
   app.use("/uploads", uploadRouter);
 

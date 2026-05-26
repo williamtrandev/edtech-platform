@@ -1,10 +1,22 @@
 export const COURSE_STATUS = {
   draft: "DRAFT",
   published: "PUBLISHED",
-  archived: "ARCHIVED"
+  archived: "ARCHIVED",
+  locked: "LOCKED"
 } as const;
 
 export type CourseStatus = (typeof COURSE_STATUS)[keyof typeof COURSE_STATUS];
+
+export type EditableCourseStatus = Exclude<CourseStatus, typeof COURSE_STATUS.locked>;
+
+export function toEditableCourseStatus(status: CourseStatus, statusBeforeLock?: CourseStatus | null): EditableCourseStatus {
+  if (status === COURSE_STATUS.locked) {
+    const restored = statusBeforeLock ?? COURSE_STATUS.draft;
+    return restored === COURSE_STATUS.locked ? COURSE_STATUS.draft : restored;
+  }
+
+  return status;
+}
 
 export const EXAM_STATUS = {
   draft: "DRAFT",
@@ -29,6 +41,38 @@ export const EXAM_ATTEMPT_STATUS = {
 } as const;
 
 export type ExamAttemptStatus = (typeof EXAM_ATTEMPT_STATUS)[keyof typeof EXAM_ATTEMPT_STATUS];
+
+export const ASSIGNMENT_STATUS = {
+  draft: "DRAFT",
+  published: "PUBLISHED",
+  archived: "ARCHIVED"
+} as const;
+
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUS)[keyof typeof ASSIGNMENT_STATUS];
+
+export const ASSIGNMENT_SUBMISSION_STATUS = {
+  submitted: "SUBMITTED",
+  graded: "GRADED"
+} as const;
+
+export type AssignmentSubmissionStatus = (typeof ASSIGNMENT_SUBMISSION_STATUS)[keyof typeof ASSIGNMENT_SUBMISSION_STATUS];
+
+export const NOTIFICATION_TYPE = {
+  enrollmentSuccess: "ENROLLMENT_SUCCESS",
+  assignmentGraded: "ASSIGNMENT_GRADED",
+  certificateIssued: "CERTIFICATE_ISSUED",
+  coursePublished: "COURSE_PUBLISHED",
+  system: "SYSTEM"
+} as const;
+
+export type NotificationType = (typeof NOTIFICATION_TYPE)[keyof typeof NOTIFICATION_TYPE];
+
+export const CERTIFICATE_STATUS = {
+  active: "ACTIVE",
+  revoked: "REVOKED"
+} as const;
+
+export type CertificateStatus = (typeof CERTIFICATE_STATUS)[keyof typeof CERTIFICATE_STATUS];
 
 export const USER_ROLE = {
   user: "USER",

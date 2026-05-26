@@ -1,5 +1,6 @@
 import { httpClient } from "../lib/http-client";
-import type { CourseStatus, LessonContentType, UserRole } from "../constants/business";
+import type { Enrollment } from "./enrollment.service";
+import type { CourseStatus, EditableCourseStatus, LessonContentType, UserRole } from "../constants/business";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -22,6 +23,10 @@ export type Course = {
   status: CourseStatus;
   instructorId: string;
   enrollmentCount?: number;
+  lockReason?: string | null;
+  lockedAt?: string | null;
+  lockedById?: string | null;
+  statusBeforeLock?: CourseStatus | null;
   archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -114,15 +119,15 @@ export type Lesson = {
 
 export type CreateCoursePayload = {
   title: string;
-  description?: string;
-  category?: string | null;
-  level?: string | null;
-  language?: string | null;
-  durationMinutes?: number | null;
-  requirements?: string | null;
-  outcomes?: string | null;
-  coverImageUrl?: string | null;
-  status: CourseStatus;
+  description: string;
+  category: string;
+  level: string;
+  language: string;
+  durationMinutes: number;
+  requirements: string;
+  outcomes: string;
+  coverImageUrl: string;
+  status: EditableCourseStatus;
 };
 
 export type UpdateCoursePayload = {
@@ -135,7 +140,7 @@ export type UpdateCoursePayload = {
   requirements?: string | null;
   outcomes?: string | null;
   coverImageUrl?: string | null;
-  status?: CourseStatus;
+  status?: EditableCourseStatus;
 };
 
 export type CreateLessonPayload = {
@@ -202,8 +207,30 @@ export const courseService = {
     return response.data.data;
   },
 
+  async adminEnrollLearner(courseId: string, email: string) {
+    const response = await httpClient.post<ApiResponse<Enrollment>>(`/courses/${courseId}/enrollments`, { email });
+    return response.data.data;
+  },
+
+  async adminRemoveLearner(courseId: string, userId: string) {
+    const response = await httpClient.delete<ApiResponse<{ id: string; userId: string; courseId: string; enrolledAt: string }>>(
+      `/courses/${courseId}/enrollments/${userId}`
+    );
+    return response.data.data;
+  },
+
   async archiveCourse(id: string): Promise<Course> {
     const response = await httpClient.delete<ApiResponse<Course>>(`/courses/${id}`);
+    return response.data.data;
+  },
+  async lockCourse(id: string, reason?: string): Promise<Course> {
+    const response = await httpClient.post<ApiResponse<Course>>(`/courses/${id}/locks`, {
+      ...(reason?.trim() ? { reason: reason.trim() } : {})
+    });
+    return response.data.data;
+  },
+  async unlockCourse(id: string): Promise<Course> {
+    const response = await httpClient.delete<ApiResponse<Course>>(`/courses/${id}/locks`);
     return response.data.data;
   },
   async getCourseReviews(courseId: string, page = 1, limit = 20): Promise<PaginatedCourseReviews> {

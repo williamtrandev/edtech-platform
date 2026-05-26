@@ -7,7 +7,7 @@ import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { ExamAttemptController } from "../exam-attempt/exam-attempt.controller";
 import { ExamAttemptRepository } from "../exam-attempt/exam-attempt.repository";
-import { startExamAttemptSchema } from "../exam-attempt/exam-attempt.schema";
+import { listExamAttemptsSchema, startExamAttemptSchema } from "../exam-attempt/exam-attempt.schema";
 import { ExamAttemptService } from "../exam-attempt/exam-attempt.service";
 import { ExamQuestionController } from "../exam-question/exam-question.controller";
 import { ExamQuestionRepository } from "../exam-question/exam-question.repository";
@@ -33,6 +33,7 @@ const examQuestionController = new ExamQuestionController(examQuestionService);
 
 export const examRouter = Router();
 
+examRouter.get("/:examId/attempts", authMiddleware, validateRequest(listExamAttemptsSchema), asyncHandler(examAttemptController.listExamAttempts));
 examRouter.post("/:examId/attempts", authMiddleware, validateRequest(startExamAttemptSchema), asyncHandler(examAttemptController.startAttempt));
 examRouter.get("/:examId/questions", authMiddleware, validateRequest(examQuestionsParamSchema), asyncHandler(examQuestionController.listExamQuestions));
 examRouter.post("/:examId/questions", authMiddleware, validateRequest(createExamQuestionSchema), asyncHandler(examQuestionController.createExamQuestion));

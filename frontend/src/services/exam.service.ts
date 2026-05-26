@@ -6,6 +6,15 @@ type ApiResponse<T> = {
   data: T;
 };
 
+type PaginatedResponse<T> = {
+  items: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+};
+
 export type Exam = {
   id: string;
   courseId: string;
@@ -48,6 +57,18 @@ export type ExamAttemptAnswer = {
   updatedAt: string;
 };
 
+export type ExamAttemptAnswerForReview = ExamAttemptAnswer & {
+  question: {
+    id: string;
+    type: ExamQuestionType;
+    prompt: string;
+    options?: ExamQuestionOption[] | null;
+    correctAnswers?: string[] | null;
+    points: number;
+    sortOrder: number;
+  };
+};
+
 export type ExamAttempt = {
   id: string;
   examId: string;
@@ -61,6 +82,15 @@ export type ExamAttempt = {
   createdAt: string;
   updatedAt: string;
   answers: ExamAttemptAnswer[];
+};
+
+export type ExamAttemptForReview = Omit<ExamAttempt, "answers"> & {
+  user?: {
+    id: string;
+    email: string;
+    role: string;
+  };
+  answers: ExamAttemptAnswerForReview[];
 };
 
 export type ExamAttemptSession = {
@@ -106,6 +136,10 @@ export type SubmitExamAttemptPayload = {
   }>;
 };
 
+export type GradeExamAttemptPayload = {
+  score: number;
+};
+
 export const examService = {
   async getCourseExams(courseId: string): Promise<Exam[]> {
     const response = await httpClient.get<ApiResponse<Exam[]>>(`/courses/${courseId}/exams`);
@@ -143,6 +177,16 @@ export const examService = {
     const response = await httpClient.post<ApiResponse<ExamAttemptSession>>(`/exams/${examId}/attempts`);
     return response.data.data;
   },
+  async getExamAttempts(examId: string, page = 1, limit = 20, status?: ExamAttemptStatus): Promise<PaginatedResponse<ExamAttemptForReview>> {
+    const response = await httpClient.get<ApiResponse<PaginatedResponse<ExamAttemptForReview>>>(`/exams/${examId}/attempts`, {
+      params: {
+        page,
+        limit,
+        ...(status ? { status } : {})
+      }
+    });
+    return response.data.data;
+  },
   async getExamAttempt(attemptId: string): Promise<ExamAttemptSession> {
     const response = await httpClient.get<ApiResponse<ExamAttemptSession>>(`/exam-attempts/${attemptId}`);
     return response.data.data;
@@ -158,6 +202,10 @@ export const examService = {
         "Idempotency-Key": idempotencyKey
       }
     });
+    return response.data.data;
+  },
+  async gradeExamAttempt(attemptId: string, payload: GradeExamAttemptPayload): Promise<{ attempt: ExamAttempt }> {
+    const response = await httpClient.patch<ApiResponse<{ attempt: ExamAttempt }>>(`/exam-attempts/${attemptId}/grading`, payload);
     return response.data.data;
   }
 };

@@ -1,4 +1,4 @@
-import { CourseStatus, ExamAttemptStatus, ExamQuestionType, ExamStatus, LessonContentType, Prisma, PrismaClient, UserRole } from "@prisma/client";
+import { AssignmentStatus, AssignmentSubmissionStatus, CourseStatus, ExamAttemptStatus, ExamQuestionType, ExamStatus, LessonContentType, NotificationType, Prisma, PrismaClient, UserRole } from "@prisma/client";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -12,6 +12,8 @@ const DEFAULT_LEARNER_COUNT = 48;
 const DEFAULT_LESSONS_PER_COURSE = 4;
 const DEFAULT_QUESTIONS_PER_EXAM = 5;
 const DEFAULT_ATTEMPTS_PER_COURSE = 3;
+const DEFAULT_ASSIGNMENTS_PER_COURSE = 2;
+const DEFAULT_ASSIGNMENT_SUBMISSIONS_PER_COURSE = 4;
 const SEED_PREFIX = "seed-lazy-course";
 const INSTRUCTOR_ID = `${SEED_PREFIX}-instructor`;
 
@@ -51,6 +53,8 @@ function showUsage(): void {
   writeLine("  SEED_LESSONS_PER_COURSE=4");
   writeLine("  SEED_QUESTIONS_PER_EXAM=5");
   writeLine("  SEED_ATTEMPTS_PER_COURSE=3");
+  writeLine("  SEED_ASSIGNMENTS_PER_COURSE=2");
+  writeLine("  SEED_ASSIGNMENT_SUBMISSIONS_PER_COURSE=4");
   writeLine("");
   writeLine("Flags:");
   writeLine("  --reset    Delete previous seed courses/enrollments/lessons first");
@@ -105,8 +109,28 @@ function answerId(courseIndex: number, learnerIndex: number, questionIndex: numb
   return `${attemptId(courseIndex, learnerIndex)}-answer-${padded(questionIndex, 2)}`;
 }
 
+function assignmentId(courseIndex: number, assignmentIndex: number): string {
+  return `${courseId(courseIndex)}-assignment-${padded(assignmentIndex, 2)}`;
+}
+
+function assignmentSubmissionId(courseIndex: number, assignmentIndex: number, learnerIndex: number): string {
+  return `${assignmentId(courseIndex, assignmentIndex)}-submission-${padded(learnerIndex)}`;
+}
+
 function enrollmentId(courseIndex: number, learnerIndex: number): string {
   return `${courseId(courseIndex)}-enroll-${padded(learnerIndex)}`;
+}
+
+function notificationId(courseIndex: number, learnerIndex: number, type: string): string {
+  return `${courseId(courseIndex)}-notification-${type}-${padded(learnerIndex)}`;
+}
+
+function certificateId(courseIndex: number, learnerIndex: number): string {
+  return `${courseId(courseIndex)}-certificate-${padded(learnerIndex)}`;
+}
+
+function certificateCode(courseIndex: number, learnerIndex: number): string {
+  return `cert_seed_${padded(courseIndex)}_${padded(learnerIndex)}`;
 }
 
 function buildTitle(index: number): string {
@@ -167,6 +191,15 @@ function buildQuestionOptions(courseIndex: number, questionIndex: number): Prism
   ];
 }
 
+function buildAssignmentInstructions(courseIndex: number, assignmentIndex: number): string {
+  const topic = topics[(courseIndex + assignmentIndex - 2) % topics.length];
+  return [
+    `Prepare a short ${topic.toLowerCase()} deliverable for course ${padded(courseIndex)}.`,
+    "Submit a concise explanation, implementation link, and any tradeoffs you made.",
+    "Use realistic content so instructor review screens can be tested."
+  ].join("\n");
+}
+
 async function resetSeedData(): Promise<void> {
   const seededCourses = await prisma.course.findMany({
     where: { id: { startsWith: SEED_PREFIX } },
@@ -185,6 +218,10 @@ async function resetSeedData(): Promise<void> {
   const lessonIds = seededLessons.map((lesson) => lesson.id);
 
   await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { userId: { startsWith: SEED_PREFIX } } }),
+    prisma.certificate.deleteMany({ where: { courseId: { in: courseIds } } }),
+    prisma.assignmentSubmission.deleteMany({ where: { assignment: { courseId: { in: courseIds } } } }),
+    prisma.assignment.deleteMany({ where: { courseId: { in: courseIds } } }),
     prisma.examAnswer.deleteMany({ where: { attempt: { examId: { startsWith: SEED_PREFIX } } } }),
     prisma.examAttempt.deleteMany({ where: { examId: { startsWith: SEED_PREFIX } } }),
     prisma.examQuestion.deleteMany({ where: { examId: { startsWith: SEED_PREFIX } } }),
@@ -248,6 +285,33 @@ async function upsertCourseExamData(courseIndex: number, questionsPerExam: numbe
   }
 }
 
+async function upsertCourseAssignmentData(courseIndex: number, assignmentsPerCourse: number): Promise<void> {
+  for (let assignmentIndex = 1; assignmentIndex <= assignmentsPerCourse; assignmentIndex += 1) {
+    await prisma.assignment.upsert({
+      where: { id: assignmentId(courseIndex, assignmentIndex) },
+      create: {
+        id: assignmentId(courseIndex, assignmentIndex),
+        courseId: courseId(courseIndex),
+        title: `Assignment ${assignmentIndex}: ${topics[(courseIndex + assignmentIndex - 2) % topics.length]}`,
+        instructions: buildAssignmentInstructions(courseIndex, assignmentIndex),
+        status: AssignmentStatus.PUBLISHED,
+        dueAt: new Date(Date.now() + (courseIndex + assignmentIndex) * 86400000),
+        maxScore: 100,
+        attachmentUrl: `https://example.test/assignments/${courseId(courseIndex)}/${assignmentIndex}.pdf`
+      },
+      update: {
+        title: `Assignment ${assignmentIndex}: ${topics[(courseIndex + assignmentIndex - 2) % topics.length]}`,
+        instructions: buildAssignmentInstructions(courseIndex, assignmentIndex),
+        status: AssignmentStatus.PUBLISHED,
+        archivedAt: null,
+        dueAt: new Date(Date.now() + (courseIndex + assignmentIndex) * 86400000),
+        maxScore: 100,
+        attachmentUrl: `https://example.test/assignments/${courseId(courseIndex)}/${assignmentIndex}.pdf`
+      }
+    });
+  }
+}
+
 async function upsertSeedUsers(learnerCount: number): Promise<void> {
   await prisma.user.upsert({
     where: { id: INSTRUCTOR_ID },
@@ -278,7 +342,7 @@ async function upsertSeedUsers(learnerCount: number): Promise<void> {
   }
 }
 
-async function upsertCourses(courseCount: number, lessonsPerCourse: number, questionsPerExam: number): Promise<void> {
+async function upsertCourses(courseCount: number, lessonsPerCourse: number, questionsPerExam: number, assignmentsPerCourse: number): Promise<void> {
   for (let index = 1; index <= courseCount; index += 1) {
     await prisma.course.upsert({
       where: { id: courseId(index) },
@@ -325,7 +389,120 @@ async function upsertCourses(courseCount: number, lessonsPerCourse: number, ques
     });
 
     await upsertCourseExamData(index, questionsPerExam);
+    await upsertCourseAssignmentData(index, assignmentsPerCourse);
   }
+}
+
+async function seedAssignmentSubmissions(courseCount: number, learnerCount: number, assignmentsPerCourse: number, submissionsPerCourse: number): Promise<number> {
+  let seeded = 0;
+
+  for (let courseIndex = 1; courseIndex <= courseCount; courseIndex += 1) {
+    for (let assignmentIndex = 1; assignmentIndex <= assignmentsPerCourse; assignmentIndex += 1) {
+      for (let offset = 0; offset < submissionsPerCourse; offset += 1) {
+        const learnerIndex = ((courseIndex * 7 + offset * 3) % learnerCount) + 1;
+        const graded = offset % 2 === 0;
+        await prisma.assignmentSubmission.upsert({
+          where: {
+            assignmentId_userId: {
+              assignmentId: assignmentId(courseIndex, assignmentIndex),
+              userId: learnerId(learnerIndex)
+            }
+          },
+          create: {
+            id: assignmentSubmissionId(courseIndex, assignmentIndex, learnerIndex),
+            assignmentId: assignmentId(courseIndex, assignmentIndex),
+            userId: learnerId(learnerIndex),
+            content: `Seed learner ${padded(learnerIndex)} submission for assignment ${assignmentIndex}.`,
+            attachmentUrl: `https://example.test/submissions/${courseId(courseIndex)}/${learnerId(learnerIndex)}.md`,
+            status: graded ? AssignmentSubmissionStatus.GRADED : AssignmentSubmissionStatus.SUBMITTED,
+            score: graded ? 82 + (offset % 12) : null,
+            feedback: graded ? "Seed feedback: clear structure and acceptable tradeoff notes." : null,
+            gradedAt: graded ? new Date() : null
+          },
+          update: {
+            content: `Seed learner ${padded(learnerIndex)} submission for assignment ${assignmentIndex}.`,
+            attachmentUrl: `https://example.test/submissions/${courseId(courseIndex)}/${learnerId(learnerIndex)}.md`,
+            status: graded ? AssignmentSubmissionStatus.GRADED : AssignmentSubmissionStatus.SUBMITTED,
+            score: graded ? 82 + (offset % 12) : null,
+            feedback: graded ? "Seed feedback: clear structure and acceptable tradeoff notes." : null,
+            gradedAt: graded ? new Date() : null
+          }
+        });
+
+        seeded += 1;
+      }
+    }
+  }
+
+  return seeded;
+}
+
+async function seedNotifications(courseCount: number, learnerCount: number): Promise<number> {
+  const rows = [];
+
+  for (let courseIndex = 1; courseIndex <= courseCount; courseIndex += 1) {
+    const learnerIndex = ((courseIndex * 7) % learnerCount) + 1;
+    rows.push({
+      id: notificationId(courseIndex, learnerIndex, "enrolled"),
+      userId: learnerId(learnerIndex),
+      type: NotificationType.ENROLLMENT_SUCCESS,
+      title: "Enrollment successful",
+      body: `You are enrolled in ${buildTitle(courseIndex)}.`,
+      linkUrl: `/courses/${courseId(courseIndex)}`,
+      metadata: { courseId: courseId(courseIndex) }
+    });
+    rows.push({
+      id: notificationId(courseIndex, learnerIndex, "assignment-graded"),
+      userId: learnerId(learnerIndex),
+      type: NotificationType.ASSIGNMENT_GRADED,
+      title: "Assignment graded",
+      body: `Assignment 1 in ${buildTitle(courseIndex)} was graded.`,
+      linkUrl: `/courses/${courseId(courseIndex)}`,
+      metadata: { courseId: courseId(courseIndex), assignmentId: assignmentId(courseIndex, 1) },
+      readAt: courseIndex % 2 === 0 ? new Date() : null
+    });
+  }
+
+  const result = await prisma.notification.createMany({
+    data: rows,
+    skipDuplicates: true
+  });
+
+  return result.count;
+}
+
+async function seedCertificates(courseCount: number, learnerCount: number): Promise<number> {
+  let seeded = 0;
+
+  for (let courseIndex = 1; courseIndex <= courseCount; courseIndex += 1) {
+    if (courseIndex % 4 !== 0) {
+      continue;
+    }
+
+    const learnerIndex = ((courseIndex * 7) % learnerCount) + 1;
+    await prisma.certificate.upsert({
+      where: {
+        userId_courseId: {
+          userId: learnerId(learnerIndex),
+          courseId: courseId(courseIndex)
+        }
+      },
+      create: {
+        id: certificateId(courseIndex, learnerIndex),
+        userId: learnerId(learnerIndex),
+        courseId: courseId(courseIndex),
+        verificationCode: certificateCode(courseIndex, learnerIndex)
+      },
+      update: {
+        verificationCode: certificateCode(courseIndex, learnerIndex),
+        status: "ACTIVE",
+        revokedAt: null
+      }
+    });
+    seeded += 1;
+  }
+
+  return seeded;
 }
 
 async function seedExamAttempts(courseCount: number, learnerCount: number, attemptsPerCourse: number, questionsPerExam: number): Promise<number> {
@@ -420,23 +597,32 @@ async function main(): Promise<void> {
   const lessonsPerCourse = parsePositiveInt("SEED_LESSONS_PER_COURSE", DEFAULT_LESSONS_PER_COURSE);
   const questionsPerExam = parsePositiveInt("SEED_QUESTIONS_PER_EXAM", DEFAULT_QUESTIONS_PER_EXAM);
   const attemptsPerCourse = parsePositiveInt("SEED_ATTEMPTS_PER_COURSE", DEFAULT_ATTEMPTS_PER_COURSE);
+  const assignmentsPerCourse = parsePositiveInt("SEED_ASSIGNMENTS_PER_COURSE", DEFAULT_ASSIGNMENTS_PER_COURSE);
+  const assignmentSubmissionsPerCourse = parsePositiveInt("SEED_ASSIGNMENT_SUBMISSIONS_PER_COURSE", DEFAULT_ASSIGNMENT_SUBMISSIONS_PER_COURSE);
 
   if (shouldReset) {
     await resetSeedData();
   }
 
   await upsertSeedUsers(learnerCount);
-  await upsertCourses(courseCount, lessonsPerCourse, questionsPerExam);
+  await upsertCourses(courseCount, lessonsPerCourse, questionsPerExam, assignmentsPerCourse);
   const createdEnrollments = await seedEnrollments(courseCount, learnerCount);
   const seededAttempts = await seedExamAttempts(courseCount, learnerCount, attemptsPerCourse, questionsPerExam);
+  const seededAssignmentSubmissions = await seedAssignmentSubmissions(courseCount, learnerCount, assignmentsPerCourse, assignmentSubmissionsPerCourse);
+  const seededNotifications = await seedNotifications(courseCount, learnerCount);
+  const seededCertificates = await seedCertificates(courseCount, learnerCount);
 
   writeLine("Seed courses complete.");
   writeLine(`Courses: ${courseCount}`);
   writeLine(`Lessons/course: ${lessonsPerCourse}`);
   writeLine(`Questions/exam: ${questionsPerExam}`);
+  writeLine(`Assignments/course: ${assignmentsPerCourse}`);
   writeLine(`Learners: ${learnerCount}`);
   writeLine(`New enrollments: ${createdEnrollments}`);
   writeLine(`Seeded exam attempts: ${seededAttempts}`);
+  writeLine(`Seeded assignment submissions: ${seededAssignmentSubmissions}`);
+  writeLine(`Seeded notifications: ${seededNotifications}`);
+  writeLine(`Seeded certificates: ${seededCertificates}`);
 }
 
 main()

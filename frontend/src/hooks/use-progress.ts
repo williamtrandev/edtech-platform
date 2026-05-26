@@ -26,6 +26,8 @@ export function useCompleteLesson(courseId: string) {
       await queryClient.invalidateQueries({ queryKey: ["progress", courseId] });
       await queryClient.invalidateQueries({ queryKey: ["lesson-progress", courseId] });
       await queryClient.invalidateQueries({ queryKey: ["lessons", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["certificates", "me"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     }
   });
 }

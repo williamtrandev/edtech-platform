@@ -54,4 +54,14 @@ export class CourseController {
     const course = await this.courseService.archiveCourse(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });
   };
+
+  lockCourse = async (req: Request, res: Response): Promise<void> => {
+    const course = await this.courseService.lockCourse(req.user, req.params.id, req.body.reason);
+    res.status(200).json({ success: true, data: course });
+  };
+
+  unlockCourse = async (req: Request, res: Response): Promise<void> => {
+    const course = await this.courseService.unlockCourse(req.user, req.params.id);
+    res.status(200).json({ success: true, data: course });
+  };
 }

@@ -137,33 +137,33 @@
     visibility: visible !important;
   }
 
-  .dark .lesson-rich-editor .tox.tox-tinymce,
-  .dark .lesson-rich-editor .tox .tox-editor-header,
-  .dark .lesson-rich-editor .tox .tox-toolbar-overlord,
-  .dark .lesson-rich-editor .tox .tox-toolbar,
-  .dark .lesson-rich-editor .tox .tox-toolbar__primary,
-  .dark .lesson-rich-editor .tox .tox-statusbar {
+  .lesson-rich-editor .tox.tox-tinymce,
+  .lesson-rich-editor .tox .tox-editor-header,
+  .lesson-rich-editor .tox .tox-toolbar-overlord,
+  .lesson-rich-editor .tox .tox-toolbar,
+  .lesson-rich-editor .tox .tox-toolbar__primary,
+  .lesson-rich-editor .tox .tox-statusbar {
     background-color: var(--card) !important;
     border-color: var(--border) !important;
     background-image: none !important;
   }
 
-  .dark .lesson-rich-editor .tox .tox-tbtn,
-  .dark .lesson-rich-editor .tox .tox-mbtn {
+  .lesson-rich-editor .tox .tox-tbtn,
+  .lesson-rich-editor .tox .tox-mbtn {
     color: var(--foreground) !important;
   }
 
-  .dark .lesson-rich-editor .tox .tox-tbtn svg,
-  .dark .lesson-rich-editor .tox .tox-mbtn svg {
+  .lesson-rich-editor .tox .tox-tbtn svg,
+  .lesson-rich-editor .tox .tox-mbtn svg {
     fill: var(--foreground) !important;
   }
 
-  .dark .lesson-rich-editor .tox .tox-tbtn:hover,
-  .dark .lesson-rich-editor .tox .tox-mbtn:hover {
+  .lesson-rich-editor .tox .tox-tbtn:hover,
+  .lesson-rich-editor .tox .tox-mbtn:hover {
     background-color: var(--accent) !important;
   }
 
-  .dark .lesson-rich-editor .tox .tox-edit-area__iframe {
+  .lesson-rich-editor .tox .tox-edit-area__iframe {
     background-color: var(--card) !important;
   }
 }

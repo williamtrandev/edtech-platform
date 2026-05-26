@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { ExamAttemptStatus } from "@prisma/client";
 import { ExamAttemptService } from "./exam-attempt.service";
 
 export class ExamAttemptController {
@@ -7,6 +8,15 @@ export class ExamAttemptController {
   startAttempt = async (req: Request, res: Response): Promise<void> => {
     const attempt = await this.examAttemptService.startAttempt(req.user, req.params.examId);
     res.status(201).json({ success: true, data: attempt });
+  };
+
+  listExamAttempts = async (req: Request, res: Response): Promise<void> => {
+    const attempts = await this.examAttemptService.listExamAttempts(req.user, req.params.examId, {
+      page: Number(req.query.page ?? 1),
+      limit: Number(req.query.limit ?? 20),
+      status: req.query.status ? (String(req.query.status) as ExamAttemptStatus) : undefined
+    });
+    res.status(200).json({ success: true, data: attempts });
   };
 
   getAttempt = async (req: Request, res: Response): Promise<void> => {

@@ -11,7 +11,7 @@ import { useAuditLogs } from "../hooks/use-audit-logs";
 import { useI18n } from "../i18n";
 
 const ALL_VALUE = "all";
-const ACTION_OPTIONS = ["USER_UPDATED", "USER_STATUS_UPDATED", "COURSE_PUBLISHED", "COURSE_ARCHIVED", "COURSE_STATUS_UPDATED"] as const;
+const ACTION_OPTIONS = ["USER_UPDATED", "USER_STATUS_UPDATED", "COURSE_PUBLISHED", "COURSE_ARCHIVED", "COURSE_LOCKED", "COURSE_UNLOCKED", "COURSE_STATUS_UPDATED"] as const;
 const ENTITY_OPTIONS = ["User", "Course"] as const;
 
 function formatMetadata(metadata: unknown) {
@@ -23,7 +23,7 @@ function formatMetadata(metadata: unknown) {
 }
 
 export function AuditLogsPage() {
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [action, setAction] = useState(ALL_VALUE);
@@ -95,7 +95,7 @@ export function AuditLogsPage() {
           {isLoading ? <TableSkeleton cols={6} rows={8} /> : null}
           {isError ? (
             <div className="m-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {(error as Error).message}
+              {formatError(error, "errors.unexpected")}
             </div>
           ) : null}
           {!isLoading && !isError ? (

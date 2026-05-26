@@ -1,6 +1,7 @@
 import { ExamQuestionType, Prisma } from "@prisma/client";
-import { EXAM_QUESTION_TYPE, USER_ROLE } from "../../common/constants/business";
+import { EXAM_QUESTION_TYPE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
+import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { ExamRepository } from "../exam/exam.repository";
@@ -42,7 +43,7 @@ export class ExamQuestionService {
   ) {}
 
   async listExamQuestions(user: Express.UserClaims | undefined, examId: string) {
-    await this.assertCanManageExam(user, examId);
+    await this.assertCanViewExam(user, examId);
     return this.examQuestionRepository.findByExamId(examId);
   }
 
@@ -146,6 +147,26 @@ export class ExamQuestionService {
     return deletedQuestion;
   }
 
+  private async assertCanViewExam(user: Express.UserClaims | undefined, examId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const exam = await this.examRepository.findById(examId);
+    if (!exam) {
+      throw new AppError("Exam not found", 404, "EXAM_NOT_FOUND");
+    }
+
+    const course = await this.courseRepository.findById(exam.courseId);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    if (!canViewCourseAsStaff(user, course.instructorId)) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+  }
+
   private async assertCanManageExam(user: Express.UserClaims | undefined, examId: string) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
@@ -161,10 +182,7 @@ export class ExamQuestionService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, course.instructorId);
   }
 
   private mergeQuestion(question: StoredQuestion, payload: UpdateExamQuestionPayload): ExamQuestionPayload {

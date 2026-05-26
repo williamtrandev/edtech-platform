@@ -1,7 +1,8 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, InstructorCreateCourseGate, PublicOnly, RequireAuth } from "../components/route-guards";
+import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, InstructorCreateCourseGate, LearnerWorkspaceGate, PublicOnly, RequireAuth } from "../components/route-guards";
 import { AccountSettingsPage } from "../pages/account-settings-page";
 import { AuditLogsPage } from "../pages/audit-logs-page";
+import { CertificateVerifyPage } from "../pages/certificate-verify-page";
 import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
 import { CoursesPage } from "../pages/courses-page";
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
     element: <EmailConfirmedPage />
   },
   {
+    path: "/certificates/verify/:verificationCode",
+    element: <CertificateVerifyPage />
+  },
+  {
     path: "/",
     element: <HomeRedirect />
   },
@@ -58,11 +63,23 @@ export const router = createBrowserRouter([
     children: [
       {
         path: "/dashboard",
-        element: <MyLearningPage />
+        element: <LearnerWorkspaceGate />,
+        children: [
+          {
+            index: true,
+            element: <MyLearningPage />
+          }
+        ]
       },
       {
         path: "/my-progress",
-        element: <MyProgressPage />
+        element: <LearnerWorkspaceGate />,
+        children: [
+          {
+            index: true,
+            element: <MyProgressPage />
+          }
+        ]
       },
       {
         path: "/settings",

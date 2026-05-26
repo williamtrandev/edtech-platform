@@ -55,6 +55,18 @@ export class UserRepository {
     });
   }
 
+  async findByEmail(email: string): Promise<User | null> {
+    return prisma.user.findFirst({
+      where: {
+        email: {
+          equals: email.trim(),
+          mode: "insensitive"
+        }
+      },
+      select: this.userSelect
+    });
+  }
+
   async create(data: Prisma.UserCreateInput): Promise<User> {
     return prisma.user.create({
       data,

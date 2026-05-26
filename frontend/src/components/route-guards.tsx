@@ -50,7 +50,7 @@ export function PublicOnly() {
   return <Outlet />;
 }
 
-/** After login: learners land on Explore; instructors and admins on Course studio. */
+/** After login: learners → Explore; instructors/admins → Course studio. */
 export function HomeRedirect() {
   const { isAuthenticated, isBootstrapping } = useAuth();
   const me = useCurrentUser(isAuthenticated && !isBootstrapping);
@@ -109,6 +109,34 @@ export function InstructorCreateCourseGate() {
 
   if (me.data?.role !== USER_ROLE.instructor) {
     return <Navigate to="/courses" replace />;
+  }
+
+  return <Outlet />;
+}
+
+/** Learner-only workspace: My learning and progress pages. */
+export function LearnerWorkspaceGate() {
+  const { isAuthenticated, isBootstrapping } = useAuth();
+  const me = useCurrentUser(isAuthenticated && !isBootstrapping);
+
+  if (isBootstrapping || (isAuthenticated && me.isLoading)) {
+    return <FullScreenLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (me.data?.role === USER_ROLE.admin) {
+    return <Navigate to="/courses" replace />;
+  }
+
+  if (me.data?.role === USER_ROLE.instructor) {
+    return <Navigate to="/courses" replace />;
+  }
+
+  if (me.data?.role !== USER_ROLE.user) {
+    return <Navigate to="/explore" replace />;
   }
 
   return <Outlet />;

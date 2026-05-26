@@ -23,6 +23,7 @@ enum CourseStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+  LOCKED
 }
 
 enum LessonContentType {
@@ -49,6 +50,30 @@ enum ExamAttemptStatus {
   GRADED
 }
 
+enum AssignmentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AssignmentSubmissionStatus {
+  SUBMITTED
+  GRADED
+}
+
+enum NotificationType {
+  ENROLLMENT_SUCCESS
+  ASSIGNMENT_GRADED
+  CERTIFICATE_ISSUED
+  COURSE_PUBLISHED
+  SYSTEM
+}
+
+enum CertificateStatus {
+  ACTIVE
+  REVOKED
+}
+
 model User {
   id        String     @id
   email     String     @unique
@@ -57,12 +82,16 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  createdCourses Course[]         @relation("CourseInstructor")
-  enrollments    Enrollment[]
-  lessonProgress LessonProgress[]
-  auditLogs      AuditLog[]       @relation("AuditActor")
-  courseReviews  CourseReview[]
-  examAttempts   ExamAttempt[]
+  createdCourses        Course[]               @relation("CourseInstructor")
+  lockedCourses         Course[]               @relation("CourseLockedBy")
+  enrollments           Enrollment[]
+  lessonProgress        LessonProgress[]
+  auditLogs             AuditLog[]             @relation("AuditActor")
+  courseReviews         CourseReview[]
+  examAttempts          ExamAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+  notifications         Notification[]
+  certificates          Certificate[]
 }
 
 model AuditLog {
@@ -81,6 +110,44 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  linkUrl   String?
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([type])
+}
+
+model Certificate {
+  id               String            @id @default(cuid())
+  userId           String
+  courseId         String
+  verificationCode String            @unique
+  status           CertificateStatus @default(ACTIVE)
+  issuedAt         DateTime          @default(now())
+  revokedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([status])
+}
+
 model Course {
   id              String       @id @default(cuid())
   title           String
@@ -96,18 +163,69 @@ model Course {
   ratingCount     Int          @default(0)
   status          CourseStatus @default(DRAFT)
   instructorId    String
+  lockReason      String?
+  lockedAt        DateTime?
+  lockedById      String?
+  statusBeforeLock CourseStatus?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   archivedAt      DateTime?
 
-  instructor  User           @relation("CourseInstructor", fields: [instructorId], references: [id])
-  lessons     Lesson[]
-  exams       Exam[]
-  enrollments Enrollment[]
-  reviews     CourseReview[]
+  instructor   User           @relation("CourseInstructor", fields: [instructorId], references: [id])
+  lockedBy     User?          @relation("CourseLockedBy", fields: [lockedById], references: [id])
+  lessons      Lesson[]
+  exams        Exam[]
+  enrollments  Enrollment[]
+  reviews      CourseReview[]
+  assignments  Assignment[]
+  certificates Certificate[]
 
   @@index([status])
   @@index([instructorId])
+}
+
+model Assignment {
+  id            String           @id @default(cuid())
+  courseId      String
+  title         String
+  instructions  String?
+  status        AssignmentStatus @default(DRAFT)
+  dueAt         DateTime?
+  maxScore      Int?
+  attachmentUrl String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  archivedAt    DateTime?
+
+  course      Course                 @relation(fields: [courseId], references: [id])
+  submissions AssignmentSubmission[]
+
+  @@index([courseId])
+  @@index([status])
+  @@index([dueAt])
+}
+
+model AssignmentSubmission {
+  id            String                     @id @default(cuid())
+  assignmentId  String
+  userId        String
+  content       String?
+  attachmentUrl String?
+  status        AssignmentSubmissionStatus @default(SUBMITTED)
+  submittedAt   DateTime                   @default(now())
+  gradedAt      DateTime?
+  score         Int?
+  feedback      String?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@unique([assignmentId, userId])
+  @@index([assignmentId])
+  @@index([userId])
+  @@index([status])
 }
 
 model Exam {

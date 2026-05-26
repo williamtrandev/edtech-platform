@@ -1,5 +1,6 @@
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AppError } from "../../common/errors/app-error";
+import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
@@ -32,6 +33,12 @@ export class LessonService {
     private readonly enrollmentRepository: EnrollmentRepository
   ) {}
 
+  private assertCourseEditable(user: Express.UserClaims, course: { status: string }) {
+    if (course.status === COURSE_STATUS.locked) {
+      throw new AppError("Course is locked and cannot be edited", 409, "COURSE_LOCKED");
+    }
+  }
+
   async listLessons(user: Express.UserClaims | undefined, courseId: string) {
     const course = await this.courseRepository.findById(courseId);
     if (!course) {
@@ -42,7 +49,10 @@ export class LessonService {
       throw new AppError("Sign in and enroll to access lessons", 403, "COURSE_ENROLLMENT_REQUIRED");
     }
 
-    const canAccessCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
+    const canAccessCourse = canViewCourseAsStaff(user, course.instructorId);
+    if (course.status === COURSE_STATUS.locked && !canAccessCourse) {
+      throw new AppError("Course has been locked", 403, "COURSE_LOCKED");
+    }
     if (!canAccessCourse) {
       const enrollment = await this.enrollmentRepository.findByUserAndCourse(user.id, courseId);
       if (!enrollment) {
@@ -63,10 +73,8 @@ export class LessonService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, course.instructorId);
+    this.assertCourseEditable(user, course);
 
     try {
       return await this.lessonRepository.create({
@@ -100,10 +108,8 @@ export class LessonService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, course.instructorId);
+    this.assertCourseEditable(user, course);
 
     const lessons = await this.lessonRepository.findByCourseId(lesson.courseId);
     const boundedSortOrder = Math.max(1, Math.min(payload.sortOrder, lessons.length));
@@ -129,10 +135,8 @@ export class LessonService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, course.instructorId);
+    this.assertCourseEditable(user, course);
 
     const lessons = await this.lessonRepository.findByCourseId(courseId);
     const existingIds = new Set(lessons.map((lesson) => lesson.id));
@@ -159,10 +163,8 @@ export class LessonService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, course.instructorId);
+    this.assertCourseEditable(user, course);
 
     return this.lessonRepository.update(payload.lessonId, {
       title: payload.title,
@@ -186,10 +188,8 @@ export class LessonService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, course.instructorId);
+    this.assertCourseEditable(user, course);
 
     return this.lessonRepository.delete(lessonId, lesson.courseId, lesson.sortOrder);
   }

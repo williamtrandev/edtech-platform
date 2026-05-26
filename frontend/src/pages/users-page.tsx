@@ -30,7 +30,7 @@ export function UsersPage() {
   });
   const createUserMutation = useCreateUser();
   const updateUserMutation = useUpdateUser();
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
 
   const form = useForm<CreateUserFormValues>({
     resolver: zodResolver(createUserFormSchema),
@@ -52,7 +52,7 @@ export function UsersPage() {
       form.reset({ id: "", email: "", role: USER_ROLE.user });
       toast.success(t("users.created"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("users.createFailed"));
+      toast.error(formatError(e, "users.createFailed"));
     }
   };
 
@@ -61,7 +61,7 @@ export function UsersPage() {
       await updateUserMutation.mutateAsync({ id: userId, payload: { role } });
       toast.success(t("users.updated"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("users.updateFailed"));
+      toast.error(formatError(e, "users.updateFailed"));
     }
   };
 
@@ -70,7 +70,7 @@ export function UsersPage() {
       await updateUserMutation.mutateAsync({ id: userId, payload: { status } });
       toast.success(t(status === USER_STATUS.suspended ? "users.suspended" : "users.reactivated"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("users.statusUpdateFailed"));
+      toast.error(formatError(e, "users.statusUpdateFailed"));
     }
   };
 
@@ -181,7 +181,7 @@ export function UsersPage() {
               {isLoading ? <TableSkeleton cols={5} rows={6} /> : null}
               {isError ? (
                 <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  {(error as Error).message}
+                  {formatError(error, "errors.unexpected")}
                 </div>
               ) : null}
               {!isLoading && !isError ? (

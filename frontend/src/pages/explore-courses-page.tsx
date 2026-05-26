@@ -19,7 +19,7 @@ const COURSE_PAGE_SIZE = 12;
 const ALL_FILTER_VALUE = "all";
 
 export function ExploreCoursesPage() {
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
   const { isAuthenticated } = useAuth();
   const enrollMutation = useEnrollCourse();
   const [query, setQuery] = useState("");
@@ -234,7 +234,7 @@ export function ExploreCoursesPage() {
           {isLoading ? <CourseListSkeleton rows={6} /> : null}
           {isError ? (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {(error as Error).message}
+              {formatError(error, "errors.unexpected")}
             </div>
           ) : null}
 

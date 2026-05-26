@@ -27,10 +27,10 @@ const LESSON_TOOLBAR =
   "undo redo | blocks fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist checklist | outdent indent | link image table blockquote | removeformat";
 
 const CONTENT_STYLE_LIGHT =
-  'html { background: #ffffff; } body { background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #262626; margin: 16px; } body[data-mce-placeholder]:not(.mce-visualblocks)::before { color: #737373 !important; opacity: 1 !important; } a { color: #262626; text-decoration: underline; } img { max-width: 100%; height: auto; }';
+  'html { background: #ffffff; } body { background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #171717; margin: 16px; } body[data-mce-placeholder]:not(.mce-visualblocks)::before { color: #737373 !important; opacity: 1 !important; } a { color: #171717; text-decoration: underline; } img { max-width: 100%; height: auto; }';
 
 const CONTENT_STYLE_DARK =
-  'html { background: #262626; } body { background: #262626; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #fafafa; margin: 16px; } body[data-mce-placeholder]:not(.mce-visualblocks)::before { color: #d4d4d4 !important; opacity: 1 !important; } a { color: #fafafa; text-decoration: underline; } img { max-width: 100%; height: auto; }';
+  'html { background: #1c1c1c; } body { background: #1c1c1c; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #fafafa; margin: 16px; } body[data-mce-placeholder]:not(.mce-visualblocks)::before { color: #a3a3a3 !important; opacity: 1 !important; } a { color: #fafafa; text-decoration: underline; } img { max-width: 100%; height: auto; }';
 
 export function createLessonTinyMceInit(placeholder: string, isDark: boolean): LessonTinyMceInit {
   return {

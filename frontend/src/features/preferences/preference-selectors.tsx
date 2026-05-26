@@ -41,7 +41,7 @@ export function ThemeSelect({ labelId, className, variant = "default" }: Prefere
         aria-labelledby={labelId}
         title={nextThemeLabel}
         className={cn(
-          "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background/95 text-foreground transition-colors hover:border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
           className
         )}
         onClick={() => setTheme(nextTheme)}
@@ -92,7 +92,7 @@ export function LanguageSelect({ labelId, className, variant = "default" }: Pref
         aria-labelledby={labelId}
         title={`${t("settings.languageLabel")}: ${label}`}
         className={cn(
-          "inline-flex h-9 min-w-12 shrink-0 cursor-pointer items-center justify-center gap-1 rounded-lg border border-border/70 bg-background/95 px-2 text-foreground transition-colors hover:border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          "inline-flex h-9 min-w-12 shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full px-2.5 text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
           className
         )}
         onClick={() => setLanguage(nextLanguage)}

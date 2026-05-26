@@ -75,14 +75,14 @@ export function LessonRichTextEditor({ value, placeholder, onChange, onBlur, onC
   }
 
   return (
-    <div className="lesson-rich-editor relative min-h-[520px] min-w-0 max-w-full">
+    <div className="lesson-rich-editor relative min-h-[min(60vh,560px)] min-w-0 max-w-full">
       {!isReady && !hasLoadError ? (
-        <div className="mb-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground" role="status" aria-live="polite">
+        <div className="mb-2 rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground" role="status" aria-live="polite">
           {t("courseDetail.editorLoading")}
         </div>
       ) : null}
       {hasLoadError ? (
-        <div className="grid min-h-[520px] place-items-center rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="grid min-h-[min(60vh,560px)] place-items-center rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           <div className="grid justify-items-center gap-3 text-center">
             <p>{t("courseDetail.editorLoadFailed")}</p>
             <Button

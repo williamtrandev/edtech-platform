@@ -27,6 +27,10 @@ export class CourseRepository {
     ratingCount: true,
     status: true,
     instructorId: true,
+    lockReason: true,
+    lockedAt: true,
+    lockedById: true,
+    statusBeforeLock: true,
     archivedAt: true,
     createdAt: true,
     updatedAt: true,
@@ -177,6 +181,43 @@ export class CourseRepository {
       data: {
         status: CourseStatus.ARCHIVED,
         archivedAt: new Date()
+      },
+      select: this.courseSelect
+    });
+    return this.mapCourse(course);
+  }
+
+  async lockById(id: string, actorId: string, reason: string | null, statusBeforeLock: CourseStatus) {
+    const course = await prisma.course.update({
+      where: { id },
+      data: {
+        status: CourseStatus.LOCKED,
+        lockReason: reason,
+        lockedAt: new Date(),
+        lockedById: actorId,
+        statusBeforeLock
+      },
+      select: this.courseSelect
+    });
+    return this.mapCourse(course);
+  }
+
+  async unlockById(id: string) {
+    const existing = await prisma.course.findUniqueOrThrow({
+      where: { id },
+      select: {
+        statusBeforeLock: true
+      }
+    });
+
+    const course = await prisma.course.update({
+      where: { id },
+      data: {
+        status: existing.statusBeforeLock ?? CourseStatus.DRAFT,
+        lockReason: null,
+        lockedAt: null,
+        lockedById: null,
+        statusBeforeLock: null
       },
       select: this.courseSelect
     });

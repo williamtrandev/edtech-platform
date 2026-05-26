@@ -27,5 +27,9 @@ export const enrollmentService = {
   async getMyEnrollments(): Promise<Enrollment[]> {
     const response = await httpClient.get<ApiResponse<Enrollment[]>>("/enrollments/me");
     return response.data.data;
+  },
+  async dropEnrollment(enrollmentId: string): Promise<Enrollment> {
+    const response = await httpClient.delete<ApiResponse<Enrollment>>(`/enrollments/${enrollmentId}`);
+    return response.data.data;
   }
 };

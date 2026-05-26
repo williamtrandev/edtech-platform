@@ -1,4 +1,4 @@
-import { ArrowUpRight, BookOpen, FileText, GraduationCap, Layers, Plus, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, BookOpen, FileText, GraduationCap, Layers, Lock, Plus, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ export function CoursesPage() {
   const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const { data, isLoading, isError, error } = useCourses();
   const enrollMutation = useEnrollCourse();
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
 
   const canCreateCourse = meQuery.data?.role === USER_ROLE.instructor;
   const isAdmin = meQuery.data?.role === USER_ROLE.admin;
@@ -34,11 +34,18 @@ export function CoursesPage() {
   const courses = data?.items ?? [];
   const publishedCount = courses.filter((course) => course.status === COURSE_STATUS.published).length;
   const draftCount = courses.filter((course) => course.status === COURSE_STATUS.draft).length;
-  const stats = [
-    { icon: Layers, label: t("courseStudio.total"), value: courses.length },
-    { icon: GraduationCap, label: t("courseStudio.published"), value: publishedCount },
-    { icon: FileText, label: t("courseStudio.drafts"), value: draftCount }
-  ];
+  const lockedCount = courses.filter((course) => course.status === COURSE_STATUS.locked).length;
+  const stats = isAdmin
+    ? [
+        { icon: Layers, label: t("courseStudio.total"), value: courses.length },
+        { icon: GraduationCap, label: t("courseStudio.published"), value: publishedCount },
+        { icon: Lock, label: t("courseStudio.locked"), value: lockedCount }
+      ]
+    : [
+        { icon: Layers, label: t("courseStudio.total"), value: courses.length },
+        { icon: GraduationCap, label: t("courseStudio.published"), value: publishedCount },
+        { icon: FileText, label: t("courseStudio.drafts"), value: draftCount }
+      ];
 
   return (
     <AppShell
@@ -56,7 +63,7 @@ export function CoursesPage() {
       }
     >
       <div className="space-y-6">
-        <section className="rounded-lg border border-border/70 bg-card px-4 py-4">
+        <section className="rounded-xl bg-card px-4 py-4 ring-1 ring-foreground/10">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
@@ -81,7 +88,7 @@ export function CoursesPage() {
           {stats.map((item) => {
             const Icon = item.icon;
             return (
-              <div key={item.label} className="flex items-center gap-3 rounded-lg border border-border/70 bg-card px-4 py-3">
+              <div key={item.label} className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-foreground/10">
                 <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
                   <Icon className="size-4" aria-hidden />
                 </span>
@@ -95,7 +102,7 @@ export function CoursesPage() {
         </section>
 
         <section className="grid gap-6">
-          <Card className="rounded-lg border-border/70 shadow-none">
+          <Card className="">
             <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
               <div>
                 <CardTitle className="text-base">{t("courseStudio.courses")}</CardTitle>
@@ -106,7 +113,7 @@ export function CoursesPage() {
               {isLoading ? <CourseListSkeleton rows={5} /> : null}
               {isError ? (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  {(error as Error).message}
+                  {formatError(error, "errors.unexpected")}
                 </div>
               ) : null}
 
@@ -114,7 +121,7 @@ export function CoursesPage() {
                 courses.length ? (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {courses.map((course) => (
-                      <article key={course.id} className="overflow-hidden rounded-lg border border-border/70 bg-card transition-colors hover:border-border">
+                      <article key={course.id} className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 transition-colors hover:border-border">
                           <div className="relative aspect-video bg-muted/30">
                           {course.coverImageUrl ? (
                             <img src={toMediaUrl(course.coverImageUrl)} alt="" className="size-full object-cover" loading="lazy" decoding="async" />

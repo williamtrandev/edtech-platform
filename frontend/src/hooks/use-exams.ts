@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { examService, type CreateExamPayload, type CreateExamQuestionPayload, type ExamQuestion, type UpdateExamPayload, type UpdateExamQuestionPayload } from "../services/exam.service";
+import type { ExamAttemptStatus } from "../constants/business";
+import {
+  examService,
+  type CreateExamPayload,
+  type CreateExamQuestionPayload,
+  type ExamQuestion,
+  type GradeExamAttemptPayload,
+  type UpdateExamPayload,
+  type UpdateExamQuestionPayload
+} from "../services/exam.service";
 
 export function useCourseExams(courseId: string, enabled = true) {
   return useQuery({
@@ -120,6 +129,16 @@ export function useExamAttempt(attemptId: string | null, enabled = true, pollWhi
   });
 }
 
+export function useExamAttempts(courseId: string, examId: string | null, page: number, status: ExamAttemptStatus | "ALL", enabled = true) {
+  const attemptStatus = status === "ALL" ? undefined : status;
+
+  return useQuery({
+    queryKey: ["courses", courseId, "exams", examId, "attempts", page, status],
+    queryFn: () => examService.getExamAttempts(examId!, page, 20, attemptStatus),
+    enabled: Boolean(courseId && examId) && enabled
+  });
+}
+
 export function useSaveExamAttemptAnswers(courseId: string) {
   const queryClient = useQueryClient();
 
@@ -149,6 +168,20 @@ export function useSubmitExamAttempt(courseId: string) {
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "exams"] });
       await queryClient.invalidateQueries({ queryKey: ["exam-attempts", variables.attemptId] });
+    }
+  });
+}
+
+export function useGradeExamAttempt(courseId: string, examId: string | null, page: number, status: ExamAttemptStatus | "ALL") {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ attemptId, payload }: { attemptId: string; payload: GradeExamAttemptPayload }) => examService.gradeExamAttempt(attemptId, payload),
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "exams"] });
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "exams", examId, "attempts", page, status] });
+      await queryClient.invalidateQueries({ queryKey: ["exam-attempts", variables.attemptId] });
+      await queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }
   });
 }

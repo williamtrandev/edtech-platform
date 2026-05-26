@@ -1,4 +1,5 @@
 import { type Language } from "../constants/preferences";
+import { resolveErrorMessage } from "../lib/api-error";
 import { useLanguage } from "../hooks/use-language";
 import enAuth from "./locales/en/auth.json";
 import enHome from "./locales/en/home.json";
@@ -34,17 +35,44 @@ export function translate(language: Language, key: I18nKey): string {
   return dictionaries[language][key] ?? dictionaries.en[key] ?? key;
 }
 
+const ERROR_CODE_ALIASES: Partial<Record<string, I18nKey>> = {
+  NETWORK_ERROR: "errors.network",
+  TIMEOUT: "errors.timeout",
+  HTTP_ERROR: "errors.unexpected"
+};
+
 export function getLocalizedErrorMessage(error: unknown, fallbackKey: I18nKey, t: (key: I18nKey) => string): string {
-  if (!(error instanceof Error)) {
-    return t(fallbackKey);
+  if (error instanceof Error) {
+    const messageKey = error.message.trim();
+    if (isI18nKey(messageKey)) {
+      return t(messageKey);
+    }
   }
 
-  const message = error.message.trim();
-  if (!message) {
-    return t(fallbackKey);
-  }
+  return resolveErrorMessage(error, t(fallbackKey), (code, statusCode) => {
+    const alias = ERROR_CODE_ALIASES[code];
+    if (alias) {
+      return t(alias);
+    }
 
-  return isI18nKey(message) ? t(message) : message;
+    const apiKey = `errors.api.${code}` as I18nKey;
+    if (isI18nKey(apiKey)) {
+      return t(apiKey);
+    }
+
+    if (statusCode) {
+      const statusKey = `errors.http.${statusCode}` as I18nKey;
+      if (isI18nKey(statusKey)) {
+        return t(statusKey);
+      }
+    }
+
+    return null;
+  });
+}
+
+export function getErrorMessage(error: unknown, fallbackKey: I18nKey, language: Language): string {
+  return getLocalizedErrorMessage(error, fallbackKey, (key) => translate(language, key));
 }
 
 export function useI18n() {
@@ -52,6 +80,8 @@ export function useI18n() {
 
   return {
     language,
-    t: (key: I18nKey) => translate(language, key)
+    t: (key: I18nKey) => translate(language, key),
+    formatError: (error: unknown, fallbackKey: I18nKey) =>
+      getLocalizedErrorMessage(error, fallbackKey, (key) => translate(language, key))
   };
 }

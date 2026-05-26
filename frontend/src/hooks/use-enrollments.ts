@@ -9,6 +9,20 @@ export function useMyEnrollments(enabled = true) {
   });
 }
 
+export function useDropEnrollment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: enrollmentService.dropEnrollment,
+    onSuccess: async (enrollment) => {
+      await queryClient.invalidateQueries({ queryKey: ["enrollments", "me"] });
+      await queryClient.invalidateQueries({ queryKey: ["courses"] });
+      await queryClient.invalidateQueries({ queryKey: ["progress", enrollment.courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["lesson-progress", enrollment.courseId] });
+    }
+  });
+}
+
 export function useEnrollCourse() {
   const queryClient = useQueryClient();
 

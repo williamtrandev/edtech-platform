@@ -1,5 +1,6 @@
 import { CourseStatus } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
+import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseListFilters, CourseRepository } from "./course.repository";
@@ -15,11 +16,12 @@ type CoursePayload = {
   requirements?: string | null;
   outcomes?: string | null;
   coverImageUrl?: string | null;
-  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "LOCKED";
 };
 
 type PublishableCourse = {
   title?: string | null;
+  description?: string | null;
   coverImageUrl?: string | null;
   category?: string | null;
   level?: string | null;
@@ -44,7 +46,7 @@ export class CourseService {
     user: Express.UserClaims | undefined,
     page: number,
     limit: number,
-    status?: "DRAFT" | "PUBLISHED" | "ARCHIVED",
+    status?: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "LOCKED",
     search?: string,
     filters: Omit<CourseListFilters, "learnerId"> = {}
   ) {
@@ -78,7 +80,7 @@ export class CourseService {
     };
   }
 
-  async listCourseFacets(user: Express.UserClaims | undefined, status?: "DRAFT" | "PUBLISHED" | "ARCHIVED") {
+  async listCourseFacets(user: Express.UserClaims | undefined, status?: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "LOCKED") {
     let effectiveStatus: CourseStatus | undefined = CourseStatus.PUBLISHED;
     if (!user?.id || user.role === USER_ROLE.user) {
       effectiveStatus = CourseStatus.PUBLISHED;
@@ -96,6 +98,9 @@ export class CourseService {
     }
 
     const canViewUnpublished = user?.role === USER_ROLE.admin || course.instructorId === user?.id;
+    if (course.status === COURSE_STATUS.locked && !canViewUnpublished) {
+      throw new AppError("Course has been locked", 403, "COURSE_LOCKED");
+    }
     if (!canViewUnpublished && course.status !== COURSE_STATUS.published) {
       throw new AppError("Course is not available", 403, "FORBIDDEN");
     }
@@ -112,6 +117,8 @@ export class CourseService {
     if (!canCreate) {
       throw new AppError("Forbidden", 403, "FORBIDDEN");
     }
+
+    this.assertCourseMetadataComplete(payload);
 
     if (payload.status === COURSE_STATUS.published) {
       this.assertPublishable(payload, 0);
@@ -146,9 +153,14 @@ export class CourseService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    assertCourseInstructor(user, course.instructorId);
+
+    if (course.status === COURSE_STATUS.locked) {
+      throw new AppError("Course is locked and cannot be edited", 409, "COURSE_LOCKED");
+    }
+
+    if (payload.status !== undefined && payload.status === COURSE_STATUS.locked) {
+      throw new AppError("Use course lock endpoint for moderation", 422, "COURSE_LOCK_REQUIRES_ADMIN_ENDPOINT");
     }
 
     const data: {
@@ -236,10 +248,11 @@ export class CourseService {
     return updatedCourse;
   }
 
-  private assertPublishable(course: PublishableCourse, lessonCount: number) {
+  private assertCourseMetadataComplete(course: PublishableCourse) {
     const missing: string[] = [];
 
     if (!hasText(course.title)) missing.push("title");
+    if (!hasText(course.description)) missing.push("description");
     if (!hasText(course.coverImageUrl)) missing.push("coverImageUrl");
     if (!hasText(course.category)) missing.push("category");
     if (!hasText(course.level)) missing.push("level");
@@ -247,10 +260,17 @@ export class CourseService {
     if (!course.durationMinutes || course.durationMinutes < 1) missing.push("durationMinutes");
     if (!hasText(course.requirements)) missing.push("requirements");
     if (!hasText(course.outcomes)) missing.push("outcomes");
-    if (lessonCount < 1) missing.push("lessons");
 
     if (missing.length) {
-      throw new AppError(`Course is missing publish requirements: ${missing.join(", ")}`, 422, "COURSE_PUBLISH_REQUIREMENTS_MISSING");
+      throw new AppError(`Course is missing required fields: ${missing.join(", ")}`, 422, "COURSE_METADATA_INCOMPLETE");
+    }
+  }
+
+  private assertPublishable(course: PublishableCourse, lessonCount: number) {
+    this.assertCourseMetadataComplete(course);
+
+    if (lessonCount < 1) {
+      throw new AppError("Course is missing publish requirements: lessons", 422, "COURSE_PUBLISH_REQUIREMENTS_MISSING");
     }
   }
 
@@ -264,10 +284,7 @@ export class CourseService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user.role === USER_ROLE.admin || course.instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, course.instructorId);
 
     if (course.status === COURSE_STATUS.archived) {
       return course;
@@ -288,6 +305,73 @@ export class CourseService {
     return archivedCourse;
   }
 
+  async lockCourse(user: Express.UserClaims | undefined, id: string, reason?: string | null) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+    if (user.role !== USER_ROLE.admin) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+    if (course.status === COURSE_STATUS.locked) {
+      return course;
+    }
+    if (course.status === COURSE_STATUS.archived) {
+      throw new AppError("Archived courses cannot be locked", 409, "COURSE_ALREADY_ARCHIVED");
+    }
+
+    const trimmedReason = reason?.trim() || null;
+    const lockedCourse = await this.courseRepository.lockById(id, user.id, trimmedReason, course.status as CourseStatus);
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: "COURSE_LOCKED",
+      entityType: "Course",
+      entityId: id,
+      metadata: {
+        before: { status: course.status },
+        after: { status: COURSE_STATUS.locked },
+        reason: trimmedReason
+      }
+    });
+
+    return lockedCourse;
+  }
+
+  async unlockCourse(user: Express.UserClaims | undefined, id: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+    if (user.role !== USER_ROLE.admin) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+    if (course.status !== COURSE_STATUS.locked) {
+      return course;
+    }
+
+    const unlockedCourse = await this.courseRepository.unlockById(id);
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: "COURSE_UNLOCKED",
+      entityType: "Course",
+      entityId: id,
+      metadata: {
+        before: { status: COURSE_STATUS.locked, lockReason: course.lockReason },
+        after: { status: unlockedCourse.status }
+      }
+    });
+
+    return unlockedCourse;
+  }
+
   async listCourseEnrollments(user: Express.UserClaims | undefined, courseId: string, page: number, limit: number, search?: string) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
@@ -298,7 +382,7 @@ export class CourseService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canView = user.role === USER_ROLE.admin || course.instructorId === user.id;
+    const canView = canViewCourseAsStaff(user, course.instructorId);
     if (!canView) {
       throw new AppError("Forbidden", 403, "FORBIDDEN");
     }

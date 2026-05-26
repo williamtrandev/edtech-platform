@@ -1,4 +1,5 @@
 import axios from "axios";
+import { fromAxiosError } from "./api-error";
 import { supabase } from "./supabase";
 
 let cachedAccessToken: string | null = null;
@@ -25,3 +26,14 @@ httpClient.interceptors.request.use((config) => {
 
   return config;
 });
+
+httpClient.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      throw fromAxiosError(error);
+    }
+
+    throw error;
+  }
+);

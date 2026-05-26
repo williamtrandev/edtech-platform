@@ -1,5 +1,6 @@
 import { AppError } from "../../common/errors/app-error";
 import { USER_ROLE } from "../../common/constants/business";
+import { CertificateService } from "../certificate/certificate.service";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { ProgressRepository } from "./progress.repository";
@@ -8,7 +9,8 @@ export class ProgressService {
   constructor(
     private readonly progressRepository: ProgressRepository,
     private readonly enrollmentRepository: EnrollmentRepository,
-    private readonly courseRepository: CourseRepository
+    private readonly courseRepository: CourseRepository,
+    private readonly certificateService?: CertificateService
   ) {}
 
   async upsertLessonProgress(user: Express.UserClaims | undefined, payload: { lessonId: string; isCompleted: boolean }) {
@@ -34,7 +36,18 @@ export class ProgressService {
       }
     }
 
-    return this.progressRepository.upsertLessonProgress(user.id, payload.lessonId, payload.isCompleted);
+    const progress = await this.progressRepository.upsertLessonProgress(user.id, payload.lessonId, payload.isCompleted);
+    if (payload.isCompleted && user.role === USER_ROLE.user) {
+      const [totalLessons, completedLessons] = await Promise.all([
+        this.progressRepository.countCourseLessons(lesson.courseId),
+        this.progressRepository.countCompletedCourseLessons(user.id, lesson.courseId)
+      ]);
+      if (totalLessons > 0 && completedLessons >= totalLessons) {
+        await this.certificateService?.issueCertificateIfMissing(user.id, lesson.courseId, course.title);
+      }
+    }
+
+    return progress;
   }
 
   async getMyCourseProgress(user: Express.UserClaims | undefined, courseId: string) {

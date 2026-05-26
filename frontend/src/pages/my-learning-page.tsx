@@ -1,5 +1,17 @@
 import { BookOpen, Compass, GraduationCap } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,11 +19,30 @@ import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { MetricCard } from "../components/metric-card";
 import { MetricCardSkeleton } from "../components/skeleton";
-import { useMyEnrollments } from "../hooks/use-enrollments";
+import { useDropEnrollment, useMyEnrollments } from "../hooks/use-enrollments";
+import { useI18n } from "../i18n";
 import { toMediaUrl } from "../lib/media-url";
+import type { Enrollment } from "../services/enrollment.service";
 
 export function MyLearningPage() {
   const { data, isLoading, isError } = useMyEnrollments();
+  const dropEnrollmentMutation = useDropEnrollment();
+  const [enrollmentPendingDrop, setEnrollmentPendingDrop] = useState<Enrollment | null>(null);
+  const { t, formatError } = useI18n();
+
+  const confirmDropEnrollment = async () => {
+    if (!enrollmentPendingDrop) {
+      return;
+    }
+
+    try {
+      await dropEnrollmentMutation.mutateAsync(enrollmentPendingDrop.id);
+      setEnrollmentPendingDrop(null);
+      toast.success(t("myLearning.dropEnrollmentSuccess"));
+    } catch (e) {
+      toast.error(formatError(e, "myLearning.dropEnrollmentFailed"));
+    }
+  };
 
   return (
     <AppShell
@@ -93,6 +124,16 @@ export function MyLearningPage() {
                     <Button asChild variant="outline" size="sm" className="rounded-lg">
                       <Link to="/my-progress">View progress</Link>
                     </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-lg text-destructive hover:text-destructive"
+                      disabled={dropEnrollmentMutation.isPending}
+                      onClick={() => setEnrollmentPendingDrop(enrollment)}
+                    >
+                      {t("myLearning.dropEnrollment")}
+                    </Button>
                   </CardContent>
                 </Card>
               ))
@@ -113,6 +154,21 @@ export function MyLearningPage() {
           ) : null}
         </section>
       </div>
+
+      <AlertDialog open={Boolean(enrollmentPendingDrop)} onOpenChange={(open) => !open && setEnrollmentPendingDrop(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("myLearning.dropEnrollmentConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("myLearning.dropEnrollmentConfirmDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction disabled={dropEnrollmentMutation.isPending} onClick={() => void confirmDropEnrollment()}>
+              {dropEnrollmentMutation.isPending ? t("myLearning.droppingEnrollment") : t("myLearning.dropEnrollment")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

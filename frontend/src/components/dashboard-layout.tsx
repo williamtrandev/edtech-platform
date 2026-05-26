@@ -1,46 +1,41 @@
-import { BookMarked, ClipboardList, Compass, GraduationCap, Library, LogIn, LogOut, Settings, Users } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { BookMarked, ClipboardList, Compass, GraduationCap, Library, LogIn, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { USER_ROLE } from "../constants/business";
+import { HeaderNav, type HeaderNavItem } from "./header-nav";
+import { HeaderUserMenu } from "./header-user-menu";
+import { NotificationCenter } from "./notification-center";
+import { USER_ROLE, type UserRole } from "../constants/business";
 import { useAuth } from "../hooks/use-auth";
 import { LanguageSelect, ThemeSelect } from "../features/preferences/preference-selectors";
 import { useCurrentUser } from "../hooks/use-current-user";
-import { type I18nKey, useI18n } from "../i18n";
+import { useI18n } from "../i18n";
 
-type NavItem = {
-  to: string;
-  labelKey: I18nKey;
-  icon: LucideIcon;
-  /** If set, only these roles see the item */
-  roles?: readonly string[];
-  /** Active when pathname equals `to` (default) or when `activePath` matches */
-  activePath?: string;
+const EXPLORE_NAV: HeaderNavItem = { to: "/explore", labelKey: "nav.explore", icon: Compass };
+const MY_LEARNING_NAV: HeaderNavItem = { to: "/dashboard", labelKey: "nav.myLearning", icon: Library };
+const PROGRESS_NAV: HeaderNavItem = { to: "/my-progress", labelKey: "nav.progress", icon: GraduationCap };
+const COURSE_STUDIO_NAV: HeaderNavItem = { to: "/courses", labelKey: "nav.courseStudio", icon: BookMarked, activePath: "/courses" };
+const USERS_NAV: HeaderNavItem = { to: "/users", labelKey: "nav.users", icon: Users };
+const AUDIT_NAV: HeaderNavItem = { to: "/audit", labelKey: "nav.audit", icon: ClipboardList };
+
+const NAV_BY_ROLE: Record<UserRole, HeaderNavItem[]> = {
+  [USER_ROLE.user]: [EXPLORE_NAV, MY_LEARNING_NAV, PROGRESS_NAV],
+  [USER_ROLE.instructor]: [EXPLORE_NAV, COURSE_STUDIO_NAV],
+  [USER_ROLE.admin]: [COURSE_STUDIO_NAV, USERS_NAV, AUDIT_NAV]
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { to: "/explore", labelKey: "nav.explore", icon: Compass },
-  { to: "/dashboard", labelKey: "nav.myLearning", icon: Library, roles: [USER_ROLE.user, USER_ROLE.instructor, USER_ROLE.admin] },
-  { to: "/courses", labelKey: "nav.courseStudio", icon: BookMarked, roles: [USER_ROLE.instructor, USER_ROLE.admin], activePath: "/courses" },
-  { to: "/my-progress", labelKey: "nav.progress", icon: GraduationCap, roles: [USER_ROLE.user, USER_ROLE.instructor, USER_ROLE.admin] },
-  { to: "/users", labelKey: "nav.users", icon: Users, roles: [USER_ROLE.admin] },
-  { to: "/audit", labelKey: "nav.audit", icon: ClipboardList, roles: [USER_ROLE.admin] },
-  { to: "/settings", labelKey: "nav.settings", icon: Settings, roles: [USER_ROLE.user, USER_ROLE.instructor, USER_ROLE.admin] }
-];
+const GUEST_NAV: HeaderNavItem[] = [EXPLORE_NAV];
 
-function isNavActive(pathname: string, item: NavItem): boolean {
-  if (item.activePath) {
-    return pathname === item.activePath;
+function getNavItemsForRole(role: UserRole | undefined, isAuthenticated: boolean): HeaderNavItem[] {
+  if (!isAuthenticated || !role) {
+    return GUEST_NAV;
   }
-  if (pathname === item.to) {
-    return true;
-  }
-  return pathname.startsWith(`${item.to}/`);
+
+  return NAV_BY_ROLE[role] ?? GUEST_NAV;
 }
+
+const HEADER_ICON_BUTTON = "border-0 bg-transparent shadow-none hover:bg-muted/70";
 
 type DashboardLayoutProps = {
   title: string;
@@ -50,146 +45,59 @@ type DashboardLayoutProps = {
 };
 
 export function DashboardLayout({ title, subtitle, actions, children }: DashboardLayoutProps) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { userEmail, signOut, isAuthenticated, isBootstrapping } = useAuth();
+  const { userEmail, isAuthenticated, isBootstrapping } = useAuth();
   const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const { t } = useI18n();
 
-  const visibleNav = useMemo(() => {
-    const role = meQuery.data?.role;
-    if (!role) {
-      return NAV_ITEMS.filter((item) => !item.roles);
-    }
-    return NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(role));
-  }, [meQuery.data?.role]);
+  const visibleNav = useMemo(
+    () => getNavItemsForRole(meQuery.data?.role, isAuthenticated),
+    [isAuthenticated, meQuery.data?.role]
+  );
 
   return (
-    <div className="fixed inset-0 flex min-h-0 overflow-hidden bg-background">
-      <aside className="relative hidden h-full w-64 shrink-0 flex-col overflow-hidden border-r border-border/60 bg-card/40 backdrop-blur-xl lg:flex">
-        <div className="flex h-14 shrink-0 items-center border-b border-border/60 px-5">
-          <Link to="/" className="flex cursor-pointer items-center gap-2 font-semibold tracking-tight transition-opacity hover:opacity-90">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-xs font-bold text-background">
-              E
+    <div className="min-h-dvh bg-background">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-5 lg:px-8">
+          <Link
+            to={isAuthenticated ? (visibleNav[0]?.to ?? "/explore") : "/explore"}
+            className="flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg py-1 pr-2 transition-opacity hover:opacity-90"
+          >
+            <span className="flex size-8 items-center justify-center rounded-xl bg-foreground text-xs font-bold text-background">E</span>
+            <span className="hidden max-w-[9rem] truncate text-sm font-semibold tracking-tight text-foreground sm:inline lg:max-w-none">
+              {t("app.name")}
             </span>
-            <span className="text-sm">EdTech</span>
           </Link>
-        </div>
-        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3" aria-label="Main">
-          {visibleNav.map((item) => {
-            const active = isNavActive(location.pathname, item);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-200",
-                  active
-                    ? "bg-foreground text-background shadow-sm"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                )}
-              >
-                <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-                {t(item.labelKey)}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="shrink-0 border-t border-border/60 p-3">
-          {isAuthenticated ? (
-            <>
-              <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-foreground">{userEmail ?? "Signed in"}</p>
-                  <div className="mt-1 flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 text-[11px] text-muted-foreground">{t("common.role")}</span>
-                    {meQuery.data?.role ? (
-                      <Badge variant="secondary" className="h-5 min-w-0 rounded-md px-1.5 text-[10px] font-medium uppercase tracking-wide">
-                        <span className="truncate">{t(`role.${meQuery.data.role}` as I18nKey)}</span>
-                      </Badge>
-                    ) : meQuery.isLoading ? (
-                      <span className="text-[11px] text-muted-foreground">…</span>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">—</span>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-2 border-t border-border/60 pt-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <label id="sidebar-theme-select-label" className="truncate text-[11px] font-medium text-muted-foreground">
-                      {t("settings.themeLabel")}
-                    </label>
-                    <ThemeSelect labelId="sidebar-theme-select-label" variant="icon" className="border-border/70 bg-background" />
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <label id="sidebar-language-select-label" className="truncate text-[11px] font-medium text-muted-foreground">
-                      {t("settings.languageLabel")}
-                    </label>
-                    <LanguageSelect labelId="sidebar-language-select-label" variant="icon" className="border-border/70 bg-background" />
-                  </div>
-                </div>
-              </div>
-              <Button
-                className="mt-2 h-10 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={async () => {
-                  await signOut();
-                  navigate("/login", { replace: true });
-                }}
-              >
-                <LogOut className="size-4" />
-                {t("common.signOut")}
-              </Button>
-            </>
-          ) : (
-            <Button asChild className="w-full justify-start gap-2 rounded-xl" size="sm">
-              <Link to="/login" className="cursor-pointer">
-                <LogIn className="size-4" />
-                {t("auth.footer.signIn")}
-              </Link>
-            </Button>
-          )}
-        </div>
-      </aside>
 
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-30 shrink-0 border-b border-border/60 bg-background/85 backdrop-blur-md lg:hidden">
-          <div className="flex h-14 items-center justify-between gap-3 px-4">
-            <Link to="/" className="cursor-pointer text-sm font-semibold tracking-tight">
-              EdTech
-            </Link>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              {isAuthenticated ? (
-                <div className="hidden items-center gap-2 sm:flex">
-                  <ThemeSelect variant="icon" />
-                  <LanguageSelect variant="icon" />
-                </div>
-              ) : null}
-              <nav className="flex min-w-0 justify-end gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {visibleNav.map((item) => {
-                  const active = isNavActive(location.pathname, item);
-                  return (
-                    <Button key={item.to} asChild size="sm" variant={active ? "default" : "ghost"} className="h-9 shrink-0 rounded-full px-3">
-                      <Link to={item.to} className="cursor-pointer">{t(item.labelKey)}</Link>
-                    </Button>
-                  );
-                })}
-              </nav>
-            </div>
+          <HeaderNav items={visibleNav} />
+
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            {isAuthenticated ? (
+              <>
+                <NotificationCenter enabled={isAuthenticated && !isBootstrapping} align="right" buttonClassName={HEADER_ICON_BUTTON} />
+                <ThemeSelect variant="icon" className={HEADER_ICON_BUTTON} />
+                <LanguageSelect variant="icon" className={HEADER_ICON_BUTTON} />
+                <span className="mx-0.5 hidden h-5 w-px bg-border/80 sm:block" aria-hidden />
+                <HeaderUserMenu email={userEmail} role={meQuery.data?.role} />
+              </>
+            ) : (
+              <>
+                <ThemeSelect variant="icon" className={HEADER_ICON_BUTTON} />
+                <LanguageSelect variant="icon" className={HEADER_ICON_BUTTON} />
+                <Button asChild size="sm" className="ml-1 h-9 rounded-full px-4 shadow-none">
+                  <Link to="/login" className="cursor-pointer">
+                    <LogIn className="mr-1.5 size-4" aria-hidden />
+                    {t("auth.footer.signIn")}
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
-          {isAuthenticated ? (
-            <div className="flex justify-end gap-2 border-t border-border/40 px-4 py-2 sm:hidden">
-              <ThemeSelect variant="icon" />
-              <LanguageSelect variant="icon" />
-            </div>
-          ) : null}
-        </header>
+        </div>
+      </header>
 
-        <div className="shrink-0 border-b border-border/40 bg-muted/20">
-          <div className="mx-auto flex max-w-[1440px] flex-wrap items-start justify-between gap-4 px-4 py-5 sm:px-5 lg:px-6">
+      <div className="flex min-h-dvh flex-col pt-16">
+        <div className="shrink-0 border-b border-border bg-muted/20">
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-start justify-between gap-4 px-4 py-5 sm:px-5 lg:px-8">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 <span>{t("common.app")}</span>
@@ -205,9 +113,7 @@ export function DashboardLayout({ title, subtitle, actions, children }: Dashboar
           </div>
         </div>
 
-        <main className="mx-auto min-h-0 w-full max-w-[1440px] flex-1 overflow-y-auto overscroll-y-contain px-4 py-6 sm:px-5 lg:px-6">
-          {children}
-        </main>
+        <main className="mx-auto min-h-0 w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-5 lg:px-8">{children}</main>
       </div>
     </div>
   );

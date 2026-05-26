@@ -14,6 +14,15 @@ export function serializeLessonContent(payload: LessonContentPayload) {
   return JSON.stringify(payload);
 }
 
+export function isLessonHtmlEmpty(html: string) {
+  const text = html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .trim();
+
+  return text.length === 0;
+}
+
 export function parseLessonContent(content: string, contentType: LessonContentType): LessonContentPayload {
   try {
     const parsed = JSON.parse(content) as Partial<LessonContentPayload>;

@@ -1,6 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, BookOpenText, CheckCircle2, GripVertical, ListOrdered, Paperclip, PlayCircle, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -20,7 +21,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  STUDIO_CARD_HEADER,
+  STUDIO_CHOICE,
+  STUDIO_CHOICE_ACTIVE,
+  STUDIO_DIVIDER,
+  STUDIO_EDITOR_TITLE,
+  STUDIO_FORM_STACK,
+  STUDIO_LIST,
+  STUDIO_LIST_ITEM,
+  STUDIO_LIST_ITEM_SELECTED,
+  STUDIO_LIST_STICKY,
+  STUDIO_PANEL,
+  STUDIO_SETTINGS_GRID,
+  STUDIO_WORKSPACE_GRID
+} from "../lib/studio-layout";
 import { AppShell } from "../components/app-shell";
+import { CourseCreateAssignmentsStep, type PendingAssignment } from "../components/course-create-assignments-step";
+import { CourseCreateExamsStep, type PendingExam } from "../components/course-create-exams-step";
+import { CourseCreateStepper } from "../components/course-create-stepper";
+import { CourseCreateWizardFooter } from "../components/course-create-wizard-footer";
 import { CourseCoverFrame } from "../components/course-cover-frame";
 import { CourseStatusBadge } from "../components/course-status-badge";
 import { CourseCoverUploader } from "../components/course-cover-uploader";
@@ -29,11 +49,23 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { COURSE_STATUS, LESSON_CONTENT_TYPE } from "../constants/business";
+import { COURSE_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { useCourseAssignments } from "../hooks/use-assignments";
 import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
+import { useCourseExams } from "../hooks/use-exams";
+import {
+  COURSE_CREATE_STEP,
+  COURSE_CREATE_STEPS,
+  getCourseCreateStepIndex,
+  getNextCourseCreateStep,
+  getPreviousCourseCreateStep,
+  type CourseCreateStepId
+} from "../lib/course-create-wizard";
 import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { assignmentService } from "../services/assignment.service";
+import { examService } from "../services/exam.service";
 import { createCourseFormSchema, CreateCourseFormValues, createLessonFormSchema, CreateLessonFormValues } from "../schemas/course.schema";
-import type { Lesson } from "../services/course.service";
+import { courseService, type Course, type Lesson } from "../services/course.service";
 import { uploadService, type UploadedFile } from "../services/upload.service";
 import { type I18nKey, useI18n } from "../i18n";
 
@@ -46,14 +78,43 @@ function hasText(value: string | null | undefined) {
   return Boolean(value?.trim());
 }
 
-type CourseCreateTab = "curriculum" | "settings";
+type PendingLesson = {
+  id: string;
+  title: string;
+  contentType: LessonContentType;
+  content: string;
+  sortOrder: number;
+};
+
+function buildLessonContent(values: CreateLessonFormValues, uploadedLessonFile: UploadedFile | null) {
+  const body = values.content.trim();
+  if (values.contentType === LESSON_CONTENT_TYPE.text) {
+    return serializeLessonContent({
+      version: 1,
+      kind: values.contentType,
+      body
+    });
+  }
+
+  return serializeLessonContent({
+    version: 1,
+    kind: values.contentType,
+    url: body,
+    fileName: uploadedLessonFile?.fileName,
+    mimeType: uploadedLessonFile?.mimeType,
+    size: uploadedLessonFile?.size
+  });
+}
 
 export function CourseCreatePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const courseIdFromUrl = searchParams.get("courseId");
   const createCourseMutation = useCreateCourse();
   const [courseId, setCourseId] = useState<string | null>(courseIdFromUrl);
-  const [activeTab, setActiveTab] = useState<CourseCreateTab>(courseIdFromUrl ? "curriculum" : "settings");
+  const [activeStep, setActiveStep] = useState<CourseCreateStepId>(COURSE_CREATE_STEP.details);
+  const [maxReachedStepIndex, setMaxReachedStepIndex] = useState(
+    courseIdFromUrl ? COURSE_CREATE_STEPS.length - 1 : 0
+  );
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isUploadingLessonFile, setIsUploadingLessonFile] = useState(false);
   const [uploadedLessonFile, setUploadedLessonFile] = useState<UploadedFile | null>(null);
@@ -62,11 +123,18 @@ export function CourseCreatePage() {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [draggingLessonId, setDraggingLessonId] = useState<string | null>(null);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null);
+  const [pendingLessons, setPendingLessons] = useState<PendingLesson[]>([]);
+  const [pendingExams, setPendingExams] = useState<PendingExam[]>([]);
+  const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([]);
+  const [isSavingStep, setIsSavingStep] = useState(false);
   const lessonContentReaderRef = useRef<(() => string) | null>(null);
   const reorderSaveTimerRef = useRef<number | null>(null);
+  const queryClient = useQueryClient();
   const { t } = useI18n();
   const courseQuery = useCourseDetail(courseId ?? "");
   const lessonsQuery = useCourseLessons(courseId ?? "", Boolean(courseId));
+  const examsQuery = useCourseExams(courseId ?? "", Boolean(courseId));
+  const assignmentsQuery = useCourseAssignments(courseId ?? "", Boolean(courseId));
   const createLessonMutation = useCreateLesson(courseId ?? "");
   const updateLessonMutation = useUpdateLesson(courseId ?? "");
   const deleteLessonMutation = useDeleteLesson(courseId ?? "");
@@ -83,7 +151,7 @@ export function CourseCreatePage() {
       category: "",
       level: "",
       language: "",
-      durationMinutes: "",
+      durationMinutes: undefined,
       requirements: "",
       outcomes: "",
       coverImageUrl: "",
@@ -105,6 +173,7 @@ export function CourseCreatePage() {
   const coverImageUrl = courseForm.watch("coverImageUrl");
   const courseStatus = courseForm.watch("status");
   const courseTitle = courseForm.watch("title");
+  const courseDescription = courseForm.watch("description");
   const courseCategory = courseForm.watch("category");
   const courseLevel = courseForm.watch("level");
   const courseLanguage = courseForm.watch("language");
@@ -113,9 +182,19 @@ export function CourseCreatePage() {
   const courseOutcomes = courseForm.watch("outcomes");
   const lessonContentType = lessonForm.watch("contentType");
   const lessonContentValue = lessonForm.watch("content");
-  const nextLessonSortOrder = getNextLessonSortOrder(orderedLessons);
+  const curriculumLessons: Lesson[] = courseId
+    ? orderedLessons
+    : pendingLessons.map((lesson) => ({
+        id: lesson.id,
+        courseId: "",
+        title: lesson.title,
+        contentType: lesson.contentType,
+        content: lesson.content,
+        sortOrder: lesson.sortOrder
+      }));
+  const nextLessonSortOrder = getNextLessonSortOrder(curriculumLessons);
   const isRestoringCourse = Boolean(courseId && courseQuery.isLoading);
-  const lessons = orderedLessons;
+  const lessons = curriculumLessons;
   const isLessonSubmitPending = createLessonMutation.isPending || updateLessonMutation.isPending;
   const lessonSubmitLabel = updateLessonMutation.isPending
     ? t("courseDetail.savingLesson")
@@ -146,21 +225,27 @@ export function CourseCreatePage() {
   ];
   const publishChecks = [
     { label: t("courseDetail.publishRequirementTitle"), done: hasText(courseTitle) },
+    { label: t("courseDetail.publishRequirementDescription"), done: hasText(courseDescription) && courseDescription.trim().length >= 10 },
     { label: t("courseDetail.publishRequirementCover"), done: hasText(coverImageUrl) },
     {
       label: t("courseDetail.publishRequirementMetadata"),
-      done: hasText(courseCategory) && hasText(courseLevel) && hasText(courseLanguage) && courseDurationMinutes !== "" && Number(courseDurationMinutes) > 0
+      done: hasText(courseCategory) && hasText(courseLevel) && hasText(courseLanguage) && Number(courseDurationMinutes) > 0
     },
     { label: t("courseDetail.publishRequirementRequirements"), done: hasText(courseRequirements) },
     { label: t("courseDetail.publishRequirementOutcomes"), done: hasText(courseOutcomes) },
     { label: t("courseDetail.publishRequirementLessons"), done: lessons.length > 0 }
   ];
   const canPublish = publishChecks.every((item) => item.done);
+  const examCount = courseId ? (examsQuery.data?.length ?? 0) : pendingExams.length;
+  const assignmentCount = courseId ? (assignmentsQuery.data?.length ?? 0) : pendingAssignments.length;
 
   useEffect(() => {
     setCourseId(courseIdFromUrl);
     if (!courseIdFromUrl) {
-      setActiveTab("settings");
+      setActiveStep(COURSE_CREATE_STEP.details);
+      setMaxReachedStepIndex(0);
+    } else {
+      setMaxReachedStepIndex(COURSE_CREATE_STEPS.length - 1);
     }
   }, [courseIdFromUrl]);
 
@@ -175,11 +260,11 @@ export function CourseCreatePage() {
       category: courseQuery.data.category ?? "",
       level: courseQuery.data.level ?? "",
       language: courseQuery.data.language ?? "",
-      durationMinutes: courseQuery.data.durationMinutes ?? "",
+      durationMinutes: courseQuery.data.durationMinutes ?? undefined,
       requirements: courseQuery.data.requirements ?? "",
       outcomes: courseQuery.data.outcomes ?? "",
       coverImageUrl: courseQuery.data.coverImageUrl ?? "",
-      status: courseQuery.data.status
+      status: toEditableCourseStatus(courseQuery.data.status)
     });
   }, [courseForm, courseQuery.data]);
 
@@ -202,48 +287,269 @@ export function CourseCreatePage() {
     };
   }, []);
 
+  const buildCoursePayload = (values: CreateCourseFormValues) => ({
+    title: values.title.trim(),
+    description: values.description.trim(),
+    category: values.category.trim(),
+    level: values.level.trim(),
+    language: values.language.trim(),
+    durationMinutes: Number(values.durationMinutes),
+    requirements: values.requirements.trim(),
+    outcomes: values.outcomes.trim(),
+    coverImageUrl: values.coverImageUrl.trim(),
+    status: values.status
+  });
+
+  const resetCourseFormFromCourse = (course: Course) => {
+    courseForm.reset({
+      title: course.title,
+      description: course.description ?? "",
+      category: course.category ?? "",
+      level: course.level ?? "",
+      language: course.language ?? "",
+      durationMinutes: course.durationMinutes ?? undefined,
+      requirements: course.requirements ?? "",
+      outcomes: course.outcomes ?? "",
+      coverImageUrl: course.coverImageUrl ?? "",
+      status: toEditableCourseStatus(course.status)
+    });
+  };
+
+  const bindCourseToWizard = (course: Course) => {
+    setCourseId(course.id);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("courseId", course.id);
+    setSearchParams(nextParams, { replace: true });
+    resetCourseFormFromCourse(course);
+  };
+
+  const createCourseDraftFromForm = async (values: CreateCourseFormValues) => {
+    const course = await createCourseMutation.mutateAsync({
+      ...buildCoursePayload(values),
+      status: COURSE_STATUS.draft
+    });
+    bindCourseToWizard(course);
+    return course.id;
+  };
+
+  const ensureCourseDraft = async () => {
+    if (courseId) {
+      return courseId;
+    }
+
+    const valid = await courseForm.trigger();
+    if (!valid) {
+      throw new Error(t("courseStudio.detailsIncomplete"));
+    }
+
+    return createCourseDraftFromForm(courseForm.getValues());
+  };
+
+  const persistPendingLessonsForCourse = async (targetCourseId: string) => {
+    if (pendingLessons.length === 0) {
+      return false;
+    }
+
+    for (const lesson of pendingLessons) {
+      await courseService.createLesson({
+        courseId: targetCourseId,
+        title: lesson.title,
+        contentType: lesson.contentType,
+        content: lesson.content,
+        sortOrder: lesson.sortOrder
+      });
+    }
+
+    setPendingLessons([]);
+    await queryClient.invalidateQueries({ queryKey: ["lessons", targetCourseId] });
+    await queryClient.invalidateQueries({ queryKey: ["courses", targetCourseId] });
+    return true;
+  };
+
+  const persistPendingExamsForCourse = async (targetCourseId: string) => {
+    if (pendingExams.length === 0) {
+      return false;
+    }
+
+    for (const exam of pendingExams) {
+      await examService.createCourseExam(targetCourseId, exam.payload);
+    }
+
+    setPendingExams([]);
+    await queryClient.invalidateQueries({ queryKey: ["courses", targetCourseId, "exams"] });
+    return true;
+  };
+
+  const persistPendingAssignmentsForCourse = async (targetCourseId: string) => {
+    if (pendingAssignments.length === 0) {
+      return false;
+    }
+
+    for (const assignment of pendingAssignments) {
+      await assignmentService.createCourseAssignment(targetCourseId, assignment.payload);
+    }
+
+    setPendingAssignments([]);
+    await queryClient.invalidateQueries({ queryKey: ["courses", targetCourseId, "assignments"] });
+    return true;
+  };
+
+  const saveCourseDetailsIfNeeded = async () => {
+    if (!courseId || !courseForm.formState.isDirty) {
+      return false;
+    }
+
+    const values = courseForm.getValues();
+    const valid = await courseForm.trigger();
+    if (!valid) {
+      throw new Error(t("courseStudio.detailsIncomplete"));
+    }
+
+    const course = await updateCourseMutation.mutateAsync({
+      ...buildCoursePayload(values),
+      category: values.category.trim() || null,
+      level: values.level.trim() || null,
+      language: values.language.trim() || null,
+      durationMinutes: Number(values.durationMinutes),
+      requirements: values.requirements.trim() || null,
+      outcomes: values.outcomes.trim() || null,
+      coverImageUrl: values.coverImageUrl.trim() || null
+    });
+    resetCourseFormFromCourse(course);
+    return true;
+  };
+
+  const persistCurrentStep = async () => {
+    if (activeStep === COURSE_CREATE_STEP.details) {
+      if (!courseId) {
+        const valid = await courseForm.trigger();
+        if (!valid) {
+          throw new Error(t("courseStudio.detailsIncomplete"));
+        }
+
+        await createCourseDraftFromForm(courseForm.getValues());
+        return true;
+      }
+
+      return saveCourseDetailsIfNeeded();
+    }
+
+    if (activeStep === COURSE_CREATE_STEP.lessons) {
+      const targetCourseId = await ensureCourseDraft();
+      const savedLessons = await persistPendingLessonsForCourse(targetCourseId);
+      const savedDetails = courseId ? await saveCourseDetailsIfNeeded() : false;
+      return savedLessons || savedDetails;
+    }
+
+    if (activeStep === COURSE_CREATE_STEP.exams) {
+      const targetCourseId = await ensureCourseDraft();
+      return persistPendingExamsForCourse(targetCourseId);
+    }
+
+    if (activeStep === COURSE_CREATE_STEP.assignments) {
+      const targetCourseId = await ensureCourseDraft();
+      return persistPendingAssignmentsForCourse(targetCourseId);
+    }
+
+    return false;
+  };
+
+  const validateCurrentStep = async () => {
+    if (activeStep === COURSE_CREATE_STEP.details) {
+      return courseForm.trigger();
+    }
+    if (activeStep === COURSE_CREATE_STEP.lessons) {
+      if (lessons.length < 1) {
+        toast.error(t("courseStudio.lessonsRequired"));
+        return false;
+      }
+      return true;
+    }
+    return true;
+  };
+
+  const goToStep = (stepId: CourseCreateStepId) => {
+    const index = getCourseCreateStepIndex(stepId);
+    if (index <= maxReachedStepIndex) {
+      setActiveStep(stepId);
+    }
+  };
+
+  const goToNextStep = async () => {
+    const valid = await validateCurrentStep();
+    if (!valid) {
+      return;
+    }
+
+    setIsSavingStep(true);
+    try {
+      const saved = await persistCurrentStep();
+      if (saved) {
+        toast.success(t("courseStudio.stepSaved"));
+      }
+
+      const nextStep = getNextCourseCreateStep(activeStep);
+      if (!nextStep) {
+        return;
+      }
+
+      const nextIndex = getCourseCreateStepIndex(nextStep);
+      setMaxReachedStepIndex((current) => Math.max(current, nextIndex));
+      setActiveStep(nextStep);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("courseStudio.stepSaveFailed"));
+    } finally {
+      setIsSavingStep(false);
+    }
+  };
+
+  const goToPreviousStep = () => {
+    const previousStep = getPreviousCourseCreateStep(activeStep);
+    if (previousStep) {
+      setActiveStep(previousStep);
+    }
+  };
+
   const onSaveCourse = async (values: CreateCourseFormValues) => {
+    if (!courseId) {
+      toast.error(t("courseStudio.detailsIncomplete"));
+      setActiveStep(COURSE_CREATE_STEP.details);
+      return;
+    }
+
     if (values.status === COURSE_STATUS.published && !canPublish) {
       toast.error(t("courseDetail.publishRequirementsMissing"));
       return;
     }
 
+    setIsSavingStep(true);
     try {
-      const payload = {
-        ...values,
-        description: values.description ?? "",
-        category: values.category || null,
-        level: values.level || null,
-        language: values.language || null,
-        durationMinutes: values.durationMinutes === "" ? null : Number(values.durationMinutes),
-        requirements: values.requirements || null,
-        outcomes: values.outcomes || null,
-        coverImageUrl: values.coverImageUrl || null
-      };
-      const course = courseId
-        ? await updateCourseMutation.mutateAsync(payload)
-        : await createCourseMutation.mutateAsync(payload);
+      await persistPendingLessonsForCourse(courseId);
+      await persistPendingExamsForCourse(courseId);
+      await persistPendingAssignmentsForCourse(courseId);
 
-      setCourseId(course.id);
-      setActiveTab("curriculum");
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.set("courseId", course.id);
-      setSearchParams(nextParams, { replace: true });
-      courseForm.reset({
-        title: course.title,
-        description: course.description ?? "",
-        category: course.category ?? "",
-        level: course.level ?? "",
-        language: course.language ?? "",
-        durationMinutes: course.durationMinutes ?? "",
-        requirements: course.requirements ?? "",
-        outcomes: course.outcomes ?? "",
-        coverImageUrl: course.coverImageUrl ?? "",
-        status: course.status
+      const nextStatus =
+        values.status === COURSE_STATUS.published && canPublish ? COURSE_STATUS.published : values.status;
+
+      const course = await updateCourseMutation.mutateAsync({
+        ...buildCoursePayload(values),
+        status: nextStatus,
+        category: values.category.trim() || null,
+        level: values.level.trim() || null,
+        language: values.language.trim() || null,
+        durationMinutes: Number(values.durationMinutes),
+        requirements: values.requirements.trim() || null,
+        outcomes: values.outcomes.trim() || null,
+        coverImageUrl: values.coverImageUrl.trim() || null
       });
-      toast.success(t(courseId ? "courseDetail.courseUpdated" : "courseStudio.courseCreated"));
+      resetCourseFormFromCourse(course);
+      toast.success(
+        nextStatus === COURSE_STATUS.published ? t("courseStudio.courseCreated") : t("courseDetail.courseUpdated")
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t(courseId ? "courseDetail.courseUpdateFailed" : "courseStudio.createFailed"));
+      toast.error(error instanceof Error ? error.message : t("courseDetail.courseUpdateFailed"));
+    } finally {
+      setIsSavingStep(false);
     }
   };
 
@@ -287,28 +593,50 @@ export function CourseCreatePage() {
   };
 
   const onSubmitLesson = async (values: CreateLessonFormValues) => {
+    const lessonId = selectedLessonId;
+    const content = buildLessonContent(values, uploadedLessonFile);
+
     if (!courseId) {
-      toast.error(t("courseStudio.saveCourseFirst"));
+      if (lessonId) {
+        setPendingLessons((currentLessons) =>
+          currentLessons.map((lesson) =>
+            lesson.id === lessonId
+              ? {
+                  ...lesson,
+                  title: values.title,
+                  contentType: values.contentType,
+                  content
+                }
+              : lesson
+          )
+        );
+        toast.success(t("courseDetail.lessonUpdated"));
+      } else {
+        setPendingLessons((currentLessons) => [
+          ...currentLessons,
+          {
+            id: crypto.randomUUID(),
+            title: values.title,
+            contentType: values.contentType,
+            content,
+            sortOrder: nextLessonSortOrder
+          }
+        ]);
+        toast.success(t("courseDetail.lessonCreated"));
+        lessonForm.reset({
+          title: "",
+          contentType: LESSON_CONTENT_TYPE.text,
+          content: "",
+          sortOrder: nextLessonSortOrder + 1
+        });
+        setSelectedLessonId(null);
+        setUploadedLessonFile(null);
+      }
+
+      lessonForm.clearErrors();
+      setHasSubmittedLessonForm(false);
       return;
     }
-
-    const lessonId = selectedLessonId;
-    const body = values.content.trim();
-    const content =
-      values.contentType === LESSON_CONTENT_TYPE.text
-        ? serializeLessonContent({
-            version: 1,
-            kind: values.contentType,
-            body
-          })
-        : serializeLessonContent({
-            version: 1,
-            kind: values.contentType,
-            url: body,
-            fileName: uploadedLessonFile?.fileName,
-            mimeType: uploadedLessonFile?.mimeType,
-            size: uploadedLessonFile?.size
-          });
 
     try {
       if (lessonId) {
@@ -351,10 +679,17 @@ export function CourseCreatePage() {
       return;
     }
 
-    const content = lessonContentReaderRef.current?.();
+    const content = lessonContentReaderRef.current?.() ?? lessonForm.getValues("content");
     if (typeof content === "string") {
-      lessonForm.setValue("content", content, { shouldDirty: true, shouldValidate: false });
+      lessonForm.setValue("content", content, { shouldDirty: true, shouldValidate: true });
     }
+  };
+
+  const onLessonFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setHasSubmittedLessonForm(true);
+    syncLessonEditorContent();
+    void lessonForm.handleSubmit(onSubmitLesson)();
   };
 
   const getLessonError = (message?: string) => (hasSubmittedLessonForm ? message : undefined);
@@ -391,15 +726,32 @@ export function CourseCreatePage() {
       return;
     }
 
-    const sourceIndex = orderedLessons.findIndex((lesson) => lesson.id === sourceLessonId);
-    const targetIndex = orderedLessons.findIndex((lesson) => lesson.id === targetLessonId);
+    const sourceIndex = lessons.findIndex((lesson) => lesson.id === sourceLessonId);
+    const targetIndex = lessons.findIndex((lesson) => lesson.id === targetLessonId);
     if (sourceIndex < 0 || targetIndex < 0) {
       return;
     }
 
-    const nextLessons = [...orderedLessons];
+    const nextLessons = [...lessons];
     const [movedLesson] = nextLessons.splice(sourceIndex, 1);
     nextLessons.splice(targetIndex, 0, movedLesson);
+
+    if (!courseId) {
+      setPendingLessons((currentLessons) => {
+        const pendingSourceIndex = currentLessons.findIndex((lesson) => lesson.id === sourceLessonId);
+        const pendingTargetIndex = currentLessons.findIndex((lesson) => lesson.id === targetLessonId);
+        if (pendingSourceIndex < 0 || pendingTargetIndex < 0) {
+          return currentLessons;
+        }
+
+        const reordered = [...currentLessons];
+        const [movedPendingLesson] = reordered.splice(pendingSourceIndex, 1);
+        reordered.splice(pendingTargetIndex, 0, movedPendingLesson);
+        return reordered.map((lesson, index) => ({ ...lesson, sortOrder: index + 1 }));
+      });
+      return;
+    }
+
     setOrderedLessons(nextLessons);
     scheduleLessonOrderSave(nextLessons.map((lesson) => lesson.id));
   };
@@ -445,6 +797,16 @@ export function CourseCreatePage() {
       return;
     }
 
+    if (!courseId) {
+      setPendingLessons((currentLessons) => currentLessons.filter((lesson) => lesson.id !== lessonPendingDelete.id));
+      if (selectedLessonId === lessonPendingDelete.id) {
+        onNewLesson();
+      }
+      setLessonPendingDelete(null);
+      toast.success(t("courseDetail.lessonDeleted"));
+      return;
+    }
+
     if (reorderSaveTimerRef.current) {
       window.clearTimeout(reorderSaveTimerRef.current);
       reorderSaveTimerRef.current = null;
@@ -481,14 +843,14 @@ export function CourseCreatePage() {
           <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
             <CourseCoverFrame src={coverImageUrl} className="min-h-0 max-h-[22rem]" emptyLabel={t("courseDetail.coverEmptyTitle")} />
             <div className="grid gap-3 self-start">
-              <div className="rounded-lg border border-border/70 bg-card p-4">
+              <div className="rounded-xl bg-card ring-1 ring-foreground/10 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.status")}</span>
                   <CourseStatusBadge status={courseStatus} label={t(`courseStatus.${courseStatus}` as I18nKey)} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="min-h-24 rounded-lg border border-border/70 bg-card p-3">
+                <div className="min-h-24 rounded-xl bg-card ring-1 ring-foreground/10 p-3">
                   <ListOrdered className="mb-2 size-4 text-muted-foreground" aria-hidden />
                   <p className="truncate text-xl font-semibold tabular-nums">{lessonsQuery.isLoading ? "..." : lessons.length}</p>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{t("courseDetail.metricLessons")}</p>
@@ -498,35 +860,20 @@ export function CourseCreatePage() {
           </section>
         ) : null}
 
-        {courseId ? (
-          <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/20 p-1">
-            {[
-              { id: "curriculum" as const, label: "courseDetail.tabCurriculum" as I18nKey, count: lessons.length },
-              { id: "settings" as const, label: "courseDetail.tabSettings" as I18nKey }
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={cn(
-                  "inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
-                  activeTab === item.id ? "bg-background text-foreground shadow-none" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                )}
-                onClick={() => setActiveTab(item.id)}
-              >
-                {t(item.label)}
-                {typeof item.count === "number" ? <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums">{item.count}</span> : null}
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <CourseCreateStepper
+          steps={COURSE_CREATE_STEPS}
+          currentStep={activeStep}
+          maxReachedIndex={maxReachedStepIndex}
+          onStepSelect={(stepId) => void goToStep(stepId)}
+        />
 
-        {!courseId || activeTab === "settings" ? (
-        <Card className="rounded-lg border-border/70 shadow-none">
+        {activeStep === COURSE_CREATE_STEP.details ? (
+        <Card>
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle className="text-base">{t("courseStudio.courseCreation")}</CardTitle>
-                <CardDescription>{t("courseStudio.draftHint")}</CardDescription>
+                <CardDescription>{courseId ? t("courseStudio.createHint") : t("courseStudio.createDescription")}</CardDescription>
               </div>
               {courseId ? <CourseStatusBadge status={courseStatus} label={t(`courseStatus.${courseStatus}` as I18nKey)} /> : null}
             </div>
@@ -548,7 +895,14 @@ export function CourseCreatePage() {
               </div>
             ) : null}
             {!isRestoringCourse && !courseQuery.isError ? (
-            <form className="grid gap-5 lg:grid-cols-[24rem_minmax(0,1fr)] lg:items-start" onSubmit={courseForm.handleSubmit(onSaveCourse)} noValidate>
+            <form
+              className={STUDIO_SETTINGS_GRID}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void goToNextStep();
+              }}
+              noValidate
+            >
               <CourseCoverUploader
                 id="course-cover"
                 value={coverImageUrl}
@@ -564,104 +918,78 @@ export function CourseCreatePage() {
                 onRemove={() => courseForm.setValue("coverImageUrl", "", { shouldDirty: true, shouldValidate: true })}
               />
 
-              <div className="grid gap-4">
+              <div className="grid gap-5">
                 <FormField id="course-title" label={t("courseStudio.courseTitle")} error={courseForm.formState.errors.title?.message}>
                   <Input id="course-title" placeholder={t("courseStudio.courseTitlePlaceholder")} {...courseForm.register("title")} />
                 </FormField>
 
-                <FormField id="course-description" label={t("courseStudio.courseDescription")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.description?.message}>
+                <FormField id="course-description" label={t("courseStudio.courseDescription")} error={courseForm.formState.errors.description?.message}>
                   <TextareaField id="course-description" placeholder={t("courseStudio.courseDescriptionPlaceholder")} rows={5} {...courseForm.register("description")} />
                 </FormField>
 
-                <div className="grid gap-3 rounded-lg border border-border/70 bg-muted/15 p-4">
+                <div className={cn(STUDIO_PANEL, "grid gap-3")}>
                   <div>
                     <h2 className="text-sm font-semibold">{t("courseStudio.courseMetadata")}</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">{t("courseStudio.draftHint")}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("courseStudio.createHint")}</p>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
-                    <FormField id="course-category" label={t("courseStudio.courseCategory")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.category?.message}>
+                    <FormField id="course-category" label={t("courseStudio.courseCategory")} error={courseForm.formState.errors.category?.message}>
                       <Input id="course-category" placeholder={t("courseStudio.courseCategoryPlaceholder")} {...courseForm.register("category")} />
                     </FormField>
-                    <FormField id="course-level" label={t("courseStudio.courseLevel")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.level?.message}>
+                    <FormField id="course-level" label={t("courseStudio.courseLevel")} error={courseForm.formState.errors.level?.message}>
                       <Input id="course-level" placeholder={t("courseStudio.courseLevelPlaceholder")} {...courseForm.register("level")} />
                     </FormField>
-                    <FormField id="course-language" label={t("courseStudio.courseLanguage")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.language?.message}>
+                    <FormField id="course-language" label={t("courseStudio.courseLanguage")} error={courseForm.formState.errors.language?.message}>
                       <Input id="course-language" placeholder={t("courseStudio.courseLanguagePlaceholder")} {...courseForm.register("language")} />
                     </FormField>
                     <FormField id="course-duration" label={t("courseStudio.courseDuration")} hint={t("courseStudio.courseDurationUnit")} error={courseForm.formState.errors.durationMinutes?.message}>
-                      <Input id="course-duration" inputMode="numeric" min={1} placeholder={t("courseStudio.courseDurationPlaceholder")} type="number" {...courseForm.register("durationMinutes")} />
+                      <Input
+                        id="course-duration"
+                        inputMode="numeric"
+                        min={1}
+                        placeholder={t("courseStudio.courseDurationPlaceholder")}
+                        type="number"
+                        {...courseForm.register("durationMinutes", { valueAsNumber: true })}
+                      />
                     </FormField>
                   </div>
-                  <FormField id="course-requirements" label={t("courseStudio.courseRequirements")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.requirements?.message}>
+                  <FormField id="course-requirements" label={t("courseStudio.courseRequirements")} error={courseForm.formState.errors.requirements?.message}>
                     <TextareaField id="course-requirements" placeholder={t("courseStudio.courseRequirementsPlaceholder")} rows={4} {...courseForm.register("requirements")} />
                   </FormField>
-                  <FormField id="course-outcomes" label={t("courseStudio.courseOutcomes")} hint={t("courseStudio.optional")} error={courseForm.formState.errors.outcomes?.message}>
+                  <FormField id="course-outcomes" label={t("courseStudio.courseOutcomes")} error={courseForm.formState.errors.outcomes?.message}>
                     <TextareaField id="course-outcomes" placeholder={t("courseStudio.courseOutcomesPlaceholder")} rows={4} {...courseForm.register("outcomes")} />
                   </FormField>
                 </div>
 
-                <FormField id="course-status" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>
-                  <Controller
-                    control={courseForm.control}
-                    name="status"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger id="course-status" className="h-10 w-full rounded-md border-border/80 shadow-none">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={COURSE_STATUS.draft}>{t("courseStatus.DRAFT")}</SelectItem>
-                          <SelectItem value={COURSE_STATUS.published}>{t("courseStatus.PUBLISHED")}</SelectItem>
-                          <SelectItem value={COURSE_STATUS.archived}>{t("courseStatus.ARCHIVED")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </FormField>
-
-                {courseStatus === COURSE_STATUS.published ? (
-                  <div className="grid gap-3 rounded-lg border border-border/70 bg-background p-4">
-                    <div>
-                      <h2 className="text-sm font-semibold">{t("courseDetail.publishRequirements")}</h2>
-                      <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.publishRequirementsDescription")}</p>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {publishChecks.map((item) => (
-                        <div key={item.label} className="flex items-center gap-2 text-sm">
-                          <CheckCircle2 className={cn("size-4 shrink-0", item.done ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/45")} aria-hidden />
-                          <span className={item.done ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {courseId ? (
+                  <FormField id="course-status" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>
+                    <Controller
+                      control={courseForm.control}
+                      name="status"
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger id="course-status" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={COURSE_STATUS.draft}>{t("courseStatus.DRAFT")}</SelectItem>
+                            <SelectItem value={COURSE_STATUS.published}>{t("courseStatus.PUBLISHED")}</SelectItem>
+                            <SelectItem value={COURSE_STATUS.archived}>{t("courseStatus.ARCHIVED")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </FormField>
                 ) : null}
 
-                <div className="flex flex-wrap justify-end gap-2">
-                  {courseId ? (
-                    <Button asChild variant="outline" className="h-10 rounded-md font-medium shadow-none">
-                      <Link to={`/courses/${courseId}`}>{t("courseStudio.viewCourse")}</Link>
-                    </Button>
-                  ) : null}
-                  <Button
-                    className="h-10 rounded-md font-medium shadow-none"
-                    disabled={
-                      createCourseMutation.isPending ||
-                      updateCourseMutation.isPending ||
-                      isUploadingCover ||
-                      (courseStatus === COURSE_STATUS.published && !canPublish) ||
-                      (Boolean(courseId) && !courseForm.formState.isDirty)
-                    }
-                    type="submit"
-                  >
-                    {createCourseMutation.isPending
-                      ? t("courseStudio.creating")
-                      : updateCourseMutation.isPending
-                        ? t("courseDetail.saving")
-                        : courseId
-                          ? t("common.save")
-                          : t("courseStudio.createDraft")}
-                  </Button>
-                </div>
+                <CourseCreateWizardFooter
+                  showBack={false}
+                  continueLabel={t("courseStudio.wizardContinue")}
+                  continueDisabled={isUploadingCover}
+                  continueLoading={isSavingStep || createCourseMutation.isPending || updateCourseMutation.isPending}
+                  onBack={goToPreviousStep}
+                  onContinue={() => void goToNextStep()}
+                />
               </div>
             </form>
             ) : null}
@@ -669,25 +997,18 @@ export function CourseCreatePage() {
         </Card>
         ) : null}
 
-        {courseId && activeTab === "curriculum" ? (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
-          <Card className="rounded-lg border-border/70 shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">{selectedLessonId ? t("courseDetail.editLesson") : t("courseStudio.addLessons")}</CardTitle>
-              <CardDescription>{selectedLessonId ? t("courseDetail.editingSelectedLesson") : courseId ? t("courseStudio.addLessonsDescription") : t("courseStudio.saveCourseFirst")}</CardDescription>
+        {activeStep === COURSE_CREATE_STEP.lessons ? (
+        <section className="grid gap-4">
+        <section className={STUDIO_WORKSPACE_GRID}>
+          <Card className="order-2 min-w-0 w-full">
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className={STUDIO_EDITOR_TITLE}>{selectedLessonId ? t("courseDetail.editLesson") : t("courseStudio.addLessons")}</CardTitle>
+              <CardDescription>{selectedLessonId ? t("courseDetail.editingSelectedLesson") : t("courseStudio.addLessonsDescription")}</CardDescription>
             </CardHeader>
-            <CardContent>
-              <form
-                className="grid gap-4"
-                onSubmit={(event) => {
-                  setHasSubmittedLessonForm(true);
-                  syncLessonEditorContent();
-                  void lessonForm.handleSubmit(onSubmitLesson)(event);
-                }}
-                noValidate
-              >
+            <CardContent className="pt-6">
+              <form className={STUDIO_FORM_STACK} onSubmit={onLessonFormSubmit} noValidate>
                 <FormField id="new-lesson-title" label={t("courseDetail.lessonTitle")} error={getLessonError(lessonForm.formState.errors.title?.message)}>
-                  <Input id="new-lesson-title" placeholder={t("courseDetail.lessonTitlePlaceholder")} disabled={!courseId} {...lessonForm.register("title")} />
+                  <Input id="new-lesson-title" placeholder={t("courseDetail.lessonTitlePlaceholder")} {...lessonForm.register("title")} />
                 </FormField>
 
                 <FormField id="new-lesson-type" label={t("courseDetail.lessonType")} error={getLessonError(lessonForm.formState.errors.contentType?.message)}>
@@ -695,7 +1016,7 @@ export function CourseCreatePage() {
                     control={lessonForm.control}
                     name="contentType"
                     render={({ field }) => (
-                      <div id="new-lesson-type" className="grid gap-2 md:grid-cols-3" role="radiogroup" aria-label={t("courseDetail.lessonType")}>
+                      <div id="new-lesson-type" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="radiogroup" aria-label={t("courseDetail.lessonType")}>
                         {lessonTypeOptions.map((option) => {
                           const Icon = option.icon;
                           const active = field.value === option.value;
@@ -705,10 +1026,9 @@ export function CourseCreatePage() {
                               type="button"
                               role="radio"
                               aria-checked={active}
-                              disabled={!courseId}
                               className={cn(
-                                "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                                active ? "border-foreground bg-foreground text-background" : "border-border/70 bg-background hover:bg-muted/60"
+                                STUDIO_CHOICE,
+                                active ? STUDIO_CHOICE_ACTIVE : undefined
                               )}
                               onClick={() => {
                                 field.onChange(option.value);
@@ -716,10 +1036,10 @@ export function CourseCreatePage() {
                                 setUploadedLessonFile(null);
                               }}
                             >
-                              <Icon className={cn("mt-0.5 size-4 shrink-0", active ? "text-background" : "text-muted-foreground")} aria-hidden />
+                              <Icon className={cn("mt-0.5 size-4 shrink-0", active ? "text-foreground" : "text-muted-foreground")} aria-hidden />
                               <span className="min-w-0">
                                 <span className="block text-sm font-medium">{option.label}</span>
-                                <span className={cn("mt-0.5 block text-xs leading-5", active ? "text-background/75" : "text-muted-foreground")}>{option.description}</span>
+                                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{option.description}</span>
                               </span>
                             </button>
                           );
@@ -731,26 +1051,22 @@ export function CourseCreatePage() {
 
                 {lessonContentType === LESSON_CONTENT_TYPE.text ? (
                   <FormField id="new-lesson-content" label={t("courseDetail.document")} error={getLessonError(lessonForm.formState.errors.content?.message)}>
-                    {courseId ? (
-                      <Controller
-                        control={lessonForm.control}
-                        name="content"
-                        render={({ field }) => (
-                          <LessonRichTextEditor
-                            key={selectedLessonId ?? "new-lesson"}
-                            value={field.value}
-                            placeholder={t("courseDetail.documentPlaceholder")}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            onContentReaderChange={(reader) => {
-                              lessonContentReaderRef.current = reader;
-                            }}
-                          />
-                        )}
-                      />
-                    ) : (
-                      <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">{t("courseStudio.saveCourseFirst")}</div>
-                    )}
+                    <Controller
+                      control={lessonForm.control}
+                      name="content"
+                      render={({ field }) => (
+                        <LessonRichTextEditor
+                          key={selectedLessonId ?? "new-lesson"}
+                          value={field.value}
+                          placeholder={t("courseDetail.documentPlaceholder")}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          onContentReaderChange={(reader) => {
+                            lessonContentReaderRef.current = reader;
+                          }}
+                        />
+                      )}
+                    />
                   </FormField>
                 ) : null}
 
@@ -759,7 +1075,6 @@ export function CourseCreatePage() {
                     <LessonUploadField
                       id="new-lesson-resource"
                       accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-                      disabled={!courseId}
                       isUploading={isUploadingLessonFile}
                       uploadedFileName={uploadedLessonFile?.fileName}
                       title={t("courseDetail.uploadResourceTitle")}
@@ -792,7 +1107,6 @@ export function CourseCreatePage() {
                     <LessonUploadField
                       id="new-lesson-video"
                       accept="video/mp4,video/webm,video/quicktime"
-                      disabled={!courseId}
                       isUploading={isUploadingLessonFile}
                       uploadedFileName={uploadedLessonFile?.fileName}
                       title={t("courseDetail.uploadVideoTitle")}
@@ -820,11 +1134,13 @@ export function CourseCreatePage() {
                   </FormField>
                 ) : null}
 
-                <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+                <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
                   <span className="text-xs text-muted-foreground">
-                    {selectedLessonId ? t("courseDetail.editingSelectedLesson") : courseId ? `${t("courseDetail.nextLessonOrder")} #${nextLessonSortOrder}` : t("courseStudio.saveCourseFirst")}
+                    {selectedLessonId
+                      ? t("courseDetail.editingSelectedLesson")
+                      : `${t("courseDetail.nextLessonOrder")} #${nextLessonSortOrder}`}
                   </span>
-                  <Button className="h-10 rounded-md font-medium shadow-none" disabled={!courseId || isLessonSubmitPending || isUploadingLessonFile} type="submit">
+                  <Button className="h-10 rounded-md font-medium shadow-none" disabled={isLessonSubmitPending || isUploadingLessonFile} type="submit">
                     {lessonSubmitLabel}
                   </Button>
                 </div>
@@ -832,20 +1148,20 @@ export function CourseCreatePage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-lg border-border/70 shadow-none">
-            <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+          <Card className={cn("order-1", STUDIO_LIST_STICKY)}>
+            <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
               <div>
-                <CardTitle className="text-base">{t("courseDetail.curriculum")}</CardTitle>
+                <CardTitle className={STUDIO_EDITOR_TITLE}>{t("courseDetail.curriculum")}</CardTitle>
                 <CardDescription>{t("courseDetail.curriculumDescription")}</CardDescription>
               </div>
               <Button type="button" variant="outline" size="sm" className="h-9 rounded-md shadow-none" onClick={onNewLesson}>
                 {t("courseDetail.newLesson")}
               </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {courseId && lessonsQuery.isLoading ? <CourseListSkeleton rows={3} /> : null}
-              {courseId && !lessonsQuery.isLoading && lessons.length ? (
-                <div className="max-h-[calc(100vh-18rem)] min-h-80 overflow-auto rounded-lg border border-border/70 p-2">
+              {(!courseId || !lessonsQuery.isLoading) && lessons.length ? (
+                <div className="max-h-[calc(100vh-18rem)] min-h-80 overflow-auto rounded-xl bg-muted/40 p-1.5 ring-1 ring-foreground/10">
                   <div className="grid gap-1" role="list" aria-label={t("courseDetail.curriculum")}>
                     {lessons.map((lesson, index) => {
                       const selected = selectedLessonId === lesson.id;
@@ -856,11 +1172,12 @@ export function CourseCreatePage() {
                           draggable
                           role="listitem"
                           tabIndex={0}
-                          className={cn(
-                            "group flex cursor-grab items-start gap-2 rounded-md border px-2.5 py-2.5 text-left transition-colors active:cursor-grabbing",
-                            selected ? "border-foreground bg-muted/70" : "border-transparent hover:border-border/70 hover:bg-muted/40",
-                            draggingLessonId === lesson.id ? "opacity-60" : undefined
-                          )}
+                            className={cn(
+                              STUDIO_LIST_ITEM,
+                              "group cursor-grab active:cursor-grabbing",
+                              selected ? STUDIO_LIST_ITEM_SELECTED : undefined,
+                              draggingLessonId === lesson.id ? "opacity-60" : undefined
+                            )}
                           onClick={() => onSelectLesson(lesson)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") {
@@ -903,14 +1220,130 @@ export function CourseCreatePage() {
                   </div>
                 </div>
               ) : null}
-              {(!courseId || (!lessonsQuery.isLoading && !lessons.length)) ? (
-                <p className="rounded-lg border border-border/70 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                  {courseId ? t("courseDetail.noLessonsDescription") : t("courseStudio.saveCourseFirst")}
+              {(!courseId || !lessonsQuery.isLoading) && !lessons.length ? (
+                <p className="rounded-xl bg-muted/30 ring-1 ring-foreground/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                  {courseId ? t("courseDetail.noLessonsDescription") : t("courseStudio.addFirstLessonHint")}
                 </p>
               ) : null}
             </CardContent>
           </Card>
         </section>
+        <CourseCreateWizardFooter
+          showBack
+          continueLabel={t("courseStudio.wizardContinue")}
+          continueLoading={isSavingStep || createCourseMutation.isPending || updateCourseMutation.isPending}
+          onBack={goToPreviousStep}
+          onContinue={() => void goToNextStep()}
+        />
+        </section>
+        ) : null}
+
+        {activeStep === COURSE_CREATE_STEP.exams ? (
+          <section className="grid gap-4">
+            <CourseCreateExamsStep courseId={courseId} pendingExams={pendingExams} onPendingExamsChange={setPendingExams} />
+            <CourseCreateWizardFooter
+              showBack
+              continueLabel={t("courseStudio.wizardContinue")}
+              continueLoading={isSavingStep || createCourseMutation.isPending || updateCourseMutation.isPending}
+              onBack={goToPreviousStep}
+              onContinue={() => void goToNextStep()}
+            />
+          </section>
+        ) : null}
+
+        {activeStep === COURSE_CREATE_STEP.assignments ? (
+          <section className="grid gap-4">
+            <CourseCreateAssignmentsStep
+              courseId={courseId}
+              pendingAssignments={pendingAssignments}
+              onPendingAssignmentsChange={setPendingAssignments}
+            />
+            <CourseCreateWizardFooter
+              showBack
+              continueLabel={t("courseStudio.wizardContinue")}
+              continueLoading={isSavingStep || createCourseMutation.isPending || updateCourseMutation.isPending}
+              onBack={goToPreviousStep}
+              onContinue={() => void goToNextStep()}
+            />
+          </section>
+        ) : null}
+
+        {activeStep === COURSE_CREATE_STEP.review ? (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">{t("courseStudio.stepReview")}</CardTitle>
+              <CardDescription>{t("courseStudio.reviewStepDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-5">
+              <div className="grid gap-3 rounded-xl bg-muted/30 p-4 ring-1 ring-foreground/10 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseStudio.courseTitle")}</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{courseTitle || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.metricLessons")}</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{lessons.length}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.tabExams")}</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{examCount}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.tabAssignments")}</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{assignmentCount}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-xl bg-muted/30 ring-1 ring-foreground/10 p-4">
+                <div>
+                  <h2 className="text-sm font-semibold">{t("courseDetail.publishRequirements")}</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("courseStudio.reviewChecklistDescription")}</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {publishChecks.map((item) => (
+                    <div key={item.label} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className={cn("size-4 shrink-0", item.done ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/45")} aria-hidden />
+                      <span className={item.done ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {courseId ? (
+                <FormField id="course-status-review" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>
+                  <Controller
+                    control={courseForm.control}
+                    name="status"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="course-status-review" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={COURSE_STATUS.draft}>{t("courseStatus.DRAFT")}</SelectItem>
+                          <SelectItem value={COURSE_STATUS.published}>{t("courseStatus.PUBLISHED")}</SelectItem>
+                          <SelectItem value={COURSE_STATUS.archived}>{t("courseStatus.ARCHIVED")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </FormField>
+              ) : null}
+
+              <CourseCreateWizardFooter
+                showBack
+                continueLabel={t("common.save")}
+                continueDisabled={
+                  isSavingStep ||
+                  updateCourseMutation.isPending ||
+                  (courseStatus === COURSE_STATUS.published && !canPublish)
+                }
+                continueLoading={isSavingStep || updateCourseMutation.isPending}
+                onBack={goToPreviousStep}
+                onContinue={() => void courseForm.handleSubmit(onSaveCourse)()}
+              />
+            </CardContent>
+          </Card>
         ) : null}
       </div>
       <AlertDialog open={Boolean(lessonPendingDelete)} onOpenChange={(open) => !open && setLessonPendingDelete(null)}>

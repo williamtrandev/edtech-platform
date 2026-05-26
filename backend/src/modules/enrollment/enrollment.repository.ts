@@ -118,4 +118,33 @@ export class EnrollmentRepository {
       }
     });
   }
+
+  async findById(id: string) {
+    return prisma.enrollment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        courseId: true,
+        enrolledAt: true
+      }
+    });
+  }
+
+  async deleteByUserAndCourse(userId: string, courseId: string) {
+    return prisma.enrollment.delete({
+      where: {
+        userId_courseId: {
+          userId,
+          courseId
+        }
+      },
+      select: {
+        id: true,
+        userId: true,
+        courseId: true,
+        enrolledAt: true
+      }
+    });
+  }
 }

@@ -80,6 +80,32 @@ export function useCourseEnrollments(courseId: string, enabled: boolean, page = 
   });
 }
 
+export function useAdminEnrollLearner(courseId: string, page: number, search: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (email: string) => courseService.adminEnrollLearner(courseId, email),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "enrollments", page, search] });
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["courses"] });
+    }
+  });
+}
+
+export function useAdminRemoveLearner(courseId: string, page: number, search: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) => courseService.adminRemoveLearner(courseId, userId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "enrollments", page, search] });
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["courses"] });
+    }
+  });
+}
+
 export function useArchiveCourse() {
   const queryClient = useQueryClient();
 
@@ -89,6 +115,30 @@ export function useArchiveCourse() {
       await queryClient.invalidateQueries({ queryKey: ["courses"] });
       await queryClient.invalidateQueries({ queryKey: ["courses", id] });
       await queryClient.invalidateQueries({ queryKey: ["courses", id, "enrollments"] });
+    }
+  });
+}
+
+export function useLockCourse(courseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reason?: string) => courseService.lockCourse(courseId, reason),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["courses"] });
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId] });
+    }
+  });
+}
+
+export function useUnlockCourse(courseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => courseService.unlockCourse(courseId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["courses"] });
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId] });
     }
   });
 }

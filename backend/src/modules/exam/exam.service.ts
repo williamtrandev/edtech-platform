@@ -1,6 +1,7 @@
 import { ExamStatus } from "@prisma/client";
 import { COURSE_STATUS, EXAM_STATUS, USER_ROLE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
+import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { ExamRepository } from "./exam.repository";
@@ -28,12 +29,12 @@ export class ExamService {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
     }
 
-    const canManageCourse = user?.role === USER_ROLE.admin || course.instructorId === user?.id;
-    if (!canManageCourse && course.status !== COURSE_STATUS.published) {
+    const isStaff = canViewCourseAsStaff(user, course.instructorId);
+    if (!isStaff && course.status !== COURSE_STATUS.published) {
       throw new AppError("Course is not available", 403, "FORBIDDEN");
     }
 
-    return this.examRepository.findByCourseId(courseId, canManageCourse ? undefined : ExamStatus.PUBLISHED);
+    return this.examRepository.findByCourseId(courseId, isStaff ? undefined : ExamStatus.PUBLISHED);
   }
 
   async createCourseExam(user: Express.UserClaims | undefined, courseId: string, payload: ExamPayload) {
@@ -156,9 +157,6 @@ export class ExamService {
   }
 
   private assertCanManageCourse(user: Express.UserClaims, instructorId: string) {
-    const canManageCourse = user.role === USER_ROLE.admin || instructorId === user.id;
-    if (!canManageCourse) {
-      throw new AppError("Forbidden", 403, "FORBIDDEN");
-    }
+    assertCourseInstructor(user, instructorId);
   }
 }
