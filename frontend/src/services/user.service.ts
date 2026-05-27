@@ -10,6 +10,18 @@ export type User = {
   updatedAt: string;
 };
 
+export type UserDetail = User & {
+  summary: {
+    createdCourses: number;
+    enrollments: number;
+    completedLessons: number;
+    examAttempts: number;
+    assignmentSubmissions: number;
+    notifications: number;
+    certificates: number;
+  };
+};
+
 type ApiResponse<T> = {
   success: boolean;
   data: T;
@@ -44,6 +56,10 @@ export const userService = {
         ...(params.status ? { status: params.status } : {})
       }
     });
+    return response.data.data;
+  },
+  async getUser(id: string): Promise<UserDetail> {
+    const response = await httpClient.get<ApiResponse<UserDetail>>(`/users/${id}`);
     return response.data.data;
   },
   async createUser(payload: { id: string; email: string; role: UserRole }): Promise<User> {

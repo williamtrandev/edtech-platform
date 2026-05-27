@@ -14,6 +14,7 @@ import { MyLearningPage } from "../pages/my-learning-page";
 import { MyProgressPage } from "../pages/my-progress-page";
 import { RegisterPage } from "../pages/register-page";
 import { ResetPasswordPage } from "../pages/reset-password-page";
+import { UserDetailPage } from "../pages/user-detail-page";
 import { UsersPage } from "../pages/users-page";
 
 export const router = createBrowserRouter([
@@ -120,6 +121,10 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <UsersPage />
+          },
+          {
+            path: ":userId",
+            element: <UserDetailPage />
           }
         ]
       },

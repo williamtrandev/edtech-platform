@@ -1,5 +1,6 @@
 import { FileClock, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,8 +25,10 @@ function formatMetadata(metadata: unknown) {
 
 export function AuditLogsPage() {
   const { t, formatError } = useI18n();
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get("search") ?? "";
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [action, setAction] = useState(ALL_VALUE);
   const [entityType, setEntityType] = useState(ALL_VALUE);
   const { data, isLoading, isError, error } = useAuditLogs({

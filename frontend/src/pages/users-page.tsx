@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Ban, RotateCcw, Search, Shield, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -221,17 +222,22 @@ export function UsersPage() {
                               </span>
                             </TableCell>
                             <TableCell className="px-4 py-3">
-                              <Button
-                                type="button"
-                                variant={user.status === USER_STATUS.active ? "outline" : "secondary"}
-                                size="sm"
-                                className="h-9 rounded-md px-3 shadow-none"
-                                disabled={updateUserMutation.isPending}
-                                onClick={() => void onStatusToggle(user.id, user.status === USER_STATUS.active ? USER_STATUS.suspended : USER_STATUS.active)}
-                              >
-                                {user.status === USER_STATUS.active ? <Ban className="mr-1.5 size-4" aria-hidden /> : <RotateCcw className="mr-1.5 size-4" aria-hidden />}
-                                {t(user.status === USER_STATUS.active ? "users.suspend" : "users.reactivate")}
-                              </Button>
+                              <div className="flex flex-wrap gap-2">
+                                <Button asChild variant="secondary" size="sm" className="h-9 rounded-md px-3 shadow-none">
+                                  <Link to={`/users/${user.id}`}>{t("users.viewDetails")}</Link>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant={user.status === USER_STATUS.active ? "outline" : "secondary"}
+                                  size="sm"
+                                  className="h-9 rounded-md px-3 shadow-none"
+                                  disabled={updateUserMutation.isPending}
+                                  onClick={() => void onStatusToggle(user.id, user.status === USER_STATUS.active ? USER_STATUS.suspended : USER_STATUS.active)}
+                                >
+                                  {user.status === USER_STATUS.active ? <Ban className="mr-1.5 size-4" aria-hidden /> : <RotateCcw className="mr-1.5 size-4" aria-hidden />}
+                                  {t(user.status === USER_STATUS.active ? "users.suspend" : "users.reactivate")}
+                                </Button>
+                              </div>
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate px-4 py-3 font-mono text-xs text-muted-foreground">{user.id}</TableCell>
                           </TableRow>

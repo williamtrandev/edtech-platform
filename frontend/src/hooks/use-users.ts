@@ -9,6 +9,14 @@ export function useUsers(params: UserListParams = {}) {
   });
 }
 
+export function useUser(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["users", userId],
+    queryFn: () => userService.getUser(userId ?? ""),
+    enabled: Boolean(userId)
+  });
+}
+
 export function useCreateUser() {
   const queryClient = useQueryClient();
 

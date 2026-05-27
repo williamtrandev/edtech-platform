@@ -55,6 +55,44 @@ export class UserRepository {
     });
   }
 
+  async findDetailById(id: string) {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        ...this.userSelect,
+        _count: {
+          select: {
+            createdCourses: true,
+            enrollments: true,
+            lessonProgress: true,
+            examAttempts: true,
+            assignmentSubmissions: true,
+            notifications: true,
+            certificates: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    const { _count, ...profile } = user;
+    return {
+      ...profile,
+      summary: {
+        createdCourses: _count.createdCourses,
+        enrollments: _count.enrollments,
+        completedLessons: _count.lessonProgress,
+        examAttempts: _count.examAttempts,
+        assignmentSubmissions: _count.assignmentSubmissions,
+        notifications: _count.notifications,
+        certificates: _count.certificates
+      }
+    };
+  }
+
   async findByEmail(email: string): Promise<User | null> {
     return prisma.user.findFirst({
       where: {

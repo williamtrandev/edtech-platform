@@ -76,6 +76,17 @@ export class UserService {
     return user;
   }
 
+  async getUserDetailById(id: string, actor?: Express.UserClaims) {
+    this.assertAdmin(actor);
+
+    const user = await this.userRepository.findDetailById(id);
+    if (!user) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
+
+    return user;
+  }
+
   async createUser(payload: { id: string; email: string; role?: "USER" | "INSTRUCTOR" | "ADMIN" }, actor?: Express.UserClaims) {
     if (actor) {
       this.assertAdmin(actor);
