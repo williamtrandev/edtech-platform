@@ -13,6 +13,7 @@ import { enrollmentRouter } from "./modules/enrollment/enrollment.route";
 import { examQuestionRouter } from "./modules/exam-question/exam-question.route";
 import { examAttemptRouter } from "./modules/exam-attempt/exam-attempt.route";
 import { examRouter } from "./modules/exam/exam.route";
+import { jobRouter } from "./modules/job/job.route";
 import { lessonRouter } from "./modules/lesson/lesson.route";
 import { notificationRouter } from "./modules/notification/notification.route";
 import { progressRouter } from "./modules/progress/progress.route";
@@ -42,6 +43,7 @@ export function createApp() {
   app.use("/exams", examRouter);
   app.use("/exam-attempts", examAttemptRouter);
   app.use("/exam-questions", examQuestionRouter);
+  app.use("/jobs", jobRouter);
   app.use("/lessons", lessonRouter);
   app.use("/notifications", notificationRouter);
   app.use("/lesson-progress", progressRouter);

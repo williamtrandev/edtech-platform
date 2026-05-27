@@ -9,6 +9,7 @@ import { CoursesPage } from "../pages/courses-page";
 import { EmailConfirmedPage } from "../pages/email-confirmed-page";
 import { ExploreCoursesPage } from "../pages/explore-courses-page";
 import { ForgotPasswordPage } from "../pages/forgot-password-page";
+import { JobsPage } from "../pages/jobs-page";
 import { LoginPage } from "../pages/login-page";
 import { MyLearningPage } from "../pages/my-learning-page";
 import { MyProgressPage } from "../pages/my-progress-page";
@@ -135,6 +136,16 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <AuditLogsPage />
+          }
+        ]
+      },
+      {
+        path: "/jobs",
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <JobsPage />
           }
         ]
       }
