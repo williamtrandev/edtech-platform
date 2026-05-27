@@ -10,6 +10,7 @@ export class AssignmentSubmissionRepository {
     attachmentUrl: true,
     status: true,
     submittedAt: true,
+    isLate: true,
     gradedAt: true,
     score: true,
     feedback: true,
@@ -69,7 +70,7 @@ export class AssignmentSubmissionRepository {
     return { items, total };
   }
 
-  async upsertSubmission(userId: string, assignmentId: string, data: { content?: string | null; attachmentUrl?: string | null }) {
+  async upsertSubmission(userId: string, assignmentId: string, data: { content?: string | null; attachmentUrl?: string | null; isLate?: boolean }) {
     return prisma.assignmentSubmission.upsert({
       where: {
         assignmentId_userId: {
@@ -81,13 +82,15 @@ export class AssignmentSubmissionRepository {
         assignment: { connect: { id: assignmentId } },
         user: { connect: { id: userId } },
         content: data.content || null,
-        attachmentUrl: data.attachmentUrl || null
+        attachmentUrl: data.attachmentUrl || null,
+        isLate: data.isLate ?? false
       },
       update: {
         content: data.content || null,
         attachmentUrl: data.attachmentUrl || null,
         status: AssignmentSubmissionStatus.SUBMITTED,
         submittedAt: new Date(),
+        isLate: data.isLate ?? false,
         gradedAt: null,
         score: null,
         feedback: null

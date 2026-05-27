@@ -80,9 +80,13 @@ export class AssignmentSubmissionService {
       throw new AppError("Enroll in this course to submit assignments", 403, "COURSE_ENROLLMENT_REQUIRED");
     }
 
+    const submittedAt = new Date();
+    const isLate = Boolean(assignment.dueAt && submittedAt > assignment.dueAt);
+
     const submission = await this.assignmentSubmissionRepository.upsertSubmission(user.id, assignmentId, {
       content: payload.content || null,
-      attachmentUrl: payload.attachmentUrl || null
+      attachmentUrl: payload.attachmentUrl || null,
+      isLate
     });
 
     return submission;

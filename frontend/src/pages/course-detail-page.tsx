@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -2902,6 +2902,11 @@ export function CourseDetailPage() {
                                       {t(`assignmentSubmissionStatus.${assignment.mySubmission?.status}` as I18nKey)}
                                     </Badge>
                                   ) : null}
+                                  {!canManageCourse && assignment.mySubmission?.isLate ? (
+                                    <Badge variant="destructive" className="rounded-md">
+                                      {t("courseDetail.assignmentLate")}
+                                    </Badge>
+                                  ) : null}
                                 </div>
                                 {assignment.instructions ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{assignment.instructions}</p> : null}
                                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -3049,8 +3054,13 @@ export function CourseDetailPage() {
                                 <Badge variant={submission.status === ASSIGNMENT_SUBMISSION_STATUS.graded ? "default" : "secondary"} className="shrink-0 rounded-md">
                                   {t(`assignmentSubmissionStatus.${submission.status}` as I18nKey)}
                                 </Badge>
+                                {submission.isLate ? (
+                                  <Badge variant="destructive" className="shrink-0 rounded-md">
+                                    {t("courseDetail.assignmentLate")}
+                                  </Badge>
+                                ) : null}
                               </div>
-                              <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                              <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-4">
                                 <span className="rounded-md bg-background/70 px-2 py-1">
                                   {t("courseDetail.score")}: {submission.score ?? "—"}
                                 </span>
@@ -3059,6 +3069,9 @@ export function CourseDetailPage() {
                                 </span>
                                 <span className="truncate rounded-md bg-background/70 px-2 py-1">
                                   {submission.attachmentUrl ? t("courseDetail.viewSubmissionFile") : t("courseDetail.noSubmissionFile")}
+                                </span>
+                                <span className={cn("rounded-md px-2 py-1", submission.isLate ? "bg-destructive/10 text-destructive" : "bg-background/70")}>
+                                  {submission.isLate ? t("courseDetail.assignmentLate") : t("courseDetail.assignmentOnTime")}
                                 </span>
                               </div>
                             </button>
@@ -3079,9 +3092,16 @@ export function CourseDetailPage() {
                         <p className="mt-1 truncate text-xs text-muted-foreground">{selectedSubmission ? selectedSubmission.user?.email ?? selectedSubmission.userId : t("courseDetail.selectSubmissionFirst")}</p>
                       </div>
                       {selectedSubmission ? (
-                        <Badge variant={selectedSubmission.status === ASSIGNMENT_SUBMISSION_STATUS.graded ? "default" : "secondary"} className="shrink-0 rounded-md">
-                          {t(`assignmentSubmissionStatus.${selectedSubmission.status}` as I18nKey)}
-                        </Badge>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Badge variant={selectedSubmission.status === ASSIGNMENT_SUBMISSION_STATUS.graded ? "default" : "secondary"} className="shrink-0 rounded-md">
+                            {t(`assignmentSubmissionStatus.${selectedSubmission.status}` as I18nKey)}
+                          </Badge>
+                          {selectedSubmission.isLate ? (
+                            <Badge variant="destructive" className="shrink-0 rounded-md">
+                              {t("courseDetail.assignmentLate")}
+                            </Badge>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                     {selectedSubmission ? (
@@ -3198,6 +3218,12 @@ export function CourseDetailPage() {
                         {t("courseDetail.viewAssignmentFile")}
                       </a>
                     ) : null}
+                    {selectedAssignment.dueAt && new Date() > new Date(selectedAssignment.dueAt) ? (
+                      <div className="flex gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm text-destructive" role="status">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <p>{t("courseDetail.assignmentLateWarning")}</p>
+                      </div>
+                    ) : null}
                     <FormField id="assignment-submission-content" label={t("courseDetail.assignmentSubmissionContent")} error={assignmentSubmissionForm.formState.errors.content?.message}>
                       <TextareaField id="assignment-submission-content" rows={12} placeholder={t("courseDetail.assignmentSubmissionPlaceholder")} {...assignmentSubmissionForm.register("content")} />
                     </FormField>
@@ -3210,6 +3236,12 @@ export function CourseDetailPage() {
                           {t("courseDetail.assignmentScore")}: {selectedAssignment.mySubmission.score ?? "—"} / {selectedAssignment.maxScore ?? "—"}
                         </p>
                         {selectedAssignment.mySubmission.feedback ? <p className="mt-2 text-muted-foreground">{selectedAssignment.mySubmission.feedback}</p> : null}
+                      </div>
+                    ) : null}
+                    {selectedAssignment.mySubmission?.isLate ? (
+                      <div className="flex gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm text-destructive">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <p>{t("courseDetail.assignmentSubmittedLate")}</p>
                       </div>
                     ) : null}
                     <Button className="h-10 rounded-md font-medium shadow-none" disabled={submitAssignmentMutation.isPending} type="submit">

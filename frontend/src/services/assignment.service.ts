@@ -23,6 +23,7 @@ export type AssignmentSubmission = {
   attachmentUrl?: string | null;
   status: AssignmentSubmissionStatus;
   submittedAt: string;
+  isLate: boolean;
   gradedAt?: string | null;
   score?: number | null;
   feedback?: string | null;

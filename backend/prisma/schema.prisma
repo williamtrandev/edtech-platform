@@ -230,6 +230,7 @@ model AssignmentSubmission {
   attachmentUrl String?
   status        AssignmentSubmissionStatus @default(SUBMITTED)
   submittedAt   DateTime                   @default(now())
+  isLate        Boolean                    @default(false)
   gradedAt      DateTime?
   score         Int?
   feedback      String?
