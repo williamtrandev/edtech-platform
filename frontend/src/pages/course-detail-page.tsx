@@ -200,6 +200,10 @@ export function CourseDetailPage() {
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isUploadingLessonFile, setIsUploadingLessonFile] = useState(false);
   const [uploadedLessonFile, setUploadedLessonFile] = useState<UploadedFile | null>(null);
+  const [isUploadingAssignmentFile, setIsUploadingAssignmentFile] = useState(false);
+  const [uploadedAssignmentFile, setUploadedAssignmentFile] = useState<UploadedFile | null>(null);
+  const [isUploadingSubmissionFile, setIsUploadingSubmissionFile] = useState(false);
+  const [uploadedSubmissionFile, setUploadedSubmissionFile] = useState<UploadedFile | null>(null);
   const [activeTab, setActiveTab] = useState<CourseDetailTab>("curriculum");
   const [learnerSearch, setLearnerSearch] = useState("");
   const [enrollmentPage, setEnrollmentPage] = useState(1);
@@ -967,6 +971,8 @@ export function CourseDetailPage() {
     setSelectedAssignmentId(assignment.id);
     setSelectedSubmissionId(null);
     setAssignmentSubmissionPage(1);
+    setUploadedAssignmentFile(null);
+    setUploadedSubmissionFile(null);
     assignmentForm.clearErrors();
     assignmentSubmissionForm.clearErrors();
     assignmentForm.reset({
@@ -986,6 +992,8 @@ export function CourseDetailPage() {
   const onNewAssignment = () => {
     setSelectedAssignmentId(null);
     setSelectedSubmissionId(null);
+    setUploadedAssignmentFile(null);
+    setUploadedSubmissionFile(null);
     assignmentForm.clearErrors();
     assignmentSubmissionForm.clearErrors();
     assignmentForm.reset({
@@ -1186,6 +1194,46 @@ export function CourseDetailPage() {
       });
     } finally {
       setIsUploadingLessonFile(false);
+    }
+  };
+
+  const onAssignmentFileChange = async (file?: File) => {
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingAssignmentFile(true);
+    assignmentForm.clearErrors("attachmentUrl");
+    try {
+      const uploaded = await uploadService.uploadFile(file, "assignment-files");
+      setUploadedAssignmentFile(uploaded);
+      assignmentForm.setValue("attachmentUrl", uploaded.url, { shouldDirty: true, shouldValidate: true });
+    } catch (e) {
+      assignmentForm.setError("attachmentUrl", {
+        message: formatError(e, "courseDetail.assignmentFileUploadFailed")
+      });
+    } finally {
+      setIsUploadingAssignmentFile(false);
+    }
+  };
+
+  const onAssignmentSubmissionFileChange = async (file?: File) => {
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingSubmissionFile(true);
+    assignmentSubmissionForm.clearErrors("attachmentUrl");
+    try {
+      const uploaded = await uploadService.uploadFile(file, "assignment-submissions");
+      setUploadedSubmissionFile(uploaded);
+      assignmentSubmissionForm.setValue("attachmentUrl", uploaded.url, { shouldDirty: true, shouldValidate: true });
+    } catch (e) {
+      assignmentSubmissionForm.setError("attachmentUrl", {
+        message: formatError(e, "courseDetail.assignmentSubmissionFileUploadFailed")
+      });
+    } finally {
+      setIsUploadingSubmissionFile(false);
     }
   };
 
@@ -2982,7 +3030,33 @@ export function CourseDetailPage() {
                       </FormField>
                     </div>
                     <FormField id="assignment-attachment-url" label={t("courseDetail.assignmentAttachmentUrl")} hint={t("courseDetail.optional")} error={assignmentForm.formState.errors.attachmentUrl?.message}>
-                      <Input id="assignment-attachment-url" placeholder="https://..." {...assignmentForm.register("attachmentUrl")} />
+                      <LessonUploadField
+                        id="assignment-attachment-url"
+                        accept=".pdf,.txt,.md,.doc,.docx,.zip,application/pdf,text/plain,text/markdown,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        isUploading={isUploadingAssignmentFile}
+                        uploadedFileName={uploadedAssignmentFile?.fileName}
+                        title={t("courseDetail.uploadAssignmentFileTitle")}
+                        description={t("courseDetail.uploadAssignmentFileDescription")}
+                        chooseLabel={t("courseDetail.chooseAssignmentFile")}
+                        uploadingLabel={t("courseDetail.uploadingAssignmentFile")}
+                        urlLabel={t("courseDetail.pasteAssignmentUrl")}
+                        urlPlaceholder={t("courseDetail.assignmentUrlPlaceholder")}
+                        previewUrl={assignmentForm.watch("attachmentUrl") ?? ""}
+                        previewKind="resource"
+                        previewFileName={uploadedAssignmentFile?.fileName}
+                        previewMimeType={uploadedAssignmentFile?.mimeType}
+                        previewTitle={t("courseDetail.assignmentFilePreview")}
+                        previewDescription={t("courseDetail.assignmentFilePreviewDescription")}
+                        openPreviewLabel={t("courseDetail.viewAssignmentFile")}
+                        previewUnavailableLabel={t("courseDetail.previewUnavailable")}
+                        previewLoadingLabel={t("courseDetail.previewLoading")}
+                        previewLoadFailedLabel={t("courseDetail.previewLoadFailed")}
+                        previewEmptyLabel={t("courseDetail.previewEmpty")}
+                        Icon={Paperclip}
+                        onFileChange={(file) => void onAssignmentFileChange(file)}
+                        onUrlChange={() => setUploadedAssignmentFile(null)}
+                        urlInputProps={assignmentForm.register("attachmentUrl")}
+                      />
                     </FormField>
                     <FormField id="assignment-status" label={t("courseDetail.status")} error={assignmentForm.formState.errors.status?.message}>
                       <Controller
@@ -3008,7 +3082,7 @@ export function CourseDetailPage() {
                           {t("courseDetail.newAssignment")}
                         </Button>
                       ) : null}
-                      <Button className="h-10 rounded-md font-medium shadow-none" disabled={isAssignmentSubmitPending} type="submit">
+                      <Button className="h-10 rounded-md font-medium shadow-none" disabled={isAssignmentSubmitPending || isUploadingAssignmentFile} type="submit">
                         {isAssignmentSubmitPending
                           ? t("courseDetail.savingAssignment")
                           : selectedAssignmentId
@@ -3228,7 +3302,33 @@ export function CourseDetailPage() {
                       <TextareaField id="assignment-submission-content" rows={12} placeholder={t("courseDetail.assignmentSubmissionPlaceholder")} {...assignmentSubmissionForm.register("content")} />
                     </FormField>
                     <FormField id="assignment-submission-file" label={t("courseDetail.assignmentSubmissionAttachmentUrl")} hint={t("courseDetail.optional")} error={assignmentSubmissionForm.formState.errors.attachmentUrl?.message}>
-                      <Input id="assignment-submission-file" placeholder="https://..." {...assignmentSubmissionForm.register("attachmentUrl")} />
+                      <LessonUploadField
+                        id="assignment-submission-file"
+                        accept=".pdf,.txt,.md,.doc,.docx,.zip,application/pdf,text/plain,text/markdown,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        isUploading={isUploadingSubmissionFile}
+                        uploadedFileName={uploadedSubmissionFile?.fileName}
+                        title={t("courseDetail.uploadSubmissionFileTitle")}
+                        description={t("courseDetail.uploadSubmissionFileDescription")}
+                        chooseLabel={t("courseDetail.chooseSubmissionFile")}
+                        uploadingLabel={t("courseDetail.uploadingSubmissionFile")}
+                        urlLabel={t("courseDetail.pasteSubmissionUrl")}
+                        urlPlaceholder={t("courseDetail.submissionUrlPlaceholder")}
+                        previewUrl={assignmentSubmissionForm.watch("attachmentUrl") ?? ""}
+                        previewKind="resource"
+                        previewFileName={uploadedSubmissionFile?.fileName}
+                        previewMimeType={uploadedSubmissionFile?.mimeType}
+                        previewTitle={t("courseDetail.submissionFilePreview")}
+                        previewDescription={t("courseDetail.submissionFilePreviewDescription")}
+                        openPreviewLabel={t("courseDetail.viewSubmissionFile")}
+                        previewUnavailableLabel={t("courseDetail.previewUnavailable")}
+                        previewLoadingLabel={t("courseDetail.previewLoading")}
+                        previewLoadFailedLabel={t("courseDetail.previewLoadFailed")}
+                        previewEmptyLabel={t("courseDetail.previewEmpty")}
+                        Icon={Paperclip}
+                        onFileChange={(file) => void onAssignmentSubmissionFileChange(file)}
+                        onUrlChange={() => setUploadedSubmissionFile(null)}
+                        urlInputProps={assignmentSubmissionForm.register("attachmentUrl")}
+                      />
                     </FormField>
                     {selectedAssignment.mySubmission?.status === ASSIGNMENT_SUBMISSION_STATUS.graded ? (
                       <div className="rounded-xl bg-muted/30 ring-1 ring-foreground/10 px-3 py-3 text-sm">
@@ -3244,7 +3344,7 @@ export function CourseDetailPage() {
                         <p>{t("courseDetail.assignmentSubmittedLate")}</p>
                       </div>
                     ) : null}
-                    <Button className="h-10 rounded-md font-medium shadow-none" disabled={submitAssignmentMutation.isPending} type="submit">
+                    <Button className="h-10 rounded-md font-medium shadow-none" disabled={submitAssignmentMutation.isPending || isUploadingSubmissionFile} type="submit">
                       <Send className="mr-2 size-4" aria-hidden />
                       {submitAssignmentMutation.isPending ? t("courseDetail.submittingAssignment") : t("courseDetail.submitAssignment")}
                     </Button>

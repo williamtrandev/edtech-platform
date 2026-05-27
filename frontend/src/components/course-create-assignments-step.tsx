@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FileText, Trash2 } from "lucide-react";
+import { FileText, Paperclip, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -13,10 +13,12 @@ import { STUDIO_EDITOR_TITLE, STUDIO_FORM_STACK, STUDIO_LIST, STUDIO_LIST_ITEM, 
 import { FormField } from "./form-field";
 import { CourseListSkeleton } from "./skeleton";
 import { TextareaField } from "./textarea-field";
+import { LessonUploadField } from "./lesson-upload-field";
 import { ASSIGNMENT_STATUS } from "../constants/business";
 import { useCourseAssignments, useCreateAssignment, useUpdateAssignment } from "../hooks/use-assignments";
 import { createAssignmentFormSchema, type AssignmentFormValues } from "../schemas/course.schema";
 import type { Assignment, CreateAssignmentPayload } from "../services/assignment.service";
+import { uploadService, type UploadedFile } from "../services/upload.service";
 import { type I18nKey, useI18n } from "../i18n";
 
 export type PendingAssignment = {
@@ -34,6 +36,8 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
   const { t } = useI18n();
   const [selectedSavedAssignmentId, setSelectedSavedAssignmentId] = useState<string | null>(null);
   const [selectedPendingId, setSelectedPendingId] = useState<string | null>(null);
+  const [isUploadingAssignmentFile, setIsUploadingAssignmentFile] = useState(false);
+  const [uploadedAssignmentFile, setUploadedAssignmentFile] = useState<UploadedFile | null>(null);
 
   const assignmentsQuery = useCourseAssignments(courseId ?? "", Boolean(courseId));
   const createAssignmentMutation = useCreateAssignment(courseId ?? "");
@@ -62,6 +66,7 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
   const resetAssignmentSelection = () => {
     setSelectedSavedAssignmentId(null);
     setSelectedPendingId(null);
+    setUploadedAssignmentFile(null);
     assignmentForm.reset({
       title: "",
       instructions: "",
@@ -79,6 +84,7 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
   const onSelectSavedAssignment = (assignment: Assignment) => {
     setSelectedSavedAssignmentId(assignment.id);
     setSelectedPendingId(null);
+    setUploadedAssignmentFile(null);
     assignmentForm.reset({
       title: assignment.title,
       instructions: assignment.instructions ?? "",
@@ -92,6 +98,7 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
   const onSelectPending = (assignment: PendingAssignment) => {
     setSelectedPendingId(assignment.id);
     setSelectedSavedAssignmentId(null);
+    setUploadedAssignmentFile(null);
     assignmentForm.reset({
       title: assignment.payload.title,
       instructions: assignment.payload.instructions ?? "",
@@ -106,6 +113,26 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
     onPendingAssignmentsChange(pendingAssignments.filter((item) => item.id !== assignmentId));
     if (selectedPendingId === assignmentId) {
       resetAssignmentSelection();
+    }
+  };
+
+  const onAssignmentFileChange = async (file?: File) => {
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingAssignmentFile(true);
+    assignmentForm.clearErrors("attachmentUrl");
+    try {
+      const uploaded = await uploadService.uploadFile(file, "assignment-files");
+      setUploadedAssignmentFile(uploaded);
+      assignmentForm.setValue("attachmentUrl", uploaded.url, { shouldDirty: true, shouldValidate: true });
+    } catch (error) {
+      assignmentForm.setError("attachmentUrl", {
+        message: error instanceof Error ? error.message : t("courseDetail.assignmentFileUploadFailed")
+      });
+    } finally {
+      setIsUploadingAssignmentFile(false);
     }
   };
 
@@ -274,7 +301,33 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
               hint={t("courseDetail.optional")}
               error={assignmentForm.formState.errors.attachmentUrl?.message}
             >
-              <Input id="wizard-assignment-attachment-url" placeholder="https://..." {...assignmentForm.register("attachmentUrl")} />
+              <LessonUploadField
+                id="wizard-assignment-attachment-url"
+                accept=".pdf,.txt,.md,.doc,.docx,.zip,application/pdf,text/plain,text/markdown,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                isUploading={isUploadingAssignmentFile}
+                uploadedFileName={uploadedAssignmentFile?.fileName}
+                title={t("courseDetail.uploadAssignmentFileTitle")}
+                description={t("courseDetail.uploadAssignmentFileDescription")}
+                chooseLabel={t("courseDetail.chooseAssignmentFile")}
+                uploadingLabel={t("courseDetail.uploadingAssignmentFile")}
+                urlLabel={t("courseDetail.pasteAssignmentUrl")}
+                urlPlaceholder={t("courseDetail.assignmentUrlPlaceholder")}
+                previewUrl={assignmentForm.watch("attachmentUrl") ?? ""}
+                previewKind="resource"
+                previewFileName={uploadedAssignmentFile?.fileName}
+                previewMimeType={uploadedAssignmentFile?.mimeType}
+                previewTitle={t("courseDetail.assignmentFilePreview")}
+                previewDescription={t("courseDetail.assignmentFilePreviewDescription")}
+                openPreviewLabel={t("courseDetail.viewAssignmentFile")}
+                previewUnavailableLabel={t("courseDetail.previewUnavailable")}
+                previewLoadingLabel={t("courseDetail.previewLoading")}
+                previewLoadFailedLabel={t("courseDetail.previewLoadFailed")}
+                previewEmptyLabel={t("courseDetail.previewEmpty")}
+                Icon={Paperclip}
+                onFileChange={(file) => void onAssignmentFileChange(file)}
+                onUrlChange={() => setUploadedAssignmentFile(null)}
+                urlInputProps={assignmentForm.register("attachmentUrl")}
+              />
             </FormField>
             {courseId ? (
               <FormField id="wizard-assignment-status" label={t("courseDetail.status")} error={assignmentForm.formState.errors.status?.message}>
@@ -302,7 +355,7 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
                   {t("courseDetail.newAssignment")}
                 </Button>
               ) : null}
-              <Button className="h-10 rounded-md font-medium shadow-none" disabled={isAssignmentSubmitPending} type="submit">
+              <Button className="h-10 rounded-md font-medium shadow-none" disabled={isAssignmentSubmitPending || isUploadingAssignmentFile} type="submit">
                 {isAssignmentSubmitPending
                   ? t("courseDetail.savingAssignment")
                   : selectedSavedAssignmentId || selectedPendingId
