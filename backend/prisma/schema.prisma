@@ -82,16 +82,17 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  createdCourses        Course[]               @relation("CourseInstructor")
-  lockedCourses         Course[]               @relation("CourseLockedBy")
-  enrollments           Enrollment[]
-  lessonProgress        LessonProgress[]
-  auditLogs             AuditLog[]             @relation("AuditActor")
-  courseReviews         CourseReview[]
-  examAttempts          ExamAttempt[]
-  assignmentSubmissions AssignmentSubmission[]
-  notifications         Notification[]
-  certificates          Certificate[]
+  createdCourses         Course[]                @relation("CourseInstructor")
+  lockedCourses          Course[]                @relation("CourseLockedBy")
+  enrollments            Enrollment[]
+  lessonProgress         LessonProgress[]
+  auditLogs              AuditLog[]              @relation("AuditActor")
+  courseReviews          CourseReview[]
+  examAttempts           ExamAttempt[]
+  assignmentSubmissions  AssignmentSubmission[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  certificates           Certificate[]
 }
 
 model AuditLog {
@@ -126,6 +127,22 @@ model Notification {
   @@index([userId, readAt])
   @@index([userId, createdAt])
   @@index([type])
+}
+
+model NotificationPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  inAppEnabled      Boolean  @default(true)
+  emailEnabled      Boolean  @default(false)
+  enrollmentSuccess Boolean  @default(true)
+  assignmentGraded  Boolean  @default(true)
+  certificateIssued Boolean  @default(true)
+  coursePublished   Boolean  @default(true)
+  system            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Certificate {

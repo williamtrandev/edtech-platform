@@ -1,6 +1,19 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 
+type NotificationPreferenceData = Partial<
+  Pick<
+    Prisma.NotificationPreferenceUncheckedCreateInput,
+    | "inAppEnabled"
+    | "emailEnabled"
+    | "enrollmentSuccess"
+    | "assignmentGraded"
+    | "certificateIssued"
+    | "coursePublished"
+    | "system"
+  >
+>;
+
 export class NotificationRepository {
   private readonly notificationSelect = {
     id: true,
@@ -14,10 +27,43 @@ export class NotificationRepository {
     createdAt: true
   } satisfies Prisma.NotificationSelect;
 
+  private readonly preferenceSelect = {
+    id: true,
+    userId: true,
+    inAppEnabled: true,
+    emailEnabled: true,
+    enrollmentSuccess: true,
+    assignmentGraded: true,
+    certificateIssued: true,
+    coursePublished: true,
+    system: true,
+    createdAt: true,
+    updatedAt: true
+  } satisfies Prisma.NotificationPreferenceSelect;
+
   async create(data: Prisma.NotificationCreateInput) {
     return prisma.notification.create({
       data,
       select: this.notificationSelect
+    });
+  }
+
+  async findPreferenceByUser(userId: string) {
+    return prisma.notificationPreference.findUnique({
+      where: { userId },
+      select: this.preferenceSelect
+    });
+  }
+
+  async upsertPreference(userId: string, data: NotificationPreferenceData) {
+    return prisma.notificationPreference.upsert({
+      where: { userId },
+      create: {
+        user: { connect: { id: userId } },
+        ...data
+      },
+      update: data,
+      select: this.preferenceSelect
     });
   }
 

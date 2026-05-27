@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { notificationService } from "../services/notification.service";
+import { notificationService, type UpdateNotificationPreferencesPayload } from "../services/notification.service";
 
 export function useNotifications(enabled = true) {
   return useQuery({
@@ -27,6 +27,26 @@ export function useMarkAllNotificationsRead() {
   return useMutation({
     mutationFn: () => notificationService.markAllRead(),
     onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
+  });
+}
+
+export function useNotificationPreferences(enabled = true) {
+  return useQuery({
+    queryKey: ["notifications", "preferences"],
+    queryFn: () => notificationService.getPreferences(),
+    enabled
+  });
+}
+
+export function useUpdateNotificationPreferences() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: UpdateNotificationPreferencesPayload) => notificationService.updatePreferences(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["notifications", "preferences"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     }
   });

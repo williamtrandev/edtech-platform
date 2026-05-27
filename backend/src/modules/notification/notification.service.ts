@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
 import { NotificationRepository } from "./notification.repository";
+import { UpdateNotificationPreferencesInput } from "./notification.schema";
 
 type CreateNotificationInput = {
   userId: string;
@@ -15,6 +16,13 @@ export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
 
   async createNotification(input: CreateNotificationInput) {
+    const preferences = await this.notificationRepository.findPreferenceByUser(input.userId);
+    const preferenceKey = this.resolvePreferenceKey(input.type);
+
+    if (preferences && (!preferences.inAppEnabled || !preferences[preferenceKey])) {
+      return null;
+    }
+
     return this.notificationRepository.create({
       user: { connect: { id: input.userId } },
       type: input.type,
@@ -25,12 +33,26 @@ export class NotificationService {
     });
   }
 
-  async listMyNotifications(user: Express.UserClaims | undefined, page: number, limit: number, unreadOnly: boolean) {
-    if (!user?.id) {
-      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+  async getMyPreferences(user: Express.UserClaims | undefined) {
+    const userId = this.requireUserId(user);
+    const preferences = await this.notificationRepository.findPreferenceByUser(userId);
+
+    if (preferences) {
+      return preferences;
     }
 
-    const { items, total, unreadTotal } = await this.notificationRepository.findMany(user.id, page, limit, unreadOnly);
+    return this.notificationRepository.upsertPreference(userId, {});
+  }
+
+  async updateMyPreferences(user: Express.UserClaims | undefined, input: UpdateNotificationPreferencesInput) {
+    const userId = this.requireUserId(user);
+    return this.notificationRepository.upsertPreference(userId, input);
+  }
+
+  async listMyNotifications(user: Express.UserClaims | undefined, page: number, limit: number, unreadOnly: boolean) {
+    const userId = this.requireUserId(user);
+
+    const { items, total, unreadTotal } = await this.notificationRepository.findMany(userId, page, limit, unreadOnly);
     return {
       items,
       unreadTotal,
@@ -43,15 +65,13 @@ export class NotificationService {
   }
 
   async markMyNotificationRead(user: Express.UserClaims | undefined, id: string) {
-    if (!user?.id) {
-      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
-    }
+    const userId = this.requireUserId(user);
 
     const notification = await this.notificationRepository.findById(id);
     if (!notification) {
       throw new AppError("Notification not found", 404, "NOTIFICATION_NOT_FOUND");
     }
-    if (notification.userId !== user.id) {
+    if (notification.userId !== userId) {
       throw new AppError("Forbidden", 403, "FORBIDDEN");
     }
     if (notification.readAt) {
@@ -62,13 +82,31 @@ export class NotificationService {
   }
 
   async markAllMyNotificationsRead(user: Express.UserClaims | undefined) {
+    const userId = this.requireUserId(user);
+
+    const result = await this.notificationRepository.markAllRead(userId);
+    return {
+      updatedCount: result.count
+    };
+  }
+
+  private requireUserId(user: Express.UserClaims | undefined) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const result = await this.notificationRepository.markAllRead(user.id);
-    return {
-      updatedCount: result.count
-    };
+    return user.id;
+  }
+
+  private resolvePreferenceKey(type: CreateNotificationInput["type"]) {
+    const preferenceKeyByType = {
+      ENROLLMENT_SUCCESS: "enrollmentSuccess",
+      ASSIGNMENT_GRADED: "assignmentGraded",
+      CERTIFICATE_ISSUED: "certificateIssued",
+      COURSE_PUBLISHED: "coursePublished",
+      SYSTEM: "system"
+    } as const satisfies Record<CreateNotificationInput["type"], keyof UpdateNotificationPreferencesInput>;
+
+    return preferenceKeyByType[type];
   }
 }

@@ -28,6 +28,33 @@ export type NotificationListResponse = {
   };
 };
 
+export type NotificationPreferences = {
+  id: string;
+  userId: string;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+  enrollmentSuccess: boolean;
+  assignmentGraded: boolean;
+  certificateIssued: boolean;
+  coursePublished: boolean;
+  system: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpdateNotificationPreferencesPayload = Partial<
+  Pick<
+    NotificationPreferences,
+    | "inAppEnabled"
+    | "emailEnabled"
+    | "enrollmentSuccess"
+    | "assignmentGraded"
+    | "certificateIssued"
+    | "coursePublished"
+    | "system"
+  >
+>;
+
 export const notificationService = {
   async getNotifications(): Promise<NotificationListResponse> {
     const response = await httpClient.get<ApiResponse<NotificationListResponse>>("/notifications", {
@@ -36,6 +63,14 @@ export const notificationService = {
         limit: 10
       }
     });
+    return response.data.data;
+  },
+  async getPreferences(): Promise<NotificationPreferences> {
+    const response = await httpClient.get<ApiResponse<NotificationPreferences>>("/notifications/preferences");
+    return response.data.data;
+  },
+  async updatePreferences(payload: UpdateNotificationPreferencesPayload): Promise<NotificationPreferences> {
+    const response = await httpClient.patch<ApiResponse<NotificationPreferences>>("/notifications/preferences", payload);
     return response.data.data;
   },
   async markRead(id: string): Promise<Notification> {

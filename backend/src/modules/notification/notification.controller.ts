@@ -14,6 +14,16 @@ export class NotificationController {
     res.status(200).json({ success: true, data: notifications });
   };
 
+  getMyPreferences = async (req: Request, res: Response): Promise<void> => {
+    const preferences = await this.notificationService.getMyPreferences(req.user);
+    res.status(200).json({ success: true, data: preferences });
+  };
+
+  updateMyPreferences = async (req: Request, res: Response): Promise<void> => {
+    const preferences = await this.notificationService.updateMyPreferences(req.user, req.body);
+    res.status(200).json({ success: true, data: preferences });
+  };
+
   markMyNotificationRead = async (req: Request, res: Response): Promise<void> => {
     const notification = await this.notificationService.markMyNotificationRead(req.user, req.params.id);
     res.status(200).json({ success: true, data: notification });
