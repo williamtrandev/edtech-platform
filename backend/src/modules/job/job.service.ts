@@ -58,6 +58,29 @@ export class JobService {
     return { items };
   }
 
+  async retryFailedJob(user: Express.UserClaims | undefined, queueName: string, jobId: string) {
+    this.assertAdmin(user);
+
+    const queue = this.queues.find((item) => item.name === queueName);
+    if (!queue) {
+      throw new AppError("Queue not found", 404, "QUEUE_NOT_FOUND");
+    }
+
+    const job = await queue.client.getJob(jobId);
+    if (!job) {
+      throw new AppError("Job not found", 404, "JOB_NOT_FOUND");
+    }
+
+    const state = await job.getState();
+    if (state !== "failed") {
+      throw new AppError("Only failed jobs can be retried", 409, "JOB_NOT_FAILED");
+    }
+
+    await job.retry("failed");
+
+    return toQueueJobSummary(job);
+  }
+
   private assertAdmin(user: Express.UserClaims | undefined) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");

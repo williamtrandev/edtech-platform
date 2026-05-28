@@ -1,5 +1,6 @@
-import { Activity, AlertTriangle, CheckCircle2, Clock3, DatabaseZap, Loader2, RefreshCw, TimerReset } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock3, DatabaseZap, Loader2, RefreshCw, RotateCcw, TimerReset } from "lucide-react";
 import { useMemo } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { MetricCard } from "../components/metric-card";
 import { MetricCardSkeleton, Skeleton } from "../components/skeleton";
-import { useJobQueues } from "../hooks/use-jobs";
+import { useJobQueues, useRetryFailedJob } from "../hooks/use-jobs";
 import { useI18n } from "../i18n";
 import type { JobQueueJob, JobQueueSummary } from "../services/job.service";
 
@@ -41,7 +42,19 @@ function getHealth(queue: JobQueueSummary): QueueHealth {
   return { labelKey: "jobs.healthy", variant: "outline" as const, icon: CheckCircle2 };
 }
 
-function JobList({ jobs, emptyLabel, showReason }: { jobs: JobQueueJob[]; emptyLabel: string; showReason?: boolean }) {
+function JobList({
+  jobs,
+  emptyLabel,
+  onRetry,
+  retryingJobId,
+  showReason
+}: {
+  jobs: JobQueueJob[];
+  emptyLabel: string;
+  onRetry?: (jobId: string) => void;
+  retryingJobId?: string;
+  showReason?: boolean;
+}) {
   const { t } = useI18n();
   const formatter = useMemo(
     () =>
@@ -62,9 +75,24 @@ function JobList({ jobs, emptyLabel, showReason }: { jobs: JobQueueJob[]; emptyL
         <li key={`${job.name}-${job.id}`} className="rounded-lg border border-border/70 bg-background px-3 py-3">
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <p className="truncate text-sm font-medium text-foreground">{job.name}</p>
-            <Badge variant="outline" className="rounded-md font-mono">
-              #{job.id || "-"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="rounded-md font-mono">
+                #{job.id || "-"}
+              </Badge>
+              {onRetry ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => onRetry(job.id)}
+                  disabled={!job.id || retryingJobId === job.id}
+                >
+                  {retryingJobId === job.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <RotateCcw className="size-3.5" aria-hidden />}
+                  {retryingJobId === job.id ? t("jobs.retrying") : t("jobs.retry")}
+                </Button>
+              ) : null}
+            </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
@@ -81,7 +109,7 @@ function JobList({ jobs, emptyLabel, showReason }: { jobs: JobQueueJob[]; emptyL
   );
 }
 
-function QueueCard({ queue }: { queue: JobQueueSummary }) {
+function QueueCard({ onRetryJob, queue, retryingJobId }: { queue: JobQueueSummary; onRetryJob: (queueName: string, jobId: string) => void; retryingJobId?: string }) {
   const { t } = useI18n();
   const health = getHealth(queue);
   const HealthIcon = health.icon;
@@ -119,7 +147,13 @@ function QueueCard({ queue }: { queue: JobQueueSummary }) {
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="space-y-2">
             <h2 className="text-sm font-semibold text-foreground">{t("jobs.failedJobs")}</h2>
-            <JobList jobs={queue.failedJobs} emptyLabel={t("jobs.noFailedJobs")} showReason />
+            <JobList
+              jobs={queue.failedJobs}
+              emptyLabel={t("jobs.noFailedJobs")}
+              onRetry={(jobId) => onRetryJob(queue.name, jobId)}
+              retryingJobId={retryingJobId}
+              showReason
+            />
           </section>
           <section className="space-y-2">
             <h2 className="text-sm font-semibold text-foreground">{t("jobs.waitingJobs")}</h2>
@@ -156,7 +190,19 @@ function QueueSkeleton() {
 export function JobsPage() {
   const { t, formatError } = useI18n();
   const { data, isLoading, isError, error, isFetching, refetch } = useJobQueues();
+  const retryMutation = useRetryFailedJob();
   const queues = data?.items ?? [];
+  const retryingJobId = retryMutation.isPending ? retryMutation.variables?.jobId : undefined;
+
+  const handleRetryJob = (queueName: string, jobId: string) => {
+    retryMutation.mutate(
+      { queueName, jobId },
+      {
+        onSuccess: () => toast.success(t("jobs.retryQueued")),
+        onError: (retryError) => toast.error(formatError(retryError, "jobs.retryFailed"))
+      }
+    );
+  };
 
   return (
     <AppShell
@@ -199,7 +245,9 @@ export function JobsPage() {
           {!isLoading && !isError && queues.length === 0 ? (
             <EmptyState icon={DatabaseZap} title={t("jobs.noQueues")} description={t("jobs.noQueuesDescription")} />
           ) : null}
-          {!isLoading && !isError ? queues.map((queue) => <QueueCard key={queue.name} queue={queue} />) : null}
+          {!isLoading && !isError ? (
+            queues.map((queue) => <QueueCard key={queue.name} queue={queue} onRetryJob={handleRetryJob} retryingJobId={retryingJobId} />)
+          ) : null}
         </section>
       </div>
     </AppShell>

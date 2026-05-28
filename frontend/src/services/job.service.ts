@@ -38,5 +38,12 @@ export const jobService = {
   async getQueues(): Promise<JobQueuesResponse> {
     const response = await httpClient.get<ApiResponse<JobQueuesResponse>>("/jobs/queues");
     return response.data.data;
+  },
+
+  async retryFailedJob(queueName: string, jobId: string): Promise<JobQueueJob> {
+    const response = await httpClient.post<ApiResponse<JobQueueJob>>(
+      `/jobs/queues/${encodeURIComponent(queueName)}/jobs/${encodeURIComponent(jobId)}/retries`
+    );
+    return response.data.data;
   }
 };
