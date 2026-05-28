@@ -64,6 +64,7 @@ import {
   useArchiveCourse,
   useAdminEnrollLearner,
   useAdminRemoveLearner,
+  useCourseAnalytics,
   useCourseDetail,
   useCourseEnrollments,
   useCourseLessons,
@@ -277,6 +278,7 @@ export function CourseDetailPage() {
   const nextLessonSortOrder = getNextLessonSortOrder(lessonQuery.data);
 
   const enrollmentsQuery = useCourseEnrollments(courseId, Boolean(canAccessCourseWorkspace && courseQuery.data), enrollmentPage, learnerSearch.trim());
+  const courseAnalyticsQuery = useCourseAnalytics(courseId, Boolean(canAccessCourseWorkspace && courseQuery.data));
   const certificatesQuery = useCourseCertificates(courseId, certificatePage, certificateStatusFilter, Boolean(canAccessCourseWorkspace && courseQuery.data));
   const revokeCertificateMutation = useRevokeCertificate(courseId, certificatePage, certificateStatusFilter);
   const restoreCertificateMutation = useRestoreCertificate(courseId, certificatePage, certificateStatusFilter);
@@ -309,6 +311,8 @@ export function CourseDetailPage() {
   const assignmentSubmissionsTotalPages = Math.max(1, Math.ceil(assignmentSubmissionsTotal / 20));
   const selectedAssignment = selectedAssignmentId ? assignments.find((assignment) => assignment.id === selectedAssignmentId) : undefined;
   const selectedSubmission = selectedSubmissionId ? assignmentSubmissions.find((submission) => submission.id === selectedSubmissionId) : undefined;
+  const courseAnalytics = courseAnalyticsQuery.data;
+  const analyticsLoading = courseAnalyticsQuery.isLoading;
 
   const handleDownloadCertificate = async (certificateId: string) => {
     setDownloadingCertificateId(certificateId);
@@ -1660,6 +1664,80 @@ export function CourseDetailPage() {
             </div>
           </div>
         </section>
+
+        {canAccessCourseWorkspace ? (
+          <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">{t("courseDetail.analyticsTitle")}</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">{t("courseDetail.analyticsDescription")}</p>
+              </div>
+              {courseAnalyticsQuery.isFetching ? (
+                <Badge variant="outline" className="w-fit rounded-md">
+                  {t("common.loading")}
+                </Badge>
+              ) : null}
+            </div>
+            {courseAnalyticsQuery.isError ? (
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {t("courseDetail.analyticsLoadFailed")}
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {[
+                  {
+                    icon: CheckCircle2,
+                    label: t("courseDetail.analyticsCompletionRate"),
+                    value: `${courseAnalytics?.completionRate ?? 0}%`,
+                    hint: `${courseAnalytics?.completedLessonCount ?? 0}/${(courseAnalytics?.enrollmentCount ?? 0) * (courseAnalytics?.lessonCount ?? 0)} ${t("courseDetail.analyticsCompletionHint")}`
+                  },
+                  {
+                    icon: Users,
+                    label: t("courseDetail.analyticsEngagementRate"),
+                    value: `${courseAnalytics?.engagementRate ?? 0}%`,
+                    hint: `${courseAnalytics?.activeLearnerCount ?? 0}/${courseAnalytics?.enrollmentCount ?? 0} ${t("courseDetail.analyticsEngagementHint")}`
+                  },
+                  {
+                    icon: ClipboardCheck,
+                    label: t("courseDetail.analyticsExamAttempts"),
+                    value: courseAnalytics?.examAttemptCount ?? 0,
+                    hint: `${courseAnalytics?.gradedExamAttemptCount ?? 0} ${t("courseDetail.analyticsExamAttemptsHint")}`
+                  },
+                  {
+                    icon: FileCheck2,
+                    label: t("courseDetail.analyticsAssignmentSubmissions"),
+                    value: courseAnalytics?.assignmentSubmissionCount ?? 0,
+                    hint: `${courseAnalytics?.lateAssignmentSubmissionCount ?? 0} ${t("courseDetail.analyticsAssignmentSubmissionsHint")}`
+                  },
+                  {
+                    icon: Award,
+                    label: t("courseDetail.analyticsCertificates"),
+                    value: courseAnalytics?.certificatesIssued ?? 0,
+                    hint: t("courseDetail.analyticsCertificatesHint")
+                  },
+                  {
+                    icon: Star,
+                    label: t("courseDetail.analyticsRating"),
+                    value: courseAnalytics?.ratingCount ? courseAnalytics.ratingAverage.toFixed(1) : "—",
+                    hint: `${courseAnalytics?.ratingCount ?? 0} ${t("courseDetail.analyticsRatingHint")}`
+                  }
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="min-h-28 rounded-lg border border-border/70 bg-background px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                        <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      </div>
+                      <p className="mt-3 text-2xl font-semibold tabular-nums text-foreground">{analyticsLoading ? "..." : item.value}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{analyticsLoading ? t("common.loading") : item.hint}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : null}
 
         {courseMetadata.length || hasLongMetadata ? (
           <section className="grid gap-3 rounded-xl bg-card ring-1 ring-foreground/10 p-4">

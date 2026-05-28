@@ -1,4 +1,4 @@
-import { CourseStatus, Prisma } from "@prisma/client";
+import { CourseStatus, ExamAttemptStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 
 export type CourseListFilters = {
@@ -156,6 +156,80 @@ export class CourseRepository {
     return prisma.lesson.count({
       where: { courseId }
     });
+  }
+
+  async getAnalytics(courseId: string) {
+    const [
+      enrollmentCount,
+      lessonCount,
+      completedLessonCount,
+      activeLearners,
+      certificatesIssued,
+      examCount,
+      examAttemptCount,
+      gradedExamAttemptCount,
+      assignmentCount,
+      assignmentSubmissionCount,
+      lateAssignmentSubmissionCount,
+      course
+    ] = await prisma.$transaction([
+      prisma.enrollment.count({ where: { courseId } }),
+      prisma.lesson.count({ where: { courseId } }),
+      prisma.lessonProgress.count({
+        where: {
+          isCompleted: true,
+          lesson: { courseId }
+        }
+      }),
+      prisma.lessonProgress.groupBy({
+        by: ["userId"],
+        where: {
+          isCompleted: true,
+          lesson: { courseId }
+        },
+        orderBy: {
+          userId: "asc"
+        },
+        _count: { userId: true }
+      }),
+      prisma.certificate.count({ where: { courseId } }),
+      prisma.exam.count({ where: { courseId } }),
+      prisma.examAttempt.count({ where: { exam: { courseId } } }),
+      prisma.examAttempt.count({ where: { exam: { courseId }, status: ExamAttemptStatus.GRADED } }),
+      prisma.assignment.count({ where: { courseId } }),
+      prisma.assignmentSubmission.count({ where: { assignment: { courseId } } }),
+      prisma.assignmentSubmission.count({ where: { assignment: { courseId }, isLate: true } }),
+      prisma.course.findUnique({
+        where: { id: courseId },
+        select: {
+          ratingAverage: true,
+          ratingCount: true
+        }
+      })
+    ]);
+
+    const progressSlots = enrollmentCount * lessonCount;
+    const completionRate = progressSlots > 0 ? Math.round((completedLessonCount / progressSlots) * 100) : 0;
+    const engagementRate = enrollmentCount > 0 ? Math.round((activeLearners.length / enrollmentCount) * 100) : 0;
+
+    return {
+      courseId,
+      enrollmentCount,
+      lessonCount,
+      completedLessonCount,
+      activeLearnerCount: activeLearners.length,
+      completionRate,
+      engagementRate,
+      certificatesIssued,
+      examCount,
+      examAttemptCount,
+      gradedExamAttemptCount,
+      assignmentCount,
+      assignmentSubmissionCount,
+      lateAssignmentSubmissionCount,
+      ratingAverage: course?.ratingAverage ?? 0,
+      ratingCount: course?.ratingCount ?? 0
+    };
   }
 
   async create(data: Prisma.CourseCreateInput) {

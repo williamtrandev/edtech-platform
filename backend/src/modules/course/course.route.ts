@@ -71,6 +71,7 @@ courseRouter.post("/:id/exams", authMiddleware, validateRequest(createExamSchema
 courseRouter.get("/:id/assignments", authMiddleware, validateRequest(courseAssignmentsParamSchema), asyncHandler(assignmentController.listCourseAssignments));
 courseRouter.post("/:id/assignments", authMiddleware, validateRequest(createAssignmentSchema), asyncHandler(assignmentController.createCourseAssignment));
 courseRouter.get("/:id/certificates", authMiddleware, validateRequest(listCourseCertificatesSchema), asyncHandler(certificateController.listCourseCertificates));
+courseRouter.get("/:id/analytics", authMiddleware, validateRequest(courseIdParamSchema), asyncHandler(courseController.getCourseAnalytics));
 courseRouter.get("/:id/reviews", optionalAuthMiddleware, validateRequest(listCourseReviewsSchema), asyncHandler(courseReviewController.listCourseReviews));
 courseRouter.put("/:id/reviews/me", authMiddleware, validateRequest(upsertCourseReviewSchema), asyncHandler(courseReviewController.upsertMyReview));
 courseRouter.delete("/:id/reviews/me", authMiddleware, validateRequest(courseReviewMeSchema), asyncHandler(courseReviewController.deleteMyReview));

@@ -174,6 +174,14 @@ export function useCourseDetail(courseId: string) {
   });
 }
 
+export function useCourseAnalytics(courseId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["courses", courseId, "analytics"],
+    queryFn: () => courseService.getCourseAnalytics(courseId),
+    enabled: Boolean(courseId) && enabled
+  });
+}
+
 export function useCourseLessons(courseId: string, enabled = true) {
   return useQuery({
     queryKey: ["lessons", courseId],

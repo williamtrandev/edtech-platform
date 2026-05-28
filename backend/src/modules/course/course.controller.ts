@@ -35,6 +35,11 @@ export class CourseController {
     res.status(200).json({ success: true, data: enrollments });
   };
 
+  getCourseAnalytics = async (req: Request, res: Response): Promise<void> => {
+    const analytics = await this.courseService.getCourseAnalytics(req.user, req.params.id);
+    res.status(200).json({ success: true, data: analytics });
+  };
+
   getCourseById = async (req: Request, res: Response): Promise<void> => {
     const course = await this.courseService.getCourseById(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });

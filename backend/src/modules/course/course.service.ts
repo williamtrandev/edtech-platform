@@ -397,4 +397,21 @@ export class CourseService {
       }
     };
   }
+
+  async getCourseAnalytics(user: Express.UserClaims | undefined, courseId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    if (!canViewCourseAsStaff(user, course.instructorId)) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    return this.courseRepository.getAnalytics(courseId);
+  }
 }

@@ -72,6 +72,25 @@ export type CourseFacets = {
   }>;
 };
 
+export type CourseAnalytics = {
+  courseId: string;
+  enrollmentCount: number;
+  lessonCount: number;
+  completedLessonCount: number;
+  activeLearnerCount: number;
+  completionRate: number;
+  engagementRate: number;
+  certificatesIssued: number;
+  examCount: number;
+  examAttemptCount: number;
+  gradedExamAttemptCount: number;
+  assignmentCount: number;
+  assignmentSubmissionCount: number;
+  lateAssignmentSubmissionCount: number;
+  ratingAverage: number;
+  ratingCount: number;
+};
+
 export type CourseListParams = {
   status?: CourseStatus;
   page?: number;
@@ -193,6 +212,11 @@ export const courseService = {
   },
   async getCourseById(id: string): Promise<Course> {
     const response = await httpClient.get<ApiResponse<Course>>(`/courses/${id}`);
+    return response.data.data;
+  },
+
+  async getCourseAnalytics(courseId: string): Promise<CourseAnalytics> {
+    const response = await httpClient.get<ApiResponse<CourseAnalytics>>(`/courses/${courseId}/analytics`);
     return response.data.data;
   },
 
