@@ -5,6 +5,7 @@ import { AppError } from "../../common/errors/app-error";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { NotificationService } from "../notification/notification.service";
+import { createCertificatePdf } from "./certificate-pdf";
 import { CertificateRepository } from "./certificate.repository";
 
 type ListCourseCertificatesPayload = {
@@ -145,6 +146,38 @@ export class CertificateService {
     return restored;
   }
 
+  async createCertificatePdf(user: Express.UserClaims | undefined, certificateId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const certificate = await this.certificateRepository.findById(certificateId);
+    if (!certificate) {
+      throw new AppError("Certificate not found", 404, "CERTIFICATE_NOT_FOUND");
+    }
+
+    const canDownload =
+      user.id === certificate.userId ||
+      user.role === USER_ROLE.admin ||
+      (user.role === USER_ROLE.instructor && user.id === certificate.course.instructor.id);
+    if (!canDownload) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+    if (certificate.status !== CERTIFICATE_STATUS.active) {
+      throw new AppError("Certificate is revoked", 409, "CERTIFICATE_REVOKED");
+    }
+
+    return {
+      filename: this.createPdfFilename(certificate.course.title, certificate.verificationCode),
+      buffer: createCertificatePdf({
+        verificationCode: certificate.verificationCode,
+        issuedAt: certificate.issuedAt,
+        user: certificate.user,
+        course: certificate.course
+      })
+    };
+  }
+
   private assertCanManageCourse(user: Express.UserClaims, instructorId: string) {
     const canManage = user.role === USER_ROLE.admin || (user.role === USER_ROLE.instructor && user.id === instructorId);
     if (!canManage) {
@@ -154,5 +187,16 @@ export class CertificateService {
 
   private createVerificationCode() {
     return `cert_${randomBytes(16).toString("hex")}`;
+  }
+
+  private createPdfFilename(courseTitle: string, verificationCode: string) {
+    const courseSlug = courseTitle
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase()
+      .slice(0, 48);
+    return `certificate-${courseSlug || "course"}-${verificationCode.slice(-8)}.pdf`;
   }
 }

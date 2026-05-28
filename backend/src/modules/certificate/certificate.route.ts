@@ -23,5 +23,6 @@ export const certificateRouter = Router();
 
 certificateRouter.get("/verify/:verificationCode", validateRequest(certificateVerificationSchema), asyncHandler(certificateController.verifyCertificate));
 certificateRouter.get("/me", authMiddleware, asyncHandler(certificateController.listMyCertificates));
+certificateRouter.get("/:certificateId/pdf", authMiddleware, validateRequest(certificateIdParamSchema), asyncHandler(certificateController.downloadCertificatePdf));
 certificateRouter.post("/:certificateId/revocations", authMiddleware, validateRequest(certificateIdParamSchema), asyncHandler(certificateController.revokeCertificate));
 certificateRouter.delete("/:certificateId/revocations", authMiddleware, validateRequest(certificateIdParamSchema), asyncHandler(certificateController.restoreCertificate));

@@ -33,4 +33,12 @@ export class CertificateController {
     const certificate = await this.certificateService.restoreCertificate(req.user, req.params.certificateId);
     res.status(200).json({ success: true, data: certificate });
   };
+
+  downloadCertificatePdf = async (req: Request, res: Response): Promise<void> => {
+    const pdf = await this.certificateService.createCertificatePdf(req.user, req.params.certificateId);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${pdf.filename}"`);
+    res.setHeader("Content-Length", pdf.buffer.length);
+    res.status(200).send(pdf.buffer);
+  };
 }

@@ -39,6 +39,14 @@ export type Certificate = {
   };
 };
 
+function getFilenameFromDisposition(disposition: unknown) {
+  if (typeof disposition !== "string") {
+    return "certificate.pdf";
+  }
+  const match = /filename="?(?<filename>[^";]+)"?/i.exec(disposition);
+  return match?.groups?.filename ?? "certificate.pdf";
+}
+
 export const certificateService = {
   async getMyCertificates(): Promise<Certificate[]> {
     const response = await httpClient.get<ApiResponse<Certificate[]>>("/certificates/me");
@@ -65,5 +73,14 @@ export const certificateService = {
   async restoreCertificate(certificateId: string): Promise<Certificate> {
     const response = await httpClient.delete<ApiResponse<Certificate>>(`/certificates/${certificateId}/revocations`);
     return response.data.data;
+  },
+  async downloadCertificatePdf(certificateId: string): Promise<{ blob: Blob; filename: string }> {
+    const response = await httpClient.get<Blob>(`/certificates/${certificateId}/pdf`, {
+      responseType: "blob"
+    });
+    return {
+      blob: response.data,
+      filename: getFilenameFromDisposition(response.headers["content-disposition"])
+    };
   }
 };

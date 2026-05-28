@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import { Award, BookOpenCheck, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { Award, BookOpenCheck, CheckCircle2, Download } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,15 +9,31 @@ import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { MetricCard } from "../components/metric-card";
 import { EnrollmentListSkeleton, MetricCardSkeleton } from "../components/skeleton";
+import { CERTIFICATE_STATUS } from "../constants/business";
 import { useMyCertificates } from "../hooks/use-certificates";
 import { useMyEnrollments } from "../hooks/use-enrollments";
 import { useI18n } from "../i18n";
+import { downloadBlob } from "../lib/download-file";
+import { certificateService } from "../services/certificate.service";
 
 export function MyProgressPage() {
   const { data, isLoading, isError } = useMyEnrollments();
   const certificatesQuery = useMyCertificates();
   const certificates = certificatesQuery.data ?? [];
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
+  const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
+
+  const handleDownloadCertificate = async (certificateId: string) => {
+    setDownloadingCertificateId(certificateId);
+    try {
+      const file = await certificateService.downloadCertificatePdf(certificateId);
+      downloadBlob(file.blob, file.filename);
+    } catch (error) {
+      toast.error(formatError(error, "progress.certificateDownloadFailed"));
+    } finally {
+      setDownloadingCertificateId(null);
+    }
+  };
 
   return (
     <AppShell
@@ -71,6 +89,19 @@ export function MyProgressPage() {
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button asChild size="sm" variant="outline" className="h-9 rounded-md shadow-none">
                           <Link to={`/certificates/verify/${certificate.verificationCode}`}>{t("progress.verify")}</Link>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-9 rounded-md shadow-none"
+                          disabled={certificate.status !== CERTIFICATE_STATUS.active || downloadingCertificateId === certificate.id}
+                          onClick={() => {
+                            void handleDownloadCertificate(certificate.id);
+                          }}
+                        >
+                          <Download className="size-4" aria-hidden />
+                          {downloadingCertificateId === certificate.id ? t("progress.downloadingCertificate") : t("progress.downloadCertificate")}
                         </Button>
                         <Button asChild size="sm" className="h-9 rounded-md shadow-none">
                           <Link to={`/courses/${certificate.courseId}`}>{t("progress.course")}</Link>

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Download, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -84,6 +84,8 @@ import { useCourseCertificates, useRestoreCertificate, useRevokeCertificate } fr
 import { useCurrentUser } from "../hooks/use-current-user";
 import { useCompleteLesson, useCourseLessonProgress, useCourseProgress } from "../hooks/use-progress";
 import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { downloadBlob } from "../lib/download-file";
+import { certificateService } from "../services/certificate.service";
 import { createAssignmentFormSchema, createAssignmentGradeFormSchema, createAssignmentSubmissionFormSchema, createExamAttemptGradeFormSchema, createExamFormSchema, createExamQuestionFormSchema, createLessonFormSchema, AssignmentFormValues, AssignmentGradeFormValues, AssignmentSubmissionFormValues, CreateLessonFormValues, ExamAttemptGradeFormValues, ExamFormValues, ExamQuestionFormValues, updateCourseFormSchema, UpdateCourseFormValues } from "../schemas/course.schema";
 import { uploadService, type UploadedFile } from "../services/upload.service";
 import type { Exam, ExamAttemptForReview, ExamAttemptSession, ExamQuestion, ExamQuestionOption } from "../services/exam.service";
@@ -209,6 +211,7 @@ export function CourseDetailPage() {
   const [enrollmentPage, setEnrollmentPage] = useState(1);
   const [certificatePage, setCertificatePage] = useState(1);
   const [certificateStatusFilter, setCertificateStatusFilter] = useState<"ALL" | (typeof CERTIFICATE_STATUS)[keyof typeof CERTIFICATE_STATUS]>("ALL");
+  const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
   const [adminEnrollEmail, setAdminEnrollEmail] = useState("");
   const [lockReasonInput, setLockReasonInput] = useState("");
   const [orderedLessons, setOrderedLessons] = useState<Lesson[]>([]);
@@ -306,6 +309,18 @@ export function CourseDetailPage() {
   const assignmentSubmissionsTotalPages = Math.max(1, Math.ceil(assignmentSubmissionsTotal / 20));
   const selectedAssignment = selectedAssignmentId ? assignments.find((assignment) => assignment.id === selectedAssignmentId) : undefined;
   const selectedSubmission = selectedSubmissionId ? assignmentSubmissions.find((submission) => submission.id === selectedSubmissionId) : undefined;
+
+  const handleDownloadCertificate = async (certificateId: string) => {
+    setDownloadingCertificateId(certificateId);
+    try {
+      const file = await certificateService.downloadCertificatePdf(certificateId);
+      downloadBlob(file.blob, file.filename);
+    } catch (error) {
+      toast.error(formatError(error, "progress.certificateDownloadFailed"));
+    } finally {
+      setDownloadingCertificateId(null);
+    }
+  };
 
   const courseForm = useForm<UpdateCourseFormValues>({
     resolver: zodResolver(updateCourseFormSchema(t)),
@@ -3649,6 +3664,19 @@ export function CourseDetailPage() {
                               <div className="ml-auto flex flex-wrap gap-2">
                                 <Button asChild type="button" variant="outline" size="sm" className="h-8 rounded-md">
                                   <Link to={`/certificates/verify/${certificate.verificationCode}`}>{t("progress.verify")}</Link>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-md"
+                                  disabled={revoked || downloadingCertificateId === certificate.id}
+                                  onClick={() => {
+                                    void handleDownloadCertificate(certificate.id);
+                                  }}
+                                >
+                                  <Download className="size-3.5" aria-hidden />
+                                  {downloadingCertificateId === certificate.id ? t("progress.downloadingCertificate") : t("progress.downloadCertificate")}
                                 </Button>
                                 {revoked ? (
                                   <Button
