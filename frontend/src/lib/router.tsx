@@ -13,6 +13,7 @@ import { JobsPage } from "../pages/jobs-page";
 import { LoginPage } from "../pages/login-page";
 import { MyLearningPage } from "../pages/my-learning-page";
 import { MyProgressPage } from "../pages/my-progress-page";
+import { PlatformAnalyticsPage } from "../pages/platform-analytics-page";
 import { RegisterPage } from "../pages/register-page";
 import { ResetPasswordPage } from "../pages/reset-password-page";
 import { UserDetailPage } from "../pages/user-detail-page";
@@ -136,6 +137,16 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <AuditLogsPage />
+          }
+        ]
+      },
+      {
+        path: "/analytics",
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <PlatformAnalyticsPage />
           }
         ]
       },

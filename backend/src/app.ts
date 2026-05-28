@@ -5,6 +5,7 @@ import { errorHandler } from "./common/middleware/error-handler";
 import { requestContextMiddleware } from "./common/middleware/request-context";
 import { authRouter } from "./modules/auth/auth.route";
 import { auditRouter } from "./modules/audit/audit.route";
+import { platformAnalyticsRouter } from "./modules/analytics/platform-analytics.route";
 import { assignmentRouter } from "./modules/assignment/assignment.route";
 import { assignmentSubmissionRouter } from "./modules/assignment-submission/assignment-submission.route";
 import { certificateRouter } from "./modules/certificate/certificate.route";
@@ -34,6 +35,7 @@ export function createApp() {
 
   app.use("/auth-sessions", authRouter);
   app.use("/audit-logs", auditRouter);
+  app.use("/analytics", platformAnalyticsRouter);
   app.use("/assignments", assignmentRouter);
   app.use("/assignment-submissions", assignmentSubmissionRouter);
   app.use("/certificates", certificateRouter);
