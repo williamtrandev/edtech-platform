@@ -4,6 +4,7 @@ import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor } from "../../common/auth/course-access";
 import { examGradingQueue } from "../../jobs/exam-grading.queue";
+import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { ExamAttemptRepository, type SubmitExamAnswerInput } from "./exam-attempt.repository";
@@ -36,7 +37,8 @@ export class ExamAttemptService {
   constructor(
     private readonly examAttemptRepository: ExamAttemptRepository,
     private readonly courseRepository: CourseRepository,
-    private readonly enrollmentRepository: EnrollmentRepository
+    private readonly enrollmentRepository: EnrollmentRepository,
+    private readonly auditRepository?: AuditRepository
   ) {}
 
   async startAttempt(user: Express.UserClaims | undefined, examId: string) {
@@ -266,6 +268,26 @@ export class ExamAttemptService {
     }
 
     const gradedAttempt = await this.examAttemptRepository.markAttemptManuallyGraded(attemptId, payload.score);
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: "EXAM_ATTEMPT_GRADED",
+      entityType: "ExamAttempt",
+      entityId: attemptId,
+      metadata: {
+        courseId: gradingContext.exam.courseId,
+        examId: gradingContext.examId,
+        userId: gradingContext.userId,
+        attemptNumber: gradingContext.attemptNumber,
+        before: {
+          status: attempt.status,
+          score: attempt.score
+        },
+        after: {
+          status: gradedAttempt.status,
+          score: gradedAttempt.score
+        }
+      }
+    });
     return { attempt: gradedAttempt };
   }
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authMiddleware } from "../../common/middleware/auth-middleware";
 import { validateRequest } from "../../common/middleware/validate-request";
 import { asyncHandler } from "../../common/utils/async-handler";
+import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { ExamAttemptController } from "./exam-attempt.controller";
@@ -12,7 +13,8 @@ import { examAttemptParamSchema, gradeExamAttemptSchema, saveExamAttemptAnswersS
 const examAttemptRepository = new ExamAttemptRepository();
 const courseRepository = new CourseRepository();
 const enrollmentRepository = new EnrollmentRepository();
-const examAttemptService = new ExamAttemptService(examAttemptRepository, courseRepository, enrollmentRepository);
+const auditRepository = new AuditRepository();
+const examAttemptService = new ExamAttemptService(examAttemptRepository, courseRepository, enrollmentRepository, auditRepository);
 const examAttemptController = new ExamAttemptController(examAttemptService);
 
 export const examAttemptRouter = Router();

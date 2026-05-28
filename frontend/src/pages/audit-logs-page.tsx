@@ -12,8 +12,20 @@ import { useAuditLogs } from "../hooks/use-audit-logs";
 import { useI18n } from "../i18n";
 
 const ALL_VALUE = "all";
-const ACTION_OPTIONS = ["USER_UPDATED", "USER_STATUS_UPDATED", "COURSE_PUBLISHED", "COURSE_ARCHIVED", "COURSE_LOCKED", "COURSE_UNLOCKED", "COURSE_STATUS_UPDATED"] as const;
-const ENTITY_OPTIONS = ["User", "Course"] as const;
+const ACTION_OPTIONS = [
+  "USER_UPDATED",
+  "USER_STATUS_UPDATED",
+  "COURSE_PUBLISHED",
+  "COURSE_ARCHIVED",
+  "COURSE_LOCKED",
+  "COURSE_UNLOCKED",
+  "COURSE_STATUS_UPDATED",
+  "EXAM_ATTEMPT_GRADED",
+  "ASSIGNMENT_SUBMISSION_GRADED",
+  "CERTIFICATE_REVOKED",
+  "CERTIFICATE_RESTORED"
+] as const;
+const ENTITY_OPTIONS = ["User", "Course", "ExamAttempt", "AssignmentSubmission", "Certificate"] as const;
 
 function formatMetadata(metadata: unknown) {
   if (!metadata || typeof metadata !== "object") {
