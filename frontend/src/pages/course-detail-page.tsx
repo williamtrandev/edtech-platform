@@ -57,13 +57,14 @@ import { FormField } from "../components/form-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { TextareaField } from "../components/textarea-field";
-import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, LESSON_CONTENT_TYPE, USER_ROLE } from "../constants/business";
+import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
 import { useArchiveAssignment, useAssignmentSubmissions, useCourseAssignments, useCreateAssignment, useGradeAssignmentSubmission, useSubmitAssignment, useUpdateAssignment } from "../hooks/use-assignments";
 import { useAuth } from "../hooks/use-auth";
 import {
   useArchiveCourse,
   useAdminEnrollLearner,
   useAdminRemoveLearner,
+  useAssignCourseInstructor,
   useCourseAnalytics,
   useCourseDetail,
   useCourseEnrollments,
@@ -84,6 +85,7 @@ import { useArchiveExam, useCourseExams, useCreateExam, useCreateExamQuestion, u
 import { useCourseCertificates, useRestoreCertificate, useRevokeCertificate } from "../hooks/use-certificates";
 import { useCurrentUser } from "../hooks/use-current-user";
 import { useCompleteLesson, useCourseLessonProgress, useCourseProgress } from "../hooks/use-progress";
+import { useUsers } from "../hooks/use-users";
 import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
 import { downloadBlob } from "../lib/download-file";
 import { certificateService } from "../services/certificate.service";
@@ -198,6 +200,7 @@ export function CourseDetailPage() {
   const lockCourseMutation = useLockCourse(courseId);
   const unlockCourseMutation = useUnlockCourse(courseId);
   const updateCourseMutation = useUpdateCourse(courseId);
+  const assignCourseInstructorMutation = useAssignCourseInstructor(courseId);
   const upsertReviewMutation = useUpsertMyCourseReview(courseId);
   const deleteReviewMutation = useDeleteMyCourseReview(courseId);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
@@ -215,6 +218,7 @@ export function CourseDetailPage() {
   const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
   const [adminEnrollEmail, setAdminEnrollEmail] = useState("");
   const [lockReasonInput, setLockReasonInput] = useState("");
+  const [selectedInstructorId, setSelectedInstructorId] = useState("");
   const [orderedLessons, setOrderedLessons] = useState<Lesson[]>([]);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [draggingLessonId, setDraggingLessonId] = useState<string | null>(null);
@@ -248,6 +252,15 @@ export function CourseDetailPage() {
   const isCourseOwner =
     meQuery.data?.role === USER_ROLE.instructor && courseQuery.data?.instructorId === meQuery.data.id;
   const isAdminReviewer = meQuery.data?.role === USER_ROLE.admin;
+  const instructorUsersQuery = useUsers(
+    {
+      role: USER_ROLE.instructor,
+      status: USER_STATUS.active,
+      page: 1,
+      limit: 100
+    },
+    Boolean(isAdminReviewer)
+  );
   const canManageCourse = Boolean(isCourseOwner);
   const canReviewCourse = isAdminReviewer;
   const canAccessCourseWorkspace = canManageCourse || canReviewCourse;
@@ -313,6 +326,11 @@ export function CourseDetailPage() {
   const selectedSubmission = selectedSubmissionId ? assignmentSubmissions.find((submission) => submission.id === selectedSubmissionId) : undefined;
   const courseAnalytics = courseAnalyticsQuery.data;
   const analyticsLoading = courseAnalyticsQuery.isLoading;
+  const activeInstructors = instructorUsersQuery.data?.items ?? [];
+  const instructorOptions =
+    courseQuery.data?.instructor && !activeInstructors.some((instructor) => instructor.id === courseQuery.data?.instructorId)
+      ? [courseQuery.data.instructor, ...activeInstructors]
+      : activeInstructors;
 
   const handleDownloadCertificate = async (certificateId: string) => {
     setDownloadingCertificateId(certificateId);
@@ -416,6 +434,7 @@ export function CourseDetailPage() {
       return;
     }
 
+    setSelectedInstructorId(courseQuery.data.instructorId);
     courseForm.reset({
       title: courseQuery.data.title,
       description: courseQuery.data.description ?? "",
@@ -742,6 +761,19 @@ export function CourseDetailPage() {
       toast.success(t("courseDetail.courseUpdated"));
     } catch (e) {
       toast.error(formatError(e, "courseDetail.courseUpdateFailed"));
+    }
+  };
+
+  const onAssignInstructor = async () => {
+    if (!selectedInstructorId || selectedInstructorId === courseQuery.data?.instructorId) {
+      return;
+    }
+
+    try {
+      await assignCourseInstructorMutation.mutateAsync(selectedInstructorId);
+      toast.success(t("courseDetail.instructorAssigned"));
+    } catch (e) {
+      toast.error(formatError(e, "courseDetail.instructorAssignFailed"));
     }
   };
 
@@ -3906,6 +3938,51 @@ export function CourseDetailPage() {
                           </Button>
                         )}
                       </div>
+                    </div>
+                  ) : null}
+
+                  {isAdminReviewer ? (
+                    <div className="grid gap-4 rounded-xl bg-muted/40 p-4 ring-1 ring-foreground/10">
+                      <div>
+                        <h2 className="text-sm font-semibold">{t("courseDetail.ownerAssignment")}</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.ownerAssignmentDescription")}</p>
+                      </div>
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                        <FormField id="course-instructor-assignment" label={t("courseDetail.currentInstructor")}>
+                          <Select value={selectedInstructorId} onValueChange={setSelectedInstructorId} disabled={instructorUsersQuery.isLoading || assignCourseInstructorMutation.isPending}>
+                            <SelectTrigger id="course-instructor-assignment" className="h-10 w-full rounded-md border-border/80 bg-background shadow-none">
+                              <SelectValue placeholder={t("courseDetail.instructorPlaceholder")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {instructorOptions.map((instructor) => (
+                                <SelectItem key={instructor.id} value={instructor.id}>
+                                  {instructor.email}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormField>
+                        <Button
+                          className="h-10 rounded-md font-medium shadow-none"
+                          disabled={
+                            assignCourseInstructorMutation.isPending ||
+                            instructorUsersQuery.isLoading ||
+                            !selectedInstructorId ||
+                            selectedInstructorId === courseQuery.data?.instructorId
+                          }
+                          type="button"
+                          onClick={() => {
+                            void onAssignInstructor();
+                          }}
+                        >
+                          {assignCourseInstructorMutation.isPending ? t("courseDetail.assigningInstructor") : t("courseDetail.assignInstructor")}
+                        </Button>
+                      </div>
+                      {instructorUsersQuery.isError ? (
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                          {t("courseDetail.instructorsLoadFailed")}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 

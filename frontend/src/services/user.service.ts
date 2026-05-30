@@ -40,6 +40,8 @@ export type UserListParams = {
   search?: string;
   role?: UserRole;
   status?: UserStatus;
+  page?: number;
+  limit?: number;
 };
 
 export const userService = {
@@ -53,7 +55,9 @@ export const userService = {
       params: {
         ...(params.search?.trim() ? { search: params.search.trim() } : {}),
         ...(params.role ? { role: params.role } : {}),
-        ...(params.status ? { status: params.status } : {})
+        ...(params.status ? { status: params.status } : {}),
+        ...(params.page ? { page: params.page } : {}),
+        ...(params.limit ? { limit: params.limit } : {})
       }
     });
     return response.data.data;

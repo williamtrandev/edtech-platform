@@ -49,6 +49,17 @@ export const lockCourseSchema = z.object({
   })
 });
 
+export const assignCourseInstructorSchema = z.object({
+  params: z.object({
+    id: z.string().min(1)
+  }),
+  body: z
+    .object({
+      instructorId: z.string().trim().min(1).max(200)
+    })
+    .strict()
+});
+
 export const courseEnrollmentsSchema = z.object({
   params: z.object({
     id: z.string().min(1)

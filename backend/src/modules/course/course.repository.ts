@@ -27,6 +27,12 @@ export class CourseRepository {
     ratingCount: true,
     status: true,
     instructorId: true,
+    instructor: {
+      select: {
+        id: true,
+        email: true
+      }
+    },
     lockReason: true,
     lockedAt: true,
     lockedById: true,
@@ -244,6 +250,21 @@ export class CourseRepository {
     const course = await prisma.course.update({
       where: { id },
       data,
+      select: this.courseSelect
+    });
+    return this.mapCourse(course);
+  }
+
+  async assignInstructor(id: string, instructorId: string) {
+    const course = await prisma.course.update({
+      where: { id },
+      data: {
+        instructor: {
+          connect: {
+            id: instructorId
+          }
+        }
+      },
       select: this.courseSelect
     });
     return this.mapCourse(course);

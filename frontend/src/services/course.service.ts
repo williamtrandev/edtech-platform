@@ -22,6 +22,10 @@ export type Course = {
   ratingCount: number;
   status: CourseStatus;
   instructorId: string;
+  instructor?: {
+    id: string;
+    email: string;
+  };
   enrollmentCount?: number;
   lockReason?: string | null;
   lockedAt?: string | null;
@@ -208,6 +212,10 @@ export const courseService = {
   },
   async updateCourse(id: string, payload: UpdateCoursePayload) {
     const response = await httpClient.put<ApiResponse<Course>>(`/courses/${id}`, payload);
+    return response.data.data;
+  },
+  async assignCourseInstructor(id: string, instructorId: string): Promise<Course> {
+    const response = await httpClient.put<ApiResponse<Course>>(`/courses/${id}/instructors`, { instructorId });
     return response.data.data;
   },
   async getCourseById(id: string): Promise<Course> {

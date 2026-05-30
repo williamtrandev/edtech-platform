@@ -55,6 +55,11 @@ export class CourseController {
     res.status(200).json({ success: true, data: course });
   };
 
+  assignCourseInstructor = async (req: Request, res: Response): Promise<void> => {
+    const course = await this.courseService.assignCourseInstructor(req.user, req.params.id, req.body.instructorId);
+    res.status(200).json({ success: true, data: course });
+  };
+
   archiveCourse = async (req: Request, res: Response): Promise<void> => {
     const course = await this.courseService.archiveCourse(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });

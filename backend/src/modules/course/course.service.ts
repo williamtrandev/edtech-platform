@@ -1,10 +1,11 @@
 import { CourseStatus } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
-import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
+import { COURSE_STATUS, USER_ROLE, USER_STATUS } from "../../common/constants/business";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseListFilters, CourseRepository } from "./course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
+import { UserRepository } from "../user/user.repository";
 
 type CoursePayload = {
   title: string;
@@ -39,7 +40,8 @@ export class CourseService {
   constructor(
     private readonly courseRepository: CourseRepository,
     private readonly enrollmentRepository: EnrollmentRepository,
-    private readonly auditRepository?: AuditRepository
+    private readonly auditRepository?: AuditRepository,
+    private readonly userRepository?: UserRepository
   ) {}
 
   async listCourses(
@@ -244,6 +246,43 @@ export class CourseService {
         }
       });
     }
+
+    return updatedCourse;
+  }
+
+  async assignCourseInstructor(user: Express.UserClaims | undefined, id: string, instructorId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+    if (user.role !== USER_ROLE.admin) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    const [course, instructor] = await Promise.all([
+      this.courseRepository.findById(id),
+      this.userRepository?.findById(instructorId)
+    ]);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+    if (!instructor || instructor.role !== USER_ROLE.instructor || instructor.status !== USER_STATUS.active) {
+      throw new AppError("Instructor not found", 404, "INSTRUCTOR_NOT_FOUND");
+    }
+    if (course.instructorId === instructorId) {
+      return course;
+    }
+
+    const updatedCourse = await this.courseRepository.assignInstructor(id, instructorId);
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: "COURSE_INSTRUCTOR_ASSIGNED",
+      entityType: "Course",
+      entityId: id,
+      metadata: {
+        before: { instructorId: course.instructorId },
+        after: { instructorId }
+      }
+    });
 
     return updatedCourse;
   }

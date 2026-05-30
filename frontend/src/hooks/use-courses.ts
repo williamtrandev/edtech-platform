@@ -166,6 +166,19 @@ export function useUpdateCourse(courseId: string) {
   });
 }
 
+export function useAssignCourseInstructor(courseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (instructorId: string) => courseService.assignCourseInstructor(courseId, instructorId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["courses"] });
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+    }
+  });
+}
+
 export function useCourseDetail(courseId: string) {
   return useQuery({
     queryKey: ["courses", courseId],

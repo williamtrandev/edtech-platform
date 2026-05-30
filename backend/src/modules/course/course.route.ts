@@ -6,7 +6,7 @@ import { CourseController } from "./course.controller";
 import { CourseRepository } from "./course.repository";
 import { CourseService } from "./course.service";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
-import { courseEnrollmentsSchema, courseFacetsSchema, courseIdParamSchema, createCourseSchema, listCoursesSchema, lockCourseSchema, updateCourseSchema } from "./course.schema";
+import { assignCourseInstructorSchema, courseEnrollmentsSchema, courseFacetsSchema, courseIdParamSchema, createCourseSchema, listCoursesSchema, lockCourseSchema, updateCourseSchema } from "./course.schema";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseReviewController } from "../course-review/course-review.controller";
 import { CourseReviewRepository } from "../course-review/course-review.repository";
@@ -35,7 +35,8 @@ import { CertificateService } from "../certificate/certificate.service";
 const courseRepository = new CourseRepository();
 const enrollmentRepository = new EnrollmentRepository();
 const auditRepository = new AuditRepository();
-const courseService = new CourseService(courseRepository, enrollmentRepository, auditRepository);
+const userRepository = new UserRepository();
+const courseService = new CourseService(courseRepository, enrollmentRepository, auditRepository, userRepository);
 const courseController = new CourseController(courseService);
 const courseReviewRepository = new CourseReviewRepository();
 const courseReviewService = new CourseReviewService(courseReviewRepository, courseRepository, enrollmentRepository);
@@ -52,7 +53,6 @@ const notificationService = new NotificationService(notificationRepository);
 const certificateRepository = new CertificateRepository();
 const certificateService = new CertificateService(certificateRepository, notificationService, courseRepository, auditRepository);
 const certificateController = new CertificateController(certificateService);
-const userRepository = new UserRepository();
 const enrollmentService = new EnrollmentService(
   enrollmentRepository,
   courseRepository,
@@ -91,6 +91,7 @@ courseRouter.delete(
 courseRouter.delete("/:id", authMiddleware, validateRequest(courseIdParamSchema), asyncHandler(courseController.archiveCourse));
 courseRouter.post("/:id/locks", authMiddleware, validateRequest(lockCourseSchema), asyncHandler(courseController.lockCourse));
 courseRouter.delete("/:id/locks", authMiddleware, validateRequest(courseIdParamSchema), asyncHandler(courseController.unlockCourse));
+courseRouter.put("/:id/instructors", authMiddleware, validateRequest(assignCourseInstructorSchema), asyncHandler(courseController.assignCourseInstructor));
 courseRouter.get("/:id", optionalAuthMiddleware, validateRequest(courseIdParamSchema), asyncHandler(courseController.getCourseById));
 courseRouter.post("/", authMiddleware, validateRequest(createCourseSchema), asyncHandler(courseController.createCourse));
 courseRouter.put("/:id", authMiddleware, validateRequest(updateCourseSchema), asyncHandler(courseController.updateCourse));
