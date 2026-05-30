@@ -1,4 +1,4 @@
-import { Languages, Monitor, Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { LANGUAGE, THEME_MODE, type Language, type ThemeMode } from "../../constants/preferences";
@@ -26,6 +26,10 @@ function NextThemeIcon({ value }: { value: "light" | "dark" }) {
   return value === THEME_MODE.dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />;
 }
 
+function LanguageFlag({ value }: { value: Language }) {
+  return <span className="text-base leading-none" aria-hidden>{value === LANGUAGE.en ? "🇺🇸" : "🇻🇳"}</span>;
+}
+
 export function ThemeSelect({ labelId, className, variant = "default" }: PreferenceSelectProps) {
   const { theme, effectiveTheme, setTheme } = useTheme();
   const { t } = useI18n();
@@ -41,7 +45,7 @@ export function ThemeSelect({ labelId, className, variant = "default" }: Prefere
         aria-labelledby={labelId}
         title={nextThemeLabel}
         className={cn(
-          "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground transition-[background-color,border-color,color,box-shadow] duration-200 hover:bg-accent/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
           className
         )}
         onClick={() => setTheme(nextTheme)}
@@ -92,13 +96,12 @@ export function LanguageSelect({ labelId, className, variant = "default" }: Pref
         aria-labelledby={labelId}
         title={`${t("settings.languageLabel")}: ${label}`}
         className={cn(
-          "inline-flex h-9 min-w-12 shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full px-2.5 text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground transition-[background-color,border-color,color,box-shadow] duration-200 hover:bg-accent/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
           className
         )}
         onClick={() => setLanguage(nextLanguage)}
       >
-        <Languages className="size-3.5" aria-hidden />
-        <span className="text-[10px] font-semibold uppercase leading-none">{language}</span>
+        <LanguageFlag value={language} />
       </button>
     );
   }
@@ -114,11 +117,11 @@ export function LanguageSelect({ labelId, className, variant = "default" }: Pref
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={LANGUAGE.en}>
-          <span className="font-mono text-xs">EN</span>
+          <LanguageFlag value={LANGUAGE.en} />
           {t("language.en")}
         </SelectItem>
         <SelectItem value={LANGUAGE.vi}>
-          <span className="font-mono text-xs">VI</span>
+          <LanguageFlag value={LANGUAGE.vi} />
           {t("language.vi")}
         </SelectItem>
       </SelectContent>

@@ -14,14 +14,14 @@ export function MetricCard({ label, value, hint, icon: Icon, className }: Metric
   return (
     <Card
       className={cn(
-        "rounded-lg border-border/70 bg-card shadow-none transition-colors duration-200 hover:border-border",
+        "rounded-lg bg-card/95 shadow-none transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:bg-card hover:shadow-sm",
         className
       )}
     >
       <CardHeader className="pb-2 pt-4">
-        <CardTitle className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
           <span>{label}</span>
-          <span className="flex size-8 items-center justify-center rounded-md border border-border/70 bg-muted/30 text-foreground">
+          <span className="flex size-8 items-center justify-center rounded-md bg-accent/55 text-foreground ring-1 ring-border/70">
             <Icon className="size-4" aria-hidden />
           </span>
         </CardTitle>

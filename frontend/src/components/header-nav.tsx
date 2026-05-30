@@ -33,21 +33,23 @@ export function HeaderNav({ items }: HeaderNavProps) {
       className="flex min-w-0 flex-1 justify-center px-1 sm:px-2"
       aria-label="Main"
     >
-      <div className="inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-muted/50 p-1 ring-1 ring-foreground/5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted/50 p-1 ring-1 ring-border/80 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => {
           const active = isNavActive(location.pathname, item);
+          const Icon = item.icon;
           return (
             <Link
               key={item.to}
               to={item.to}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative inline-flex h-8 shrink-0 cursor-pointer items-center rounded-full px-3.5 text-[13px] font-medium transition-all sm:px-4 sm:text-sm",
+                "relative inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 text-[13px] font-semibold transition-[background-color,color,box-shadow] duration-200 sm:px-3.5 sm:text-sm",
                 active
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-foreground/10"
-                  : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/90"
+                  : "text-muted-foreground hover:bg-card/75 hover:text-foreground"
               )}
             >
+              <Icon className="size-4" aria-hidden />
               {t(item.labelKey)}
             </Link>
           );

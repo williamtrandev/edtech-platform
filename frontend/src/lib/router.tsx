@@ -13,6 +13,7 @@ import { JobsPage } from "../pages/jobs-page";
 import { LoginPage } from "../pages/login-page";
 import { MyLearningPage } from "../pages/my-learning-page";
 import { MyProgressPage } from "../pages/my-progress-page";
+import { NotFoundPage } from "../pages/not-found-page";
 import { PlatformAnalyticsPage } from "../pages/platform-analytics-page";
 import { RegisterPage } from "../pages/register-page";
 import { ResetPasswordPage } from "../pages/reset-password-page";
@@ -164,6 +165,6 @@ export const router = createBrowserRouter([
   },
   {
     path: "*",
-    element: <Navigate to="/" replace />
+    element: <NotFoundPage />
   }
 ]);
