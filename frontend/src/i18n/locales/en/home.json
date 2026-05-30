@@ -813,6 +813,7 @@
   "courseStudio.id": "ID",
   "courseStudio.enroll": "Enroll",
   "courseStudio.open": "Open",
+  "courseStudio.noDescription": "No course description yet.",
   "courseStudio.noCourses": "No courses yet",
   "courseStudio.noCoursesCreate": "Create a draft from the form. Course rows appear here for editing and publishing.",
   "courseStudio.noCoursesManage": "Courses created by instructors will appear here for review and management.",

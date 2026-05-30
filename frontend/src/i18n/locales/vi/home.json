@@ -813,6 +813,7 @@
   "courseStudio.id": "ID",
   "courseStudio.enroll": "Đăng ký",
   "courseStudio.open": "Mở",
+  "courseStudio.noDescription": "Chưa có mô tả khóa học.",
   "courseStudio.noCourses": "Chưa có khóa học",
   "courseStudio.noCoursesCreate": "Tạo bản nháp từ form. Khóa học sẽ hiện ở đây để chỉnh sửa và xuất bản.",
   "courseStudio.noCoursesManage": "Khóa học do giảng viên tạo sẽ hiện ở đây để quản trị viên rà soát và quản lý.",

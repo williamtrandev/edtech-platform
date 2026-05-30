@@ -34,6 +34,37 @@ export function CourseListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
+export function CourseCardGridSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+          <Skeleton className="aspect-[16/10] w-full rounded-none" />
+          <div className="space-y-4 p-4">
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-6 w-24" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-11/12" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+            <div className="flex gap-3">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="flex gap-2 border-t border-border/60 pt-4">
+              <Skeleton className="h-10 flex-1" />
+              <Skeleton className="h-10 flex-1" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function EnrollmentListSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="space-y-3">
