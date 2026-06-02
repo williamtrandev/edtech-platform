@@ -17,6 +17,7 @@ import { LESSON_CONTENT_TYPE, USER_ROLE } from "../constants/business";
 import { useAuth } from "../hooks/use-auth";
 import { useCourseDetail, useCourseLessons } from "../hooks/use-courses";
 import { useCurrentUser } from "../hooks/use-current-user";
+import { useMyCertificates } from "../hooks/use-certificates";
 import { useMyEnrollments } from "../hooks/use-enrollments";
 import { useProgressOfflineSync } from "../hooks/use-progress-offline-sync";
 import { useCompleteLesson, useCourseLessonProgress, useCourseProgress, useSaveLessonWatchPosition } from "../hooks/use-progress";
@@ -35,6 +36,7 @@ export function CourseLearnPage() {
   const courseQuery = useCourseDetail(courseId);
   const lessonsQuery = useCourseLessons(courseId, Boolean(courseId));
   const myEnrollmentsQuery = useMyEnrollments(isAuthenticated && !isBootstrapping && !isPreviewMode);
+  const myCertificatesQuery = useMyCertificates(isAuthenticated && !isBootstrapping && !isPreviewMode);
   const progressQuery = useCourseProgress(courseId, isAuthenticated && !isBootstrapping && !isPreviewMode);
   const lessonProgressQuery = useCourseLessonProgress(courseId, isAuthenticated && !isBootstrapping && !isPreviewMode);
   const completeLessonMutation = useCompleteLesson(courseId);
@@ -60,6 +62,10 @@ export function CourseLearnPage() {
   const canPreviewCourse = isPreviewMode && (isCourseOwner || isAdmin);
   const canLearn = isEnrolled && !isCourseOwner && !isAdmin;
   const canAccessLearn = canLearn || canPreviewCourse;
+  const courseCertificate = useMemo(
+    () => myCertificatesQuery.data?.find((certificate) => certificate.courseId === courseId) ?? null,
+    [courseId, myCertificatesQuery.data]
+  );
   const learnPath = isPreviewMode ? getCoursePreviewPath : getCourseLearnPath;
   const { pendingCount, isSyncing, flush } = useProgressOfflineSync({
     courseId,
@@ -126,6 +132,20 @@ export function CourseLearnPage() {
   ]);
 
   useEffect(() => {
+    if (isPreviewMode || !canLearn || !progressQuery.data?.isComplete) {
+      return;
+    }
+
+    navigate(`/courses/${courseId}/completed`, {
+      replace: true,
+      state: {
+        certificateId: courseCertificate?.id ?? null,
+        verificationCode: courseCertificate?.verificationCode ?? null
+      }
+    });
+  }, [canLearn, courseCertificate?.id, courseCertificate?.verificationCode, courseId, isPreviewMode, navigate, progressQuery.data?.isComplete]);
+
+  useEffect(() => {
     setCurriculumOpen(false);
   }, [lessonId]);
 
@@ -173,7 +193,7 @@ export function CourseLearnPage() {
     navigate(learnPath(courseId, targetLessonId));
   };
 
-  const handleCompleteLesson = async () => {
+  const handleCompleteLesson = async (options?: { silent?: boolean }) => {
     if (isPreviewMode || !selectedLesson || isLessonCompleted || isLessonLocked) {
       return;
     }
@@ -185,7 +205,9 @@ export function CourseLearnPage() {
         return;
       }
 
-      toast.success(t("courseLearn.lessonCompletedToast"));
+      if (!options?.silent) {
+        toast.success(t("courseLearn.lessonCompletedToast"));
+      }
     } catch (error) {
       toast.error(formatError(error, "courseLearn.lessonCompleteFailed"));
     }
@@ -361,10 +383,14 @@ export function CourseLearnPage() {
                         lesson={selectedLesson}
                         courseId={courseId}
                         canAttemptQuiz={canLearn}
+                        canAutoComplete={canLearn && !isLessonCompleted && !isLessonLocked}
                         watchPositionSeconds={selectedProgress?.watchPositionSeconds ?? 0}
                         onSaveWatchPosition={handleSaveWatchPosition}
                         onQuizGraded={() => {
                           void handleCompleteLesson();
+                        }}
+                        onAutoComplete={() => {
+                          void handleCompleteLesson({ silent: true });
                         }}
                         resumeVideoLabel={t("courseLearn.resumeVideo")}
                       />

@@ -130,12 +130,14 @@ export function useCompleteLesson(courseId: string) {
         return;
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["progress", courseId] });
-      await queryClient.invalidateQueries({ queryKey: ["lesson-progress", courseId] });
-      await queryClient.invalidateQueries({ queryKey: ["lessons", courseId] });
-      await queryClient.invalidateQueries({ queryKey: ["certificates", "me"] });
-      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      await queryClient.invalidateQueries({ queryKey: ["enrollments", "me"] });
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["progress", courseId] }),
+        queryClient.invalidateQueries({ queryKey: ["lesson-progress", courseId] }),
+        queryClient.invalidateQueries({ queryKey: ["lessons", courseId] }),
+        queryClient.invalidateQueries({ queryKey: ["certificates", "me"] }),
+        queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+        queryClient.invalidateQueries({ queryKey: ["enrollments", "me"] })
+      ]);
     }
   });
 }
@@ -171,12 +173,10 @@ export function useSaveLessonWatchPosition(courseId: string) {
         queryClient.setQueryData(["lesson-progress", courseId], context.previousLessonProgress);
       }
     },
-    onSettled: async (data) => {
+    onSettled: (data) => {
       if (isLessonProgressQueued(data)) {
         return;
       }
-
-      await queryClient.invalidateQueries({ queryKey: ["lesson-progress", courseId] });
     }
   });
 }

@@ -11,9 +11,11 @@ type LearnerLessonContentProps = {
   lesson: Lesson;
   courseId: string;
   canAttemptQuiz?: boolean;
+  canAutoComplete?: boolean;
   watchPositionSeconds?: number;
   onSaveWatchPosition?: (lessonId: string, watchPositionSeconds: number) => void;
   onQuizGraded?: () => void;
+  onAutoComplete?: () => void;
   resumeVideoLabel: string;
 };
 
@@ -22,21 +24,25 @@ function LessonVideoPlayer({
   lessonId,
   initialPosition = 0,
   onSaveWatchPosition,
+  onComplete,
   resumeVideoLabel
 }: {
   src: string;
   lessonId: string;
   initialPosition?: number;
   onSaveWatchPosition?: (lessonId: string, watchPositionSeconds: number) => void;
+  onComplete?: () => void;
   resumeVideoLabel: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastSavedRef = useRef(0);
   const resumeAppliedRef = useRef(false);
+  const completedRef = useRef(false);
 
   useEffect(() => {
     resumeAppliedRef.current = false;
     lastSavedRef.current = 0;
+    completedRef.current = false;
   }, [lessonId, src]);
 
   useEffect(() => {
@@ -97,9 +103,17 @@ function LessonVideoPlayer({
           }
 
           const position = Math.floor(video.currentTime);
-          if (position - lastSavedRef.current >= 5) {
+          if (position - lastSavedRef.current >= 15) {
             persistPosition();
           }
+        }}
+        onEnded={() => {
+          persistPosition();
+          if (completedRef.current) {
+            return;
+          }
+          completedRef.current = true;
+          onComplete?.();
         }}
       />
     </div>
@@ -110,13 +124,44 @@ export function LearnerLessonContent({
   lesson,
   courseId,
   canAttemptQuiz = false,
+  canAutoComplete = false,
   watchPositionSeconds = 0,
   onSaveWatchPosition,
   onQuizGraded,
+  onAutoComplete,
   resumeVideoLabel
 }: LearnerLessonContentProps) {
   const { t } = useI18n();
   const parsed = parseLessonContent(lesson.content, lesson.contentType);
+  const hasAutoCompletedRef = useRef(false);
+
+  useEffect(() => {
+    hasAutoCompletedRef.current = false;
+  }, [lesson.id]);
+
+  useEffect(() => {
+    if (!canAutoComplete || hasAutoCompletedRef.current) {
+      return;
+    }
+
+    const autoCompleteEligible =
+      parsed.kind === LESSON_CONTENT_TYPE.text ||
+      parsed.kind === LESSON_CONTENT_TYPE.resource ||
+      parsed.kind === LESSON_CONTENT_TYPE.liveSession;
+
+    if (!autoCompleteEligible) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      hasAutoCompletedRef.current = true;
+      onAutoComplete?.();
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [canAutoComplete, onAutoComplete, parsed.kind]);
 
   if (parsed.kind === LESSON_CONTENT_TYPE.quiz && parsed.examId) {
     return (
@@ -161,6 +206,7 @@ export function LearnerLessonContent({
         lessonId={lesson.id}
         initialPosition={watchPositionSeconds}
         onSaveWatchPosition={onSaveWatchPosition}
+        onComplete={onAutoComplete}
         resumeVideoLabel={resumeVideoLabel}
       />
     );

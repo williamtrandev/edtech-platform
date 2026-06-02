@@ -5,6 +5,7 @@ import { AuditLogsPage } from "../pages/audit-logs-page";
 import { CertificateVerifyPage } from "../pages/certificate-verify-page";
 import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
+import { CourseCompletedPage } from "../pages/course-completed-page";
 import { CourseLearnPage } from "../pages/course-learn-page";
 import { CoursesPage } from "../pages/courses-page";
 import { EmailConfirmedPage } from "../pages/email-confirmed-page";
@@ -85,6 +86,10 @@ export const router = createBrowserRouter([
       {
         path: "/courses/:courseId/learn/:lessonId",
         element: <CourseLearnPage />
+      },
+      {
+        path: "/courses/:courseId/completed",
+        element: <CourseCompletedPage />
       },
       {
         path: "/courses/:courseId/preview",
