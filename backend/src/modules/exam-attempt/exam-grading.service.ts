@@ -1,5 +1,7 @@
 import { ExamAttemptStatus, ExamQuestionType, Prisma } from "@prisma/client";
 import { EXAM_QUESTION_TYPE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE, AUDIT_GRADING_SOURCE } from "../../common/constants/audit";
+import { AuditRepository } from "../audit/audit.repository";
 import { CertificateEligibilityService } from "../progress/certificate-eligibility.service";
 import { NotificationService } from "../notification/notification.service";
 import { ExamAttemptRepository } from "./exam-attempt.repository";
@@ -71,7 +73,8 @@ export class ExamGradingService {
   constructor(
     private readonly examAttemptRepository: ExamAttemptRepository,
     private readonly notificationService?: NotificationService,
-    private readonly certificateEligibilityService?: CertificateEligibilityService
+    private readonly certificateEligibilityService?: CertificateEligibilityService,
+    private readonly auditRepository?: AuditRepository
   ) {}
 
   async gradeAttempt(attemptId: string) {
@@ -109,6 +112,26 @@ export class ExamGradingService {
 
     const score = totalPoints === 0 ? 0 : Math.round((earnedPoints / totalPoints) * 100);
     const gradedAttempt = await this.examAttemptRepository.markAttemptGraded(attemptId, score);
+    await this.auditRepository?.create({
+      action: AUDIT_ACTION.examAttemptAutoGraded,
+      entityType: AUDIT_ENTITY_TYPE.examAttempt,
+      entityId: attemptId,
+      metadata: {
+        courseId: gradingContext.exam.courseId,
+        examId: gradingContext.examId,
+        userId: gradingContext.userId,
+        attemptNumber: gradingContext.attemptNumber,
+        gradingSource: AUDIT_GRADING_SOURCE.auto,
+        before: {
+          status: gradingContext.status,
+          score: gradingContext.score
+        },
+        after: {
+          status: gradedAttempt.status,
+          score: gradedAttempt.score
+        }
+      }
+    });
     await this.notificationService?.createNotification({
       userId: gradingContext.userId,
       type: "SYSTEM",

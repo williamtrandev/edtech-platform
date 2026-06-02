@@ -3,6 +3,8 @@ import { AppError } from "../../common/errors/app-error";
 import { assertCanBeEnrolledByManager, assertCanSelfEnroll } from "../../common/auth/enrollment-access";
 import { assertCourseInstructor } from "../../common/auth/course-access";
 import { COURSE_STATUS, NOTIFICATION_TYPE, USER_STATUS } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
+import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { NotificationService } from "../notification/notification.service";
 import { CourseProgressService } from "../progress/course-progress.service";
@@ -17,7 +19,8 @@ export class EnrollmentService {
     private readonly courseProgressService: CourseProgressService,
     private readonly userRepository: UserRepository,
     private readonly notificationService?: NotificationService,
-    private readonly coursePaymentRepository?: CoursePaymentRepository
+    private readonly coursePaymentRepository?: CoursePaymentRepository,
+    private readonly auditRepository?: AuditRepository
   ) {}
 
   async listMyEnrollments(user: Express.UserClaims | undefined) {
@@ -128,6 +131,17 @@ export class EnrollmentService {
 
     try {
       const enrollment = await this.enrollmentRepository.create(learner.id, courseId);
+      await this.auditRepository?.create({
+        actor: { connect: { id: user.id } },
+        action: AUDIT_ACTION.enrollmentCreatedByManager,
+        entityType: AUDIT_ENTITY_TYPE.enrollment,
+        entityId: enrollment.id,
+        metadata: {
+          courseId,
+          userId: learner.id,
+          userEmail: learner.email
+        }
+      });
       await this.notificationService?.createNotification({
         userId: learner.id,
         type: NOTIFICATION_TYPE.enrollmentSuccess,
@@ -168,7 +182,19 @@ export class EnrollmentService {
       throw new AppError("Enrollment not found", 404, "ENROLLMENT_NOT_FOUND");
     }
 
-    return this.enrollmentRepository.deleteByUserAndCourse(targetUserId, courseId);
+    const deleted = await this.enrollmentRepository.deleteByUserAndCourse(targetUserId, courseId);
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: AUDIT_ACTION.enrollmentRemovedByManager,
+      entityType: AUDIT_ENTITY_TYPE.enrollment,
+      entityId: enrollment.id,
+      metadata: {
+        courseId,
+        userId: targetUserId
+      }
+    });
+
+    return deleted;
   }
 
   private toProgressPayload(snapshot: Awaited<ReturnType<CourseProgressService["getSnapshot"]>>) {

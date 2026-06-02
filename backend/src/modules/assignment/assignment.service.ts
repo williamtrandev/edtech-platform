@@ -1,5 +1,6 @@
 import { AssignmentStatus } from "@prisma/client";
 import { ASSIGNMENT_STATUS, COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { AuditRepository } from "../audit/audit.repository";
@@ -86,8 +87,8 @@ export class AssignmentService {
 
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "ASSIGNMENT_CREATED",
-      entityType: "Assignment",
+      action: AUDIT_ACTION.assignmentCreated,
+      entityType: AUDIT_ENTITY_TYPE.assignment,
       entityId: assignment.id,
       metadata: {
         courseId,
@@ -131,8 +132,8 @@ export class AssignmentService {
 
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: payload.status && payload.status !== assignment.status ? "ASSIGNMENT_STATUS_UPDATED" : "ASSIGNMENT_UPDATED",
-      entityType: "Assignment",
+      action: payload.status && payload.status !== assignment.status ? AUDIT_ACTION.assignmentStatusUpdated : AUDIT_ACTION.assignmentUpdated,
+      entityType: AUDIT_ENTITY_TYPE.assignment,
       entityId: assignmentId,
       metadata: {
         courseId: assignment.courseId,
@@ -168,8 +169,8 @@ export class AssignmentService {
     const archivedAssignment = await this.assignmentRepository.archive(assignmentId);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "ASSIGNMENT_ARCHIVED",
-      entityType: "Assignment",
+      action: AUDIT_ACTION.assignmentArchived,
+      entityType: AUDIT_ENTITY_TYPE.assignment,
       entityId: assignmentId,
       metadata: {
         courseId: assignment.courseId,
@@ -211,8 +212,8 @@ export class AssignmentService {
 
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "ASSIGNMENT_RUBRIC_UPDATED",
-      entityType: "Assignment",
+      action: AUDIT_ACTION.assignmentRubricUpdated,
+      entityType: AUDIT_ENTITY_TYPE.assignment,
       entityId: assignmentId,
       metadata: {
         courseId: assignment.courseId,

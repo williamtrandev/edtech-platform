@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { CertificateStatus } from "@prisma/client";
-import { AUDIT_ACTION } from "../../common/constants/analytics";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { CERTIFICATE_STATUS, NOTIFICATION_TYPE, USER_ROLE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
 import { enqueueCertificatePdfJob } from "../../jobs/certificate-pdf.jobs";
@@ -56,7 +56,7 @@ export class CertificateService {
     await this.auditRepository?.create({
       actor: { connect: { id: userId } },
       action: AUDIT_ACTION.certificateIssued,
-      entityType: "Certificate",
+      entityType: AUDIT_ENTITY_TYPE.certificate,
       entityId: certificate.id,
       metadata: {
         courseId,
@@ -142,7 +142,7 @@ export class CertificateService {
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
       action: AUDIT_ACTION.certificateRevoked,
-      entityType: "Certificate",
+      entityType: AUDIT_ENTITY_TYPE.certificate,
       entityId: certificateId,
       metadata: {
         courseId: certificate.courseId,
@@ -172,7 +172,7 @@ export class CertificateService {
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
       action: AUDIT_ACTION.certificateRestored,
-      entityType: "Certificate",
+      entityType: AUDIT_ENTITY_TYPE.certificate,
       entityId: certificateId,
       metadata: {
         courseId: certificate.courseId,

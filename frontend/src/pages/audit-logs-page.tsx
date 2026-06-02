@@ -9,23 +9,10 @@ import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { TableSkeleton } from "../components/skeleton";
 import { useAuditLogs } from "../hooks/use-audit-logs";
-import { useI18n } from "../i18n";
+import { useI18n, isI18nKey } from "../i18n";
+import { AUDIT_FILTER_ACTIONS, AUDIT_FILTER_ENTITY_TYPES } from "../lib/audit-actions";
 
 const ALL_VALUE = "all";
-const ACTION_OPTIONS = [
-  "USER_UPDATED",
-  "USER_STATUS_UPDATED",
-  "COURSE_PUBLISHED",
-  "COURSE_ARCHIVED",
-  "COURSE_LOCKED",
-  "COURSE_UNLOCKED",
-  "COURSE_STATUS_UPDATED",
-  "EXAM_ATTEMPT_GRADED",
-  "ASSIGNMENT_SUBMISSION_GRADED",
-  "CERTIFICATE_REVOKED",
-  "CERTIFICATE_RESTORED"
-] as const;
-const ENTITY_OPTIONS = ["User", "Course", "ExamAttempt", "AssignmentSubmission", "Certificate"] as const;
 
 function formatMetadata(metadata: unknown) {
   if (!metadata || typeof metadata !== "object") {
@@ -65,6 +52,16 @@ export function AuditLogsPage() {
     []
   );
 
+  const actionLabel = (value: string) => {
+    const key = `audit.actions.${value}`;
+    return isI18nKey(key) ? t(key) : value;
+  };
+
+  const entityLabel = (value: string) => {
+    const key = `audit.entities.${value}`;
+    return isI18nKey(key) ? t(key) : value;
+  };
+
   return (
     <AppShell title={t("audit.title")} subtitle={t("audit.subtitle")}>
       <div className="space-y-5">
@@ -87,8 +84,8 @@ export function AuditLogsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_VALUE}>{t("audit.actionAll")}</SelectItem>
-                {ACTION_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>{option}</SelectItem>
+                {AUDIT_FILTER_ACTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>{actionLabel(option)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -98,8 +95,8 @@ export function AuditLogsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_VALUE}>{t("audit.entityAll")}</SelectItem>
-                {ENTITY_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>{option}</SelectItem>
+                {AUDIT_FILTER_ENTITY_TYPES.map((option) => (
+                  <SelectItem key={option} value={option}>{entityLabel(option)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -131,14 +128,16 @@ export function AuditLogsPage() {
                       <TableRow key={item.id} className="border-border/60 align-top">
                         <TableCell className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{formatter.format(new Date(item.createdAt))}</TableCell>
                         <TableCell className="px-4 py-3">
-                          <Badge variant="secondary" className="rounded-md">{item.action}</Badge>
+                          <Badge variant="secondary" className="rounded-md">{actionLabel(item.action)}</Badge>
                         </TableCell>
                         <TableCell className="max-w-64 px-4 py-3">
-                          <p className="truncate text-sm font-medium">{item.actor?.email ?? item.actorId ?? "—"}</p>
+                          <p className="truncate text-sm font-medium">
+                            {item.actor?.email ?? (item.actorId ? item.actorId : t("audit.systemActor"))}
+                          </p>
                           {item.actor?.role ? <p className="mt-1 text-xs text-muted-foreground">{item.actor.role}</p> : null}
                         </TableCell>
                         <TableCell className="px-4 py-3">
-                          <p className="text-sm font-medium">{item.entityType}</p>
+                          <p className="text-sm font-medium">{entityLabel(item.entityType)}</p>
                           <p className="mt-1 max-w-56 truncate font-mono text-xs text-muted-foreground">{item.entityId}</p>
                         </TableCell>
                         <TableCell className="max-w-xl px-4 py-3">

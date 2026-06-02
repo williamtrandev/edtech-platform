@@ -301,8 +301,8 @@ Legend:
 
 ## Next Suggested Work
 
-1. Wire production SMTP credentials (`EMAIL_PROVIDER=SMTP`, `SMTP_*`, `EMAIL_FROM`, `APP_PUBLIC_URL`). Reuse Supabase Auth custom SMTP settings when possible.
-2. Add per-lesson progress weights in schema (optional enhancement).
-3. Add append-only audit hardening and wider grade/admin audit coverage.
-4. Queue certificate PDF generation (move off request thread).
+1. [x] Wire production SMTP credentials (`EMAIL_PROVIDER=SMTP`, `SMTP_*`, `EMAIL_FROM`, `APP_PUBLIC_URL`). Admin Jobs page shows delivery status; see `backend/.env.example`.
+2. [x] Per-lesson progress weights (`Lesson.progressWeight`, weighted course progress).
+3. [x] Append-only audit hardening and wider grade/admin audit coverage (`AUDIT_ACTION` constants, auto-grade + manager enrollment audit, audit log UI filters).
+4. [x] Queue certificate PDF generation (async worker; request returns 503 while processing).
 5. [x] Assignment direct upload picker on course learn page (Supabase storage + optional URL fallback).

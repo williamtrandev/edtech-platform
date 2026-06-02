@@ -1,5 +1,6 @@
 import { ExamStatus } from "@prisma/client";
 import { COURSE_STATUS, EXAM_STATUS, USER_ROLE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { AuditRepository } from "../audit/audit.repository";
@@ -61,8 +62,8 @@ export class ExamService {
 
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "EXAM_CREATED",
-      entityType: "Exam",
+      action: AUDIT_ACTION.examCreated,
+      entityType: AUDIT_ENTITY_TYPE.exam,
       entityId: exam.id,
       metadata: {
         courseId,
@@ -106,8 +107,8 @@ export class ExamService {
     const updatedExam = await this.examRepository.update(examId, data);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: payload.status && payload.status !== exam.status ? "EXAM_STATUS_UPDATED" : "EXAM_UPDATED",
-      entityType: "Exam",
+      action: payload.status && payload.status !== exam.status ? AUDIT_ACTION.examStatusUpdated : AUDIT_ACTION.examUpdated,
+      entityType: AUDIT_ENTITY_TYPE.exam,
       entityId: examId,
       metadata: {
         courseId: exam.courseId,
@@ -143,8 +144,8 @@ export class ExamService {
     const archivedExam = await this.examRepository.archive(examId);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "EXAM_ARCHIVED",
-      entityType: "Exam",
+      action: AUDIT_ACTION.examArchived,
+      entityType: AUDIT_ENTITY_TYPE.exam,
       entityId: examId,
       metadata: {
         courseId: exam.courseId,

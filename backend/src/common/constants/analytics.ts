@@ -15,12 +15,7 @@ export const LEARNER_INSIGHT_STATUS = {
 export type LearnerInsightStatus = (typeof LEARNER_INSIGHT_STATUS)[keyof typeof LEARNER_INSIGHT_STATUS];
 
 export { COURSE_COMPLETION_CRITERIA_TYPE } from "./progress";
-
-export const AUDIT_ACTION = {
-  certificateIssued: "CERTIFICATE_ISSUED",
-  certificateRevoked: "CERTIFICATE_REVOKED",
-  certificateRestored: "CERTIFICATE_RESTORED"
-} as const;
+export { AUDIT_ACTION } from "./audit";
 
 export const CERTIFICATE_HISTORY_EVENT = {
   issued: "ISSUED",

@@ -1,6 +1,7 @@
 import { ExamAttemptEventType, ExamAttemptStatus, ExamStatus, Prisma } from "@prisma/client";
 import { redisConnection } from "../../config/redis";
 import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE, AUDIT_GRADING_SOURCE } from "../../common/constants/audit";
 import {
   EXAM_ATTEMPT_EVENT_TYPE,
   EXAM_SUBMIT_REASON,
@@ -387,14 +388,15 @@ export class ExamAttemptService {
     });
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "EXAM_ATTEMPT_GRADED",
-      entityType: "ExamAttempt",
+      action: AUDIT_ACTION.examAttemptGraded,
+      entityType: AUDIT_ENTITY_TYPE.examAttempt,
       entityId: attemptId,
       metadata: {
         courseId: gradingContext.exam.courseId,
         examId: gradingContext.examId,
         userId: gradingContext.userId,
         attemptNumber: gradingContext.attemptNumber,
+        gradingSource: AUDIT_GRADING_SOURCE.manual,
         before: {
           status: attempt.status,
           score: attempt.score

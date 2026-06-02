@@ -10,6 +10,7 @@ import { CourseProgressService } from "../modules/progress/course-progress.servi
 import { ProgressRepository } from "../modules/progress/progress.repository";
 import { NotificationRepository } from "../modules/notification/notification.repository";
 import { NotificationService } from "../modules/notification/notification.service";
+import { AuditRepository } from "../modules/audit/audit.repository";
 
 const queueName = "exam-grading";
 
@@ -20,6 +21,7 @@ export type ExamGradingJobPayload = {
 export const examGradingQueue = createQueue(queueName);
 
 const examAttemptRepository = new ExamAttemptRepository();
+const auditRepository = new AuditRepository();
 const notificationRepository = new NotificationRepository();
 const notificationService = new NotificationService(notificationRepository);
 const courseRepository = new CourseRepository();
@@ -36,7 +38,8 @@ const certificateEligibilityService = new CertificateEligibilityService(
 const examGradingService = new ExamGradingService(
   examAttemptRepository,
   notificationService,
-  certificateEligibilityService
+  certificateEligibilityService,
+  auditRepository
 );
 
 export const examGradingWorker = createWorker(queueName, async (job) => {

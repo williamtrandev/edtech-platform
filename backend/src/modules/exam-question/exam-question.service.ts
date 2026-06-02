@@ -1,5 +1,6 @@
 import { ExamQuestionType, Prisma } from "@prisma/client";
 import { EXAM_QUESTION_TYPE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { AuditRepository } from "../audit/audit.repository";
@@ -65,8 +66,8 @@ export class ExamQuestionService {
 
       await this.auditRepository?.create({
         actor: { connect: { id: user!.id } },
-        action: "EXAM_QUESTION_CREATED",
-        entityType: "ExamQuestion",
+        action: AUDIT_ACTION.examQuestionCreated,
+        entityType: AUDIT_ENTITY_TYPE.examQuestion,
         entityId: question.id,
         metadata: {
           examId,
@@ -107,8 +108,8 @@ export class ExamQuestionService {
 
       await this.auditRepository?.create({
         actor: { connect: { id: user!.id } },
-        action: "EXAM_QUESTION_UPDATED",
-        entityType: "ExamQuestion",
+        action: AUDIT_ACTION.examQuestionUpdated,
+        entityType: AUDIT_ENTITY_TYPE.examQuestion,
         entityId: questionId,
         metadata: {
           examId: question.examId,
@@ -135,8 +136,8 @@ export class ExamQuestionService {
     const deletedQuestion = await this.examQuestionRepository.delete(questionId, question.examId, question.sortOrder);
     await this.auditRepository?.create({
       actor: { connect: { id: user!.id } },
-      action: "EXAM_QUESTION_DELETED",
-      entityType: "ExamQuestion",
+      action: AUDIT_ACTION.examQuestionDeleted,
+      entityType: AUDIT_ENTITY_TYPE.examQuestion,
       entityId: questionId,
       metadata: {
         examId: question.examId,

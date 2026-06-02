@@ -1,6 +1,7 @@
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AppError } from "../../common/errors/app-error";
 import { USER_ROLE } from "../../common/constants/business";
+import { AUDIT_ACTION } from "../../common/constants/audit";
 import { UserRepository } from "./user.repository";
 
 export class UserService {
@@ -142,7 +143,7 @@ export class UserService {
 
     return this.userRepository.updateWithAudit(id, payload, {
       actorId,
-      action: payload.status && payload.status !== currentUser.status ? "USER_STATUS_UPDATED" : "USER_UPDATED",
+      action: payload.status && payload.status !== currentUser.status ? AUDIT_ACTION.userStatusUpdated : AUDIT_ACTION.userUpdated,
       metadata
     });
   }

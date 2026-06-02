@@ -89,7 +89,9 @@ const enrollmentService = new EnrollmentService(
   courseRepository,
   courseProgressService,
   userRepository,
-  notificationService
+  notificationService,
+  undefined,
+  auditRepository
 );
 const enrollmentController = new EnrollmentController(enrollmentService);
 

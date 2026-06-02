@@ -1,6 +1,7 @@
 import { AssignmentStatus } from "@prisma/client";
 import { assertCourseInstructor } from "../../common/auth/course-access";
 import { COURSE_STATUS, NOTIFICATION_TYPE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE, AUDIT_GRADING_SOURCE } from "../../common/constants/audit";
 import { AppError } from "../../common/errors/app-error";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
@@ -137,13 +138,22 @@ export class AssignmentSubmissionService {
     });
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "ASSIGNMENT_SUBMISSION_GRADED",
-      entityType: "AssignmentSubmission",
+      action: AUDIT_ACTION.assignmentSubmissionGraded,
+      entityType: AUDIT_ENTITY_TYPE.assignmentSubmission,
       entityId: submissionId,
       metadata: {
         assignmentId: submission.assignmentId,
         courseId: submission.assignment.courseId,
-        score: gradedSubmission.score
+        userId: submission.userId,
+        gradingSource: AUDIT_GRADING_SOURCE.manual,
+        before: {
+          score: submission.score,
+          feedback: submission.feedback
+        },
+        after: {
+          score: gradedSubmission.score,
+          feedback: gradedSubmission.feedback
+        }
       }
     });
 

@@ -2,6 +2,7 @@ import { CourseStatus } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { COURSE_STATUS, USER_ROLE, USER_STATUS } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseListFilters, CourseRepository } from "./course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
@@ -239,8 +240,13 @@ export class CourseService {
     if (data.status && data.status !== course.status) {
       await this.auditRepository?.create({
         actor: { connect: { id: user.id } },
-        action: data.status === COURSE_STATUS.published ? "COURSE_PUBLISHED" : data.status === COURSE_STATUS.archived ? "COURSE_ARCHIVED" : "COURSE_STATUS_UPDATED",
-        entityType: "Course",
+        action:
+          data.status === COURSE_STATUS.published
+            ? AUDIT_ACTION.coursePublished
+            : data.status === COURSE_STATUS.archived
+              ? AUDIT_ACTION.courseArchived
+              : AUDIT_ACTION.courseStatusUpdated,
+        entityType: AUDIT_ENTITY_TYPE.course,
         entityId: id,
         metadata: {
           before: { status: course.status },
@@ -295,8 +301,8 @@ export class CourseService {
     const updatedCourse = await this.courseRepository.assignInstructor(id, instructorId);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "COURSE_INSTRUCTOR_ASSIGNED",
-      entityType: "Course",
+      action: AUDIT_ACTION.courseInstructorAssigned,
+      entityType: AUDIT_ENTITY_TYPE.course,
       entityId: id,
       metadata: {
         before: { instructorId: course.instructorId },
@@ -376,8 +382,8 @@ export class CourseService {
     const archivedCourse = await this.courseRepository.archiveById(id);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "COURSE_ARCHIVED",
-      entityType: "Course",
+      action: AUDIT_ACTION.courseArchived,
+      entityType: AUDIT_ENTITY_TYPE.course,
       entityId: id,
       metadata: {
         before: { status: course.status },
@@ -412,8 +418,8 @@ export class CourseService {
     const lockedCourse = await this.courseRepository.lockById(id, user.id, trimmedReason, course.status as CourseStatus);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "COURSE_LOCKED",
-      entityType: "Course",
+      action: AUDIT_ACTION.courseLocked,
+      entityType: AUDIT_ENTITY_TYPE.course,
       entityId: id,
       metadata: {
         before: { status: course.status },
@@ -444,8 +450,8 @@ export class CourseService {
     const unlockedCourse = await this.courseRepository.unlockById(id);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "COURSE_UNLOCKED",
-      entityType: "Course",
+      action: AUDIT_ACTION.courseUnlocked,
+      entityType: AUDIT_ENTITY_TYPE.course,
       entityId: id,
       metadata: {
         before: { status: COURSE_STATUS.locked, lockReason: course.lockReason },
