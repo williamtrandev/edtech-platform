@@ -265,7 +265,7 @@ Legend:
 ### Phase 4 - Progress & Certificate
 
 - [x] Weighted progress
-- [~] Course completion based on lesson completion only.
+- [x] Course completion based on lesson completion only.
 - [x] Certificate auto-issue
 - [x] Certificate PDF
 - [x] Certificate verification page

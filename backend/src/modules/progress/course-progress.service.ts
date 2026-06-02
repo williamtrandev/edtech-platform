@@ -1,6 +1,5 @@
 import {
   COURSE_COMPLETION_CRITERIA_TYPE,
-  COURSE_PROGRESS_SEGMENT,
   COURSE_PROGRESS_WEIGHTS,
   type CourseCompletionCriteriaType
 } from "../../common/constants/progress";
@@ -63,16 +62,9 @@ export class CourseProgressService {
     const lessonsPercent = this.segmentPercent(cappedCompletedLessonWeight, totalLessonWeight);
     const examsPercent = this.segmentPercent(passedExams, totalExams);
     const assignmentsPercent = this.segmentPercent(submittedAssignments, totalAssignments);
-    const weights = this.resolveWeights(totalExams > 0, totalAssignments > 0);
-    const percentage = Math.round(
-      (lessonsPercent * weights.lessons + examsPercent * weights.exams + assignmentsPercent * weights.assignments) / 100
-    );
-
-    const hasExtraRequirements = totalExams > 0 || totalAssignments > 0;
-    const isComplete =
-      lessonsPercent >= 100 &&
-      (totalExams === 0 || examsPercent >= 100) &&
-      (totalAssignments === 0 || assignmentsPercent >= 100);
+    const weights = COURSE_PROGRESS_WEIGHTS.lessonsOnly;
+    const percentage = lessonsPercent;
+    const isComplete = lessonsPercent >= 100;
 
     return {
       courseId,
@@ -85,9 +77,7 @@ export class CourseProgressService {
       percentage,
       isComplete,
       completionCriteria: {
-        type: hasExtraRequirements
-          ? COURSE_COMPLETION_CRITERIA_TYPE.fullCourseRequirements
-          : COURSE_COMPLETION_CRITERIA_TYPE.allLessonsCompleted,
+        type: COURSE_COMPLETION_CRITERIA_TYPE.allLessonsCompleted,
         lessonCount: totalLessons,
         examCount: totalExams,
         assignmentCount: totalAssignments
@@ -129,19 +119,4 @@ export class CourseProgressService {
     return Math.min(100, Math.round((completed / total) * 100));
   }
 
-  private resolveWeights(hasExams: boolean, hasAssignments: boolean): ProgressWeights {
-    if (hasExams && hasAssignments) {
-      return COURSE_PROGRESS_WEIGHTS.full;
-    }
-
-    if (hasExams) {
-      return COURSE_PROGRESS_WEIGHTS.lessonsAndExams;
-    }
-
-    if (hasAssignments) {
-      return COURSE_PROGRESS_WEIGHTS.lessonsAndAssignments;
-    }
-
-    return COURSE_PROGRESS_WEIGHTS.lessonsOnly;
-  }
 }
