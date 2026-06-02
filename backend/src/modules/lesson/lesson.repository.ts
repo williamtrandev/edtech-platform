@@ -1,6 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 
+type FindLessonsOptions = {
+  activeOnly?: boolean;
+};
+
 export class LessonRepository {
   private readonly lessonSelect = {
     id: true,
@@ -9,9 +13,18 @@ export class LessonRepository {
     contentType: true,
     content: true,
     sortOrder: true,
+    prerequisiteLessonId: true,
+    archivedAt: true,
     createdAt: true,
     updatedAt: true
   } satisfies Prisma.LessonSelect;
+
+  private buildCourseWhere(courseId: string, options?: FindLessonsOptions): Prisma.LessonWhereInput {
+    return {
+      courseId,
+      ...(options?.activeOnly ? { archivedAt: null } : {})
+    };
+  }
 
   async findById(id: string) {
     return prisma.lesson.findUnique({
@@ -20,11 +33,11 @@ export class LessonRepository {
     });
   }
 
-  async findByCourseId(courseId: string) {
+  async findByCourseId(courseId: string, options?: FindLessonsOptions) {
     return prisma.lesson.findMany({
-      where: { courseId },
+      where: this.buildCourseWhere(courseId, options),
       select: this.lessonSelect,
-      orderBy: { sortOrder: "asc" }
+      orderBy: [{ archivedAt: "asc" }, { sortOrder: "asc" }]
     });
   }
 
@@ -45,7 +58,7 @@ export class LessonRepository {
 
   async reorderCourseLessons(courseId: string, lessonIds: string[]) {
     const maxSortOrder = await prisma.lesson.aggregate({
-      where: { courseId },
+      where: { courseId, archivedAt: null },
       _max: { sortOrder: true }
     });
     const tempStart = (maxSortOrder._max.sortOrder ?? 0) + 1;
@@ -66,7 +79,7 @@ export class LessonRepository {
       }
 
       return tx.lesson.findMany({
-        where: { courseId },
+        where: { courseId, archivedAt: null },
         select: this.lessonSelect,
         orderBy: { sortOrder: "asc" }
       });
@@ -79,7 +92,7 @@ export class LessonRepository {
     }
 
     const maxSortOrder = await prisma.lesson.aggregate({
-      where: { courseId },
+      where: { courseId, archivedAt: null },
       _max: { sortOrder: true }
     });
     const tempSortOrder = (maxSortOrder._max.sortOrder ?? 0) + 1;
@@ -91,6 +104,7 @@ export class LessonRepository {
       const affectedLessons = await tx.lesson.findMany({
         where: {
           courseId,
+          archivedAt: null,
           sortOrder: {
             gte: lowSortOrder,
             lte: highSortOrder
@@ -135,25 +149,32 @@ export class LessonRepository {
     });
   }
 
-  async delete(id: string, courseId: string, sortOrder: number) {
+  async archive(id: string, courseId: string, sortOrder: number) {
     return prisma.$transaction(async (tx) => {
+      await tx.lesson.updateMany({
+        where: { prerequisiteLessonId: id },
+        data: { prerequisiteLessonId: null }
+      });
+
       const maxSortOrder = await tx.lesson.aggregate({
-        where: { courseId },
+        where: { courseId, archivedAt: null },
         _max: { sortOrder: true }
       });
       const tempSortOrder = (maxSortOrder._max.sortOrder ?? 0) + 1;
+
       const lessonsToCompact = await tx.lesson.findMany({
         where: {
           courseId,
+          archivedAt: null,
           sortOrder: { gt: sortOrder }
         },
         select: { id: true, sortOrder: true },
         orderBy: { sortOrder: "asc" }
       });
 
-      await tx.lessonProgress.deleteMany({ where: { lessonId: id } });
-      const lesson = await tx.lesson.delete({
+      const lesson = await tx.lesson.update({
         where: { id },
+        data: { archivedAt: new Date() },
         select: this.lessonSelect
       });
 
@@ -172,6 +193,22 @@ export class LessonRepository {
       }
 
       return lesson;
+    });
+  }
+
+  async restore(id: string, courseId: string) {
+    const maxSortOrder = await prisma.lesson.aggregate({
+      where: { courseId, archivedAt: null },
+      _max: { sortOrder: true }
+    });
+
+    return prisma.lesson.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        sortOrder: (maxSortOrder._max.sortOrder ?? 0) + 1
+      },
+      select: this.lessonSelect
     });
   }
 }

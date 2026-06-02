@@ -5,6 +5,7 @@ import { validateRequest } from "../../common/middleware/validate-request";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { LessonController } from "./lesson.controller";
+import { ExamRepository } from "../exam/exam.repository";
 import { LessonRepository } from "./lesson.repository";
 import { LessonService } from "./lesson.service";
 import {
@@ -19,7 +20,8 @@ import {
 const lessonRepository = new LessonRepository();
 const courseRepository = new CourseRepository();
 const enrollmentRepository = new EnrollmentRepository();
-const lessonService = new LessonService(lessonRepository, courseRepository, enrollmentRepository);
+const examRepository = new ExamRepository();
+const lessonService = new LessonService(lessonRepository, courseRepository, enrollmentRepository, examRepository);
 const lessonController = new LessonController(lessonService);
 
 export const lessonRouter = Router();
@@ -40,3 +42,4 @@ lessonRouter.patch(
 lessonRouter.put("/:lessonId", authMiddleware, validateRequest(updateLessonSchema), asyncHandler(lessonController.updateLesson));
 lessonRouter.patch("/:lessonId/sort-order", authMiddleware, validateRequest(updateLessonOrderSchema), asyncHandler(lessonController.updateLessonOrder));
 lessonRouter.delete("/:lessonId", authMiddleware, validateRequest(lessonIdParamSchema), asyncHandler(lessonController.deleteLesson));
+lessonRouter.post("/:lessonId/restore", authMiddleware, validateRequest(lessonIdParamSchema), asyncHandler(lessonController.restoreLesson));

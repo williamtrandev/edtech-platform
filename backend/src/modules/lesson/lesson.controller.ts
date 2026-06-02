@@ -39,4 +39,9 @@ export class LessonController {
     const lesson = await this.lessonService.deleteLesson(req.user, req.params.lessonId);
     res.status(200).json({ success: true, data: lesson });
   };
+
+  restoreLesson = async (req: Request, res: Response): Promise<void> => {
+    const lesson = await this.lessonService.restoreLesson(req.user, req.params.lessonId);
+    res.status(200).json({ success: true, data: lesson });
+  };
 }
