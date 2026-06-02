@@ -2,8 +2,10 @@ import { ArrowUpRight, Layers3, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "../components/app-shell";
+import { CourseProgressBar } from "../components/course-progress-bar";
 import { EmptyState } from "../components/empty-state";
 import { CourseCardGridSkeleton } from "../components/skeleton";
+import { useAuth } from "../hooks/use-auth";
 import { useLearningPaths } from "../hooks/use-learning-paths";
 import { useI18n } from "../i18n";
 import { toMediaUrl } from "../lib/media-url";
@@ -11,6 +13,7 @@ import { STUDIO_FORM_SHELL } from "../lib/studio-ui";
 
 export function LearningPathsPage() {
   const { t, formatError } = useI18n();
+  const { isAuthenticated } = useAuth();
   const pathsQuery = useLearningPaths(1, 24);
 
   return (
@@ -58,6 +61,23 @@ export function LearningPathsPage() {
                       <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">{path.description}</p>
                     ) : null}
                   </div>
+
+                  {isAuthenticated && path.enrolledCourseCount !== undefined && path.enrolledCourseCount > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {t("learningPaths.listProgress")
+                          .replace("{{enrolled}}", String(path.enrolledCourseCount))
+                          .replace("{{total}}", String(path.courseCount))
+                          .replace("{{percent}}", String(path.averageProgress ?? 0))}
+                      </p>
+                      <CourseProgressBar
+                        percentage={path.averageProgress ?? 0}
+                        completedLessons={0}
+                        totalLessons={0}
+                        showBreakdown={false}
+                      />
+                    </div>
+                  ) : null}
 
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-medium text-muted-foreground">

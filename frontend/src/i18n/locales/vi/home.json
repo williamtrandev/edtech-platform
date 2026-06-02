@@ -800,6 +800,7 @@
   "learningPaths.emptyTitle": "Chưa có lộ trình",
   "learningPaths.emptyDescription": "Lộ trình đã xuất bản sẽ hiển thị tại đây.",
   "learningPaths.courseCount": "{{count}} khóa học",
+  "learningPaths.listProgress": "Đã ghi danh {{enrolled}}/{{total}} khóa · trung bình {{percent}}%",
   "learningPaths.viewPath": "Xem lộ trình",
   "learningPaths.detailTitle": "Lộ trình học",
   "learningPaths.detailSubtitle": "Hoàn thành từng khóa theo thứ tự và theo dõi tiến độ.",

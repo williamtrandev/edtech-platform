@@ -161,4 +161,22 @@ export class LearningPathRepository {
       }
     });
   }
+
+  async findCourseLinksByPathIds(pathIds: string[]) {
+    if (pathIds.length === 0) {
+      return [];
+    }
+
+    return prisma.learningPathCourse.findMany({
+      where: {
+        learningPathId: {
+          in: pathIds
+        }
+      },
+      select: {
+        learningPathId: true,
+        courseId: true
+      }
+    });
+  }
 }

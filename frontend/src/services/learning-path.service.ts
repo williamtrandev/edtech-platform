@@ -13,6 +13,8 @@ export type LearningPathSummary = {
   coverImageUrl?: string | null;
   status: string;
   courseCount: number;
+  enrolledCourseCount?: number;
+  averageProgress?: number;
   createdAt: string;
   updatedAt: string;
 };

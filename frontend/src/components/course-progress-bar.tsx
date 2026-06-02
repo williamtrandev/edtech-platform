@@ -6,6 +6,7 @@ type CourseProgressBarProps = {
   totalExams?: number;
   submittedAssignments?: number;
   totalAssignments?: number;
+  showBreakdown?: boolean;
 };
 
 export function CourseProgressBar({
@@ -15,22 +16,22 @@ export function CourseProgressBar({
   passedExams = 0,
   totalExams = 0,
   submittedAssignments = 0,
-  totalAssignments = 0
+  totalAssignments = 0,
+  showBreakdown = true
 }: CourseProgressBarProps) {
   const value = Math.min(100, Math.max(0, percentage));
   const hasExams = totalExams > 0;
   const hasAssignments = totalAssignments > 0;
+  const breakdownLabel = `${completedLessons}/${totalLessons}${hasExams ? ` · ${passedExams}/${totalExams}` : ""}${hasAssignments ? ` · ${submittedAssignments}/${totalAssignments}` : ""}`;
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
-        <span className="tabular-nums">{value}%</span>
-        <span className="truncate tabular-nums">
-          {completedLessons}/{totalLessons}
-          {hasExams ? ` · ${passedExams}/${totalExams}` : ""}
-          {hasAssignments ? ` · ${submittedAssignments}/${totalAssignments}` : ""}
-        </span>
-      </div>
+      {showBreakdown ? (
+        <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+          <span className="tabular-nums">{value}%</span>
+          <span className="truncate tabular-nums">{breakdownLabel}</span>
+        </div>
+      ) : null}
       <div
         className="h-2 overflow-hidden rounded-full bg-muted ring-1 ring-foreground/10"
         role="progressbar"

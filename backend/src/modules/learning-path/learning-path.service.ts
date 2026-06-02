@@ -29,18 +29,23 @@ export class LearningPathService {
       ? (status as typeof LEARNING_PATH_STATUS.draft | undefined)
       : LEARNING_PATH_STATUS.published;
     const { items, total } = await this.learningPathRepository.findMany(page, limit, effectiveStatus);
+    const summaries = items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      coverImageUrl: item.coverImageUrl,
+      status: item.status,
+      courseCount: item.courseCount,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt
+    }));
+
+    const itemsWithProgress = user?.id
+      ? await this.attachListProgressSummary(user.id, summaries)
+      : summaries;
 
     return {
-      items: items.map((item) => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        coverImageUrl: item.coverImageUrl,
-        status: item.status,
-        courseCount: item.courseCount,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt
-      })),
+      items: itemsWithProgress,
       pagination: {
         page,
         limit,
@@ -180,6 +185,62 @@ export class LearningPathService {
 
     await this.learningPathRepository.removeCourse(learningPathId, courseId);
     return { learningPathId, courseId };
+  }
+
+  private async attachListProgressSummary(
+    userId: string,
+    items: Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      coverImageUrl: string | null;
+      status: string;
+      courseCount: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>
+  ) {
+    if (items.length === 0) {
+      return items;
+    }
+
+    const pathIds = items.map((item) => item.id);
+    const links = await this.learningPathRepository.findCourseLinksByPathIds(pathIds);
+    const courseIds = [...new Set(links.map((link) => link.courseId))];
+    const enrolledCourseIds = new Set(await this.enrollmentRepository.findEnrolledCourseIds(userId, courseIds));
+
+    const progressByCourse = new Map<string, number>();
+    await Promise.all(
+      [...enrolledCourseIds].map(async (courseId) => {
+        const snapshot = await this.courseProgressService.getSnapshot(userId, courseId);
+        progressByCourse.set(courseId, snapshot.percentage);
+      })
+    );
+
+    const coursesByPath = new Map<string, string[]>();
+    for (const link of links) {
+      const existing = coursesByPath.get(link.learningPathId) ?? [];
+      existing.push(link.courseId);
+      coursesByPath.set(link.learningPathId, existing);
+    }
+
+    return items.map((item) => {
+      const pathCourseIds = coursesByPath.get(item.id) ?? [];
+      const enrolledInPath = pathCourseIds.filter((courseId) => enrolledCourseIds.has(courseId));
+      const averageProgress =
+        enrolledInPath.length > 0
+          ? Math.round(
+              enrolledInPath.reduce((sum, courseId) => sum + (progressByCourse.get(courseId) ?? 0), 0) /
+                enrolledInPath.length
+            )
+          : 0;
+
+      return {
+        ...item,
+        enrolledCourseCount: enrolledInPath.length,
+        averageProgress
+      };
+    });
   }
 
   private assertCanManage(user: Express.UserClaims | undefined) {

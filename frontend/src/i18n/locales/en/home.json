@@ -800,6 +800,7 @@
   "learningPaths.emptyTitle": "No learning paths yet",
   "learningPaths.emptyDescription": "Published paths will appear here when instructors add them.",
   "learningPaths.courseCount": "{{count}} courses",
+  "learningPaths.listProgress": "{{enrolled}} of {{total}} courses enrolled · {{percent}}% average",
   "learningPaths.viewPath": "View path",
   "learningPaths.detailTitle": "Learning path",
   "learningPaths.detailSubtitle": "Work through each course in order and track your progress.",
