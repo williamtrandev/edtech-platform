@@ -25,8 +25,10 @@ export class LearningPathService {
 
   async listLearningPaths(user: Express.UserClaims | undefined, page: number, limit: number, status?: string) {
     const canManage = user?.role === USER_ROLE.admin || user?.role === USER_ROLE.instructor;
-    const effectiveStatus = canManage && status ? status : LEARNING_PATH_STATUS.published;
-    const { items, total } = await this.learningPathRepository.findMany(page, limit, effectiveStatus as typeof LEARNING_PATH_STATUS.published);
+    const effectiveStatus = canManage
+      ? (status as typeof LEARNING_PATH_STATUS.draft | undefined)
+      : LEARNING_PATH_STATUS.published;
+    const { items, total } = await this.learningPathRepository.findMany(page, limit, effectiveStatus);
 
     return {
       items: items.map((item) => ({

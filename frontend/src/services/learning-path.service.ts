@@ -59,14 +59,60 @@ export type PaginatedLearningPaths = {
   };
 };
 
-export async function listLearningPaths(page = 1, limit = 20) {
+export type CreateLearningPathPayload = {
+  title: string;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  status?: string;
+};
+
+export type UpdateLearningPathPayload = {
+  title?: string;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  status?: string;
+};
+
+export async function listLearningPaths(page = 1, limit = 20, status?: string) {
   const response = await httpClient.get<ApiResponse<PaginatedLearningPaths>>("/learning-paths", {
-    params: { page, limit }
+    params: {
+      page,
+      limit,
+      ...(status ? { status } : {})
+    }
   });
   return response.data.data;
 }
 
 export async function getLearningPath(id: string) {
   const response = await httpClient.get<ApiResponse<LearningPathDetail>>(`/learning-paths/${id}`);
+  return response.data.data;
+}
+
+export async function createLearningPath(payload: CreateLearningPathPayload) {
+  const response = await httpClient.post<ApiResponse<LearningPathSummary>>("/learning-paths", payload);
+  return response.data.data;
+}
+
+export async function updateLearningPath(id: string, payload: UpdateLearningPathPayload) {
+  const response = await httpClient.patch<ApiResponse<LearningPathSummary>>(`/learning-paths/${id}`, payload);
+  return response.data.data;
+}
+
+export async function addLearningPathCourse(learningPathId: string, courseId: string, sortOrder?: number) {
+  const response = await httpClient.post<ApiResponse<{ learningPathId: string; courseId: string; sortOrder: number }>>(
+    `/learning-paths/${learningPathId}/courses`,
+    {
+      courseId,
+      ...(sortOrder !== undefined ? { sortOrder } : {})
+    }
+  );
+  return response.data.data;
+}
+
+export async function removeLearningPathCourse(learningPathId: string, courseId: string) {
+  const response = await httpClient.delete<ApiResponse<{ learningPathId: string; courseId: string }>>(
+    `/learning-paths/${learningPathId}/courses/${courseId}`
+  );
   return response.data.data;
 }

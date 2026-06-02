@@ -127,6 +127,14 @@ export const LIVE_SESSION_STATUS = {
 
 export type LiveSessionStatus = (typeof LIVE_SESSION_STATUS)[keyof typeof LIVE_SESSION_STATUS];
 
+export const LEARNING_PATH_STATUS = {
+  draft: "DRAFT",
+  published: "PUBLISHED",
+  archived: "ARCHIVED"
+} as const;
+
+export type LearningPathStatus = (typeof LEARNING_PATH_STATUS)[keyof typeof LEARNING_PATH_STATUS];
+
 export const COURSE_PAYMENT_STATUS = {
   pending: "PENDING",
   completed: "COMPLETED",

@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { getLearningPath, listLearningPaths } from "../services/learning-path.service";
 
-export function useLearningPaths(page = 1, limit = 20, enabled = true) {
+export function useLearningPaths(page = 1, limit = 20, enabled = true, status?: string) {
   return useQuery({
-    queryKey: ["learning-paths", page, limit],
-    queryFn: () => listLearningPaths(page, limit),
+    queryKey: ["learning-paths", page, limit, status],
+    queryFn: () => listLearningPaths(page, limit, status),
     enabled
   });
 }

@@ -1,4 +1,4 @@
-import { BookOpen, FileText, GraduationCap, Layers, Lock, Plus, ShieldCheck } from "lucide-react";
+import { BookOpen, FileText, GraduationCap, Layers, Layers3, Lock, Plus, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "../components/app-shell";
@@ -51,13 +51,23 @@ export function CoursesPage() {
       title={pageTitle}
       subtitle={pageSubtitle}
       actions={
-        canCreateCourse ? (
-          <Button asChild size="sm" className="h-10 rounded-lg gap-1.5 px-4 shadow-none">
-            <Link to="/courses/new">
-              <Plus className="size-4" aria-hidden />
-              {t("courseStudio.createCourse")}
-            </Link>
-          </Button>
+        canManageCourses ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild size="sm" className="h-10 rounded-lg gap-1.5 px-4 shadow-none" variant="outline">
+              <Link to="/courses/learning-paths">
+                <Layers3 className="size-4" aria-hidden />
+                {t("learningPathStudio.navLink")}
+              </Link>
+            </Button>
+            {canCreateCourse ? (
+              <Button asChild size="sm" className="h-10 rounded-lg gap-1.5 px-4 shadow-none">
+                <Link to="/courses/new">
+                  <Plus className="size-4" aria-hidden />
+                  {t("courseStudio.createCourse")}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         ) : null
       }
     >

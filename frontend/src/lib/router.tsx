@@ -11,6 +11,7 @@ import { EmailConfirmedPage } from "../pages/email-confirmed-page";
 import { ExploreCoursesPage } from "../pages/explore-courses-page";
 import { LearningPathDetailPage } from "../pages/learning-path-detail-page";
 import { LearningPathsPage } from "../pages/learning-paths-page";
+import { LearningPathsStudioPage } from "../pages/learning-paths-studio-page";
 import { ForgotPasswordPage } from "../pages/forgot-password-page";
 import { JobsPage } from "../pages/jobs-page";
 import { LoginPage } from "../pages/login-page";
@@ -139,6 +140,19 @@ export const router = createBrowserRouter([
               {
                 index: true,
                 element: <CourseCreatePage />
+              }
+            ]
+          },
+          {
+            path: "learning-paths",
+            children: [
+              {
+                index: true,
+                element: <LearningPathsStudioPage />
+              },
+              {
+                path: ":pathId",
+                element: <LearningPathsStudioPage />
               }
             ]
           }
