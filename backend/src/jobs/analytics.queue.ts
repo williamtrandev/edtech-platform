@@ -15,11 +15,12 @@ export const analyticsWorker = createWorker(queueName, async (job) => {
   const jobType = payload.type ?? job.name;
 
   if (jobType === ANALYTICS_JOB.platformOverview) {
-    const overview = await analyticsProcessingService.refreshPlatformOverview();
+    const result = await analyticsProcessingService.refreshPlatformOverview();
     log.info("Platform overview refreshed", {
       jobId: job.id,
-      users: overview.users.total,
-      courses: overview.courses.total
+      users: result.overview.users.total,
+      courses: result.overview.courses.total,
+      source: result.source
     });
     return;
   }

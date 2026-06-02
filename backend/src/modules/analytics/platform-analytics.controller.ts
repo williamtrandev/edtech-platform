@@ -5,7 +5,8 @@ export class PlatformAnalyticsController {
   constructor(private readonly platformAnalyticsService: PlatformAnalyticsService) {}
 
   getOverview = async (req: Request, res: Response): Promise<void> => {
-    const overview = await this.platformAnalyticsService.getOverview(req.user);
+    const forceRefresh = req.query.forceRefresh === "true";
+    const overview = await this.platformAnalyticsService.getOverview(req.user, forceRefresh);
     res.status(200).json({ success: true, data: overview });
   };
 }

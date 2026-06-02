@@ -1,5 +1,7 @@
-import { Activity, Award, BarChart3, Bell, BookOpen, ClipboardCheck, FileCheck2, GraduationCap, Layers3, Users } from "lucide-react";
+import { Activity, Award, BarChart3, Bell, BookOpen, ClipboardCheck, FileCheck2, GraduationCap, Layers3, RefreshCw, Users } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppShell } from "../components/app-shell";
 import { MetricCard } from "../components/metric-card";
@@ -67,16 +69,56 @@ function BreakdownSkeleton() {
 
 export function PlatformAnalyticsPage() {
   const { t, formatError } = useI18n();
-  const analyticsQuery = usePlatformAnalytics();
-  const data = analyticsQuery.data;
+  const [forceRefreshTick, setForceRefreshTick] = useState(0);
+  const analyticsQuery = usePlatformAnalytics(forceRefreshTick);
+  const data = analyticsQuery.data?.overview;
+  const snapshotTime = useMemo(
+    () => (analyticsQuery.data?.generatedAt ? new Date(analyticsQuery.data.generatedAt) : null),
+    [analyticsQuery.data?.generatedAt]
+  );
+  const source = analyticsQuery.data?.source;
 
   return (
-    <AppShell title={t("analytics.title")} subtitle={t("analytics.subtitle")}>
+    <AppShell
+      title={t("analytics.title")}
+      subtitle={t("analytics.subtitle")}
+      actions={
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={() => setForceRefreshTick((value) => value + 1)}
+          disabled={analyticsQuery.isFetching}
+        >
+          <RefreshCw className={analyticsQuery.isFetching ? "size-4 animate-spin" : "size-4"} aria-hidden />
+          {analyticsQuery.isFetching ? t("analytics.refreshing") : t("analytics.refresh")}
+        </Button>
+      }
+    >
       <div className="space-y-5">
         {analyticsQuery.isError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {formatError(analyticsQuery.error, "analytics.loadFailed")}
           </div>
+        ) : null}
+
+        {!analyticsQuery.isLoading && data && source ? (
+          <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-card px-4 py-3">
+            <Badge variant={source === "live" ? "secondary" : "outline"} className="rounded-md">
+              {source === "live" ? t("analytics.sourceLive") : t("analytics.sourceCache")}
+            </Badge>
+            {snapshotTime ? (
+              <span className="text-sm text-muted-foreground">
+                {t("analytics.lastUpdated")}{" "}
+                <span className="font-medium text-foreground">
+                  {new Intl.DateTimeFormat(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short"
+                  }).format(snapshotTime)}
+                </span>
+              </span>
+            ) : null}
+          </section>
         ) : null}
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("analytics.overview")}>

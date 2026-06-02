@@ -7,13 +7,25 @@ export class AnalyticsProcessingService {
   async refreshPlatformOverview() {
     const overview = await this.platformAnalyticsRepository.getOverview();
     await setCachedPlatformOverview(overview);
-    return overview;
+    return {
+      overview,
+      generatedAt: new Date().toISOString(),
+      source: "live" as const
+    };
   }
 
-  async getPlatformOverview() {
+  async getPlatformOverview(forceRefresh = false) {
+    if (forceRefresh) {
+      return this.refreshPlatformOverview();
+    }
+
     const cached = await getCachedPlatformOverview();
     if (cached) {
-      return cached;
+      return {
+        overview: cached.overview,
+        generatedAt: cached.generatedAt,
+        source: "cache" as const
+      };
     }
 
     return this.refreshPlatformOverview();

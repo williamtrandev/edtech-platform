@@ -38,9 +38,19 @@ export type PlatformAnalyticsOverview = {
   };
 };
 
+export type PlatformAnalyticsOverviewResponse = {
+  overview: PlatformAnalyticsOverview;
+  generatedAt: string;
+  source: "cache" | "live";
+};
+
 export const platformAnalyticsService = {
-  async getOverview(): Promise<PlatformAnalyticsOverview> {
-    const response = await httpClient.get<ApiResponse<PlatformAnalyticsOverview>>("/analytics/platform-overviews");
+  async getOverview(forceRefresh = false): Promise<PlatformAnalyticsOverviewResponse> {
+    const response = await httpClient.get<ApiResponse<PlatformAnalyticsOverviewResponse>>("/analytics/platform-overviews", {
+      params: {
+        forceRefresh
+      }
+    });
     return response.data.data;
   }
 };
