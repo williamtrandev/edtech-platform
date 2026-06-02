@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { jobService } from "../services/job.service";
 
-export function useJobQueues() {
+export function useJobQueues(includeSamples: boolean) {
   return useQuery({
-    queryKey: ["jobs", "queues"],
-    queryFn: () => jobService.getQueues(),
+    queryKey: ["jobs", "queues", includeSamples],
+    queryFn: () => jobService.getQueues(includeSamples),
     refetchInterval: 30_000
   });
 }

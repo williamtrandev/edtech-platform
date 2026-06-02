@@ -73,8 +73,12 @@ export const jobService = {
     return response.data.data;
   },
 
-  async getQueues(): Promise<JobQueuesResponse> {
-    const response = await httpClient.get<ApiResponse<JobQueuesResponse>>("/jobs/queues");
+  async getQueues(includeSamples = true): Promise<JobQueuesResponse> {
+    const response = await httpClient.get<ApiResponse<JobQueuesResponse>>("/jobs/queues", {
+      params: {
+        includeSamples
+      }
+    });
     return response.data.data;
   },
 

@@ -275,7 +275,7 @@ Legend:
 - [~] User management
 - [x] Role change
 - [x] Audit logs
-- [~] Queue dashboard
+- [x] Queue dashboard
 - [x] Notification management
 - [~] Platform analytics
 

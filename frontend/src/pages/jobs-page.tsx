@@ -1,9 +1,10 @@
 import { Activity, AlertTriangle, CheckCircle2, Clock3, DatabaseZap, Loader2, RefreshCw, RotateCcw, TimerReset } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { EmailDeliveryPanel } from "../components/email-delivery-panel";
@@ -208,9 +209,22 @@ function QueueSkeleton() {
 
 export function JobsPage() {
   const { t, formatError } = useI18n();
-  const { data, isLoading, isError, error, isFetching, refetch } = useJobQueues();
+  const [queueSearch, setQueueSearch] = useState("");
+  const [includeSamples, setIncludeSamples] = useState(true);
+  const { data, isLoading, isError, error, isFetching, refetch } = useJobQueues(includeSamples);
   const retryMutation = useRetryFailedJob();
-  const queues = data?.items ?? [];
+  const allQueues = data?.items ?? [];
+  const queues = useMemo(() => {
+    const query = queueSearch.trim().toLowerCase();
+    if (!query) {
+      return allQueues;
+    }
+
+    return allQueues.filter((queue) => {
+      const translatedLabel = getQueueLabel(queue, t).toLowerCase();
+      return queue.name.toLowerCase().includes(query) || translatedLabel.includes(query);
+    });
+  }, [allQueues, queueSearch, t]);
   const retryingJobId = retryMutation.isPending ? retryMutation.variables?.jobId : undefined;
 
   const handleRetryJob = (queueName: string, jobId: string) => {
@@ -248,6 +262,26 @@ export function JobsPage() {
           )}
         </section>
 
+        <section className="grid gap-3 rounded-lg border border-border/70 bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto]">
+          <Input
+            value={queueSearch}
+            onChange={(event) => setQueueSearch(event.target.value)}
+            placeholder={t("jobs.searchPlaceholder")}
+            className="h-10 rounded-md border-border/80 shadow-none"
+            type="search"
+            aria-label={t("jobs.searchPlaceholder")}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10"
+            onClick={() => setIncludeSamples((value) => !value)}
+            aria-pressed={includeSamples}
+          >
+            {includeSamples ? t("jobs.samplesOn") : t("jobs.samplesOff")}
+          </Button>
+        </section>
+
         {isError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {formatError(error, "jobs.loadFailed")}
@@ -264,7 +298,11 @@ export function JobsPage() {
             </>
           ) : null}
           {!isLoading && !isError && queues.length === 0 ? (
-            <EmptyState icon={DatabaseZap} title={t("jobs.noQueues")} description={t("jobs.noQueuesDescription")} />
+            <EmptyState
+              icon={DatabaseZap}
+              title={queueSearch.trim() ? t("jobs.noQueuesMatchSearch") : t("jobs.noQueues")}
+              description={queueSearch.trim() ? t("jobs.noQueuesMatchSearchDescription") : t("jobs.noQueuesDescription")}
+            />
           ) : null}
           {!isLoading && !isError ? (
             queues.map((queue) => <QueueCard key={queue.name} queue={queue} onRetryJob={handleRetryJob} retryingJobId={retryingJobId} />)
