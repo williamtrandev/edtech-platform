@@ -1,9 +1,10 @@
 import { USER_ROLE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
+import { AnalyticsProcessingService } from "./analytics-processing.service";
 import { PlatformAnalyticsRepository } from "./platform-analytics.repository";
 
 export class PlatformAnalyticsService {
-  constructor(private readonly platformAnalyticsRepository: PlatformAnalyticsRepository) {}
+  private readonly analyticsProcessingService = new AnalyticsProcessingService(new PlatformAnalyticsRepository());
 
   async getOverview(user: Express.UserClaims | undefined) {
     if (!user?.id) {
@@ -13,6 +14,6 @@ export class PlatformAnalyticsService {
       throw new AppError("Forbidden", 403, "FORBIDDEN");
     }
 
-    return this.platformAnalyticsRepository.getOverview();
+    return this.analyticsProcessingService.getPlatformOverview();
   }
 }
