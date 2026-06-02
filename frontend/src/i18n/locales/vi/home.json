@@ -1022,6 +1022,8 @@
   "courseCompleted.certificateTitle": "Chứng chỉ",
   "courseCompleted.certificateDescription": "Chứng chỉ hoàn thành của bạn có trong khu tiến độ.",
   "courseCompleted.verifyCertificate": "Xác thực chứng chỉ",
+  "courseCompleted.downloadCertificate": "Tải chứng chỉ",
+  "courseCompleted.generatingCertificate": "Đang tạo chứng chỉ...",
   "courseCompleted.openProgress": "Mở tiến độ của tôi",
   "coursePreview.subtitle": "Xem thử góc học viên. Tiến độ không được lưu.",
   "coursePreview.bannerTitle": "Chế độ xem thử",

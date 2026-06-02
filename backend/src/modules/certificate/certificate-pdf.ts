@@ -31,19 +31,22 @@ function line(text: string, x: number, y: number, size = 14, font = "F1") {
 function createContent(data: CertificatePdfData) {
   const issuedAt = new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(data.issuedAt);
   return [
-    "0.98 0.98 0.96 rg 0 0 842 595 re f",
-    "0.12 0.12 0.12 RG 36 36 770 523 re S",
-    "0.68 0.53 0.24 RG 50 50 742 495 re S",
-    line("CERTIFICATE OF COMPLETION", 206, 486, 30, "F2"),
-    line("This certifies that", 352, 420, 15),
-    line(data.user.email, 230, 382, 24, "F2"),
-    line("has successfully completed", 314, 335, 15),
-    line(data.course.title, 170, 298, 22, "F2"),
-    line(`Instructor: ${data.course.instructor.email}`, 88, 228, 13),
-    line(`Issued: ${issuedAt}`, 88, 202, 13),
-    line(`Verification code: ${data.verificationCode}`, 88, 176, 11),
-    line("Verify this certificate on the platform verification page.", 88, 126, 11),
-    line("EdTech Platform", 595, 126, 18, "F2")
+    "0.96 0.97 0.99 rg 0 0 842 595 re f",
+    "0.09 0.20 0.42 RG 30 30 782 535 re S",
+    "0.20 0.47 0.84 RG 46 46 750 503 re S",
+    "0.09 0.20 0.42 rg 312 510 218 34 re f",
+    line("CERTIFICATE OF COMPLETION", 214, 490, 34, "F2"),
+    line("Presented to", 374, 438, 14),
+    line(data.user.email, 174, 402, 26, "F2"),
+    line("for successfully completing", 317, 356, 14),
+    line(data.course.title, 132, 320, 25, "F2"),
+    "0.85 0.90 0.98 rg 88 146 668 106 re f",
+    "0.09 0.20 0.42 RG 88 146 668 106 re S",
+    line(`Instructor: ${data.course.instructor.email}`, 112, 220, 13),
+    line(`Issued on ${issuedAt}`, 112, 196, 13),
+    line(`Verification code: ${data.verificationCode}`, 112, 172, 12),
+    line("Verify this certificate in EdTech Platform certificate verifier.", 112, 152, 10),
+    line("EDTECH PLATFORM", 580, 96, 18, "F2")
   ].join("\n");
 }
 

@@ -976,6 +976,8 @@
   "courseCompleted.certificateTitle": "Certificate",
   "courseCompleted.certificateDescription": "Your completion certificate is available in progress area.",
   "courseCompleted.verifyCertificate": "Verify certificate",
+  "courseCompleted.downloadCertificate": "Download certificate",
+  "courseCompleted.generatingCertificate": "Generating certificate...",
   "courseCompleted.openProgress": "Open my progress",
   "courseLearn.discussionPost": "Post comment",
   "courseLearn.discussionPosting": "Posting...",

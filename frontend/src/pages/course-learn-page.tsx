@@ -42,6 +42,7 @@ export function CourseLearnPage() {
   const completeLessonMutation = useCompleteLesson(courseId);
   const saveWatchPositionMutation = useSaveLessonWatchPosition(courseId);
   const [curriculumOpen, setCurriculumOpen] = useState(false);
+  const [pendingCompletionLessonId, setPendingCompletionLessonId] = useState<string | null>(null);
   const { t, formatError } = useI18n();
 
   const lessons = lessonsQuery.data ?? [];
@@ -87,6 +88,8 @@ export function CourseLearnPage() {
   const isLessonLocked = Boolean(selectedUnlock && !selectedUnlock.isUnlocked);
   const isLessonCompleted = Boolean(selectedProgress?.isCompleted);
   const isQuizLesson = selectedLesson?.contentType === LESSON_CONTENT_TYPE.quiz;
+  const isCompletingSelectedLesson = Boolean(selectedLesson?.id && pendingCompletionLessonId === selectedLesson.id);
+  const isNavigationLocked = pendingCompletionLessonId !== null;
 
   useEffect(() => {
     if (!canAccessLearn || lessonsQuery.isLoading || lessonId || lessons.length === 0) {
@@ -190,6 +193,9 @@ export function CourseLearnPage() {
   const course = courseQuery.data;
 
   const handleSelectLesson = (targetLessonId: string) => {
+    if (isNavigationLocked) {
+      return;
+    }
     navigate(learnPath(courseId, targetLessonId));
   };
 
@@ -199,6 +205,7 @@ export function CourseLearnPage() {
     }
 
     try {
+      setPendingCompletionLessonId(selectedLesson.id);
       const result = await completeLessonMutation.mutateAsync(selectedLesson.id);
       if (isLessonProgressQueued(result)) {
         toast.message(t("courseLearn.offlineProgressQueued"));
@@ -210,6 +217,8 @@ export function CourseLearnPage() {
       }
     } catch (error) {
       toast.error(formatError(error, "courseLearn.lessonCompleteFailed"));
+    } finally {
+      setPendingCompletionLessonId((current) => (current === selectedLesson.id ? null : current));
     }
   };
 
@@ -251,9 +260,15 @@ export function CourseLearnPage() {
       lessonProgressById={lessonProgressById}
       lessonUnlockById={lessonUnlockById}
       onSelectLesson={handleSelectLesson}
+      isNavigationLocked={isNavigationLocked}
       className="h-full"
     />
   );
+
+  const shouldShowAssignmentPanel =
+    canLearn &&
+    !isPreviewMode &&
+    Boolean(progressQuery.data?.isComplete || (selectedLesson && selectedLessonIndex === lessons.length - 1) || isLessonCompleted);
 
   return (
     <AppShell immersive title={course.title} subtitle={isPreviewMode ? t("coursePreview.subtitle") : t("courseLearn.subtitle")}>
@@ -404,7 +419,7 @@ export function CourseLearnPage() {
                           />
                           <LearnerAssignmentPanel
                             courseId={courseId}
-                            enabled={canLearn}
+                            enabled={shouldShowAssignmentPanel}
                             onSubmitted={() => {
                               void progressQuery.refetch();
                             }}
@@ -423,7 +438,8 @@ export function CourseLearnPage() {
                         variant="outline"
                         size="sm"
                         className="h-10 rounded-lg"
-                        disabled={!previousUnlockedLesson}
+                        disabled={!previousUnlockedLesson || isNavigationLocked}
+                        aria-disabled={!previousUnlockedLesson || isNavigationLocked}
                         onClick={() => {
                           if (previousUnlockedLesson) {
                             handleSelectLesson(previousUnlockedLesson.id);
@@ -438,7 +454,8 @@ export function CourseLearnPage() {
                         variant="outline"
                         size="sm"
                         className="h-10 rounded-lg"
-                        disabled={!nextUnlockedLesson}
+                        disabled={!nextUnlockedLesson || isNavigationLocked}
+                        aria-disabled={!nextUnlockedLesson || isNavigationLocked}
                         onClick={() => {
                           if (nextUnlockedLesson) {
                             handleSelectLesson(nextUnlockedLesson.id);
@@ -455,10 +472,10 @@ export function CourseLearnPage() {
                         type="button"
                         size="sm"
                         className="h-10 min-w-[10rem] rounded-lg"
-                        disabled={completeLessonMutation.isPending}
+                        disabled={isCompletingSelectedLesson || isNavigationLocked}
                         onClick={() => void handleCompleteLesson()}
                       >
-                        {completeLessonMutation.isPending ? (
+                        {isCompletingSelectedLesson ? (
                           <>
                             <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
                             {t("courseLearn.savingProgress")}

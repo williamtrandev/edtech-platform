@@ -9,6 +9,7 @@ type CourseLearnCurriculumProps = {
   lessonProgressById: Map<string, { isCompleted: boolean; watchPositionSeconds: number }>;
   lessonUnlockById: Map<string, LessonUnlockMeta>;
   onSelectLesson: (lessonId: string) => void;
+  isNavigationLocked?: boolean;
   className?: string;
 };
 
@@ -18,6 +19,7 @@ export function CourseLearnCurriculum({
   lessonProgressById,
   lessonUnlockById,
   onSelectLesson,
+  isNavigationLocked = false,
   className
 }: CourseLearnCurriculumProps) {
   return (
@@ -39,11 +41,12 @@ export function CourseLearnCurriculum({
                     ? `${lesson.title} (${unlock.lockedByLessonTitle})`
                     : lesson.title
                 }
-                disabled={isLocked}
-                aria-disabled={isLocked}
+                disabled={isLocked || isNavigationLocked}
+                aria-disabled={isLocked || isNavigationLocked}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors",
                   isLocked && "cursor-not-allowed opacity-60",
+                  isNavigationLocked && "cursor-not-allowed opacity-60",
                   isSelected && !isLocked
                     ? "bg-primary/10 text-foreground ring-1 ring-primary/20"
                     : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
