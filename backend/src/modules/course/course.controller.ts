@@ -60,6 +60,11 @@ export class CourseController {
     res.status(200).json({ success: true, data: course });
   };
 
+  getCourseArchiveImpact = async (req: Request, res: Response): Promise<void> => {
+    const impact = await this.courseService.getCourseArchiveImpact(req.user, req.params.id);
+    res.status(200).json({ success: true, data: impact });
+  };
+
   archiveCourse = async (req: Request, res: Response): Promise<void> => {
     const course = await this.courseService.archiveCourse(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });

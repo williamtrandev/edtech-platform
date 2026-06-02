@@ -1,5 +1,5 @@
-import { BookOpen, Compass, GraduationCap } from "lucide-react";
-import { useState } from "react";
+import { BookOpen, Compass, GraduationCap, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -12,16 +12,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { MetricCard } from "../components/metric-card";
+import { MyLearningCourseCard } from "../components/my-learning-course-card";
 import { MetricCardSkeleton } from "../components/skeleton";
 import { useDropEnrollment, useMyEnrollments } from "../hooks/use-enrollments";
 import { useI18n } from "../i18n";
-import { toMediaUrl } from "../lib/media-url";
+import { STUDIO_FORM_SHELL, STUDIO_STAT } from "../lib/studio-ui";
+import { cn } from "@/lib/utils";
 import type { Enrollment } from "../services/enrollment.service";
 
 export function MyLearningPage() {
@@ -29,6 +29,23 @@ export function MyLearningPage() {
   const dropEnrollmentMutation = useDropEnrollment();
   const [enrollmentPendingDrop, setEnrollmentPendingDrop] = useState<Enrollment | null>(null);
   const { t, formatError } = useI18n();
+
+  const stats = useMemo(() => {
+    const enrollments = data ?? [];
+    const inProgress = enrollments.filter(
+      (enrollment) => enrollment.progress && enrollment.progress.percentage > 0 && enrollment.progress.percentage < 100
+    ).length;
+    const completed = enrollments.filter(
+      (enrollment) =>
+        enrollment.progress && enrollment.progress.totalLessons > 0 && enrollment.progress.percentage >= 100
+    ).length;
+
+    return {
+      total: enrollments.length,
+      inProgress,
+      completed
+    };
+  }, [data]);
 
   const confirmDropEnrollment = async () => {
     if (!enrollmentPendingDrop) {
@@ -46,112 +63,115 @@ export function MyLearningPage() {
 
   return (
     <AppShell
-      title="My learning"
-      subtitle="Courses you are enrolled in. Open a course to watch lessons and mark progress."
+      title={t("myLearning.title")}
+      subtitle={t("myLearning.subtitle")}
       actions={
         <Button asChild variant="outline" size="sm" className="rounded-lg gap-1.5 shadow-sm">
           <Link to="/explore">
             <Compass className="size-4" aria-hidden />
-            Explore catalog
+            {t("myLearning.exploreCatalog")}
           </Link>
         </Button>
       }
     >
       <div className="space-y-8">
-        <section className="grid gap-4 sm:grid-cols-2">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {isLoading ? (
             <>
+              <MetricCardSkeleton />
               <MetricCardSkeleton />
               <MetricCardSkeleton />
             </>
           ) : (
             <>
-              <MetricCard icon={BookOpen} label="Enrolled courses" value={data?.length ?? 0} hint="From your dashboard" />
-              <MetricCard icon={GraduationCap} label="Progress hub" value="Open below" hint="Or use Progress in the sidebar" />
+              <MetricCard
+                icon={BookOpen}
+                label={t("myLearning.enrolledCourses")}
+                value={stats.total}
+                hint={t("myLearning.enrolledCoursesHint")}
+              />
+              <MetricCard
+                icon={TrendingUp}
+                label={t("myLearning.inProgress")}
+                value={stats.inProgress}
+                hint={t("myLearning.inProgressHint")}
+              />
+              <MetricCard
+                icon={GraduationCap}
+                label={t("myLearning.completedCourses")}
+                value={stats.completed}
+                hint={t("myLearning.completedCoursesHint")}
+              />
             </>
           )}
         </section>
 
-        <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {isLoading ? (
-            <div className="contents">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-48 animate-pulse rounded-2xl border border-border/40 bg-muted/30"
-                  aria-hidden
-                />
-              ))}
+        <section className={cn(STUDIO_FORM_SHELL, "space-y-5")}>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-foreground">{t("myLearning.courseListTitle")}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t("myLearning.courseListDescription")}</p>
             </div>
-          ) : null}
-          {isError ? (
-            <div className="md:col-span-2 xl:col-span-3">
-              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                Could not load your enrollments.
+            {!isLoading && !isError && data?.length ? (
+              <div className={cn(STUDIO_STAT, "px-3 py-2 text-xs font-medium text-muted-foreground")}>
+                {data.length} {t("myLearning.enrolledCount")}
               </div>
-            </div>
-          ) : null}
-          {!isLoading && !isError && data?.length
-            ? data.map((enrollment) => (
-                <Card
-                  key={enrollment.id}
-                  className="flex flex-col overflow-hidden rounded-2xl border-border/60 bg-card/95 py-0 shadow-sm ring-1 ring-border/25 transition-all hover:border-border hover:shadow-md"
-                >
-                  <div className="relative h-32 bg-muted/40">
-                    {enrollment.course?.coverImageUrl ? (
-                      <img src={toMediaUrl(enrollment.course.coverImageUrl)} alt="" className="absolute inset-0 size-full object-cover" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                        <BookOpen className="size-8" aria-hidden />
-                      </div>
-                    )}
-                  </div>
-                  <CardHeader className="space-y-2">
-                    <Badge variant="outline" className="w-fit rounded-md text-xs font-medium">
-                      {enrollment.course?.status ?? "Course"}
-                    </Badge>
-                    <CardTitle className="line-clamp-2 text-lg font-semibold leading-snug">
-                      {enrollment.course?.title ?? `Course ${enrollment.courseId.slice(0, 8)}…`}
-                    </CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground">
-                      Enrolled {new Date(enrollment.enrolledAt).toLocaleDateString()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="mt-auto flex flex-wrap gap-2 border-t border-border/50 pt-4">
-                    <Button asChild size="sm" className="rounded-lg shadow-sm">
-                      <Link to={`/courses/${enrollment.courseId}`}>Continue</Link>
+            ) : null}
+          </div>
+
+          <div className="grid auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {isLoading ? (
+              <div className="contents">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-[22rem] animate-pulse rounded-xl bg-muted/40 ring-1 ring-foreground/10"
+                    aria-hidden
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {isError ? (
+              <div className="md:col-span-2 xl:col-span-3">
+                <div className="rounded-xl bg-destructive/5 px-4 py-3 text-sm text-destructive ring-1 ring-destructive/20">
+                  {t("myLearning.loadFailed")}
+                </div>
+              </div>
+            ) : null}
+
+            {!isLoading && !isError && data?.length
+              ? data.map((enrollment) => (
+                  <MyLearningCourseCard
+                    key={enrollment.id}
+                    enrollment={enrollment}
+                    continueLabel={t("myLearning.continue")}
+                    viewProgressLabel={t("myLearning.viewProgress")}
+                    dropLabel={t("myLearning.dropEnrollment")}
+                    enrolledOnLabel={t("myLearning.enrolledOn")}
+                    lessonsProgressLabel={t("myLearning.lessonsProgress")}
+                    completeLabel={t("myLearning.progressComplete")}
+                    dropDisabled={dropEnrollmentMutation.isPending}
+                    onDrop={() => setEnrollmentPendingDrop(enrollment)}
+                  />
+                ))
+              : null}
+
+            {!isLoading && !isError && !data?.length ? (
+              <div className="md:col-span-2 xl:col-span-3">
+                <EmptyState
+                  icon={BookOpen}
+                  title={t("myLearning.emptyTitle")}
+                  description={t("myLearning.emptyDescription")}
+                  action={
+                    <Button asChild className="rounded-lg" size="sm">
+                      <Link to="/explore">{t("myLearning.browseCourses")}</Link>
                     </Button>
-                    <Button asChild variant="outline" size="sm" className="rounded-lg">
-                      <Link to="/my-progress">View progress</Link>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="rounded-lg text-destructive hover:text-destructive"
-                      disabled={dropEnrollmentMutation.isPending}
-                      onClick={() => setEnrollmentPendingDrop(enrollment)}
-                    >
-                      {t("myLearning.dropEnrollment")}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))
-            : null}
-          {!isLoading && !isError && !data?.length ? (
-            <div className="md:col-span-2 xl:col-span-3">
-              <EmptyState
-                icon={BookOpen}
-                title="No enrollments yet"
-                description="Explore the catalog, pick a published course, and enroll. Your dashboard will list every course you join."
-                action={
-                  <Button asChild className="rounded-lg" size="sm">
-                    <Link to="/explore">Browse courses</Link>
-                  </Button>
-                }
-              />
-            </div>
-          ) : null}
+                  }
+                />
+              </div>
+            ) : null}
+          </div>
         </section>
       </div>
 

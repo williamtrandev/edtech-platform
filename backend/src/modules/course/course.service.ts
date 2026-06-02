@@ -5,6 +5,7 @@ import { COURSE_STATUS, USER_ROLE, USER_STATUS } from "../../common/constants/bu
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseListFilters, CourseRepository } from "./course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
+import { NotificationService } from "../notification/notification.service";
 import { UserRepository } from "../user/user.repository";
 
 type CoursePayload = {
@@ -41,7 +42,8 @@ export class CourseService {
     private readonly courseRepository: CourseRepository,
     private readonly enrollmentRepository: EnrollmentRepository,
     private readonly auditRepository?: AuditRepository,
-    private readonly userRepository?: UserRepository
+    private readonly userRepository?: UserRepository,
+    private readonly notificationService?: NotificationService
   ) {}
 
   async listCourses(
@@ -245,6 +247,24 @@ export class CourseService {
           after: { status: data.status }
         }
       });
+
+      if (data.status === COURSE_STATUS.published && course.status !== COURSE_STATUS.published) {
+        const enrollments = await this.enrollmentRepository.findAllByCourseId(id);
+        await Promise.all(
+          enrollments.map((enrollment) =>
+            this.notificationService?.createNotification({
+              userId: enrollment.userId,
+              type: "COURSE_PUBLISHED",
+              title: "Course is now published",
+              body: `"${updatedCourse.title}" is available to learn now.`,
+              linkUrl: `/courses/${id}/learn`,
+              metadata: {
+                courseId: id
+              }
+            })
+          )
+        );
+      }
     }
 
     return updatedCourse;
@@ -313,6 +333,29 @@ export class CourseService {
     }
   }
 
+  async getCourseArchiveImpact(user: Express.UserClaims | undefined, id: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    if (!canViewCourseAsStaff(user, course.instructorId)) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    const impact = await this.courseRepository.getArchiveImpact(id);
+    return {
+      courseId: id,
+      courseTitle: course.title,
+      courseStatus: course.status,
+      impact
+    };
+  }
+
   async archiveCourse(user: Express.UserClaims | undefined, id: string) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
@@ -329,6 +372,7 @@ export class CourseService {
       return course;
     }
 
+    const impact = await this.courseRepository.getArchiveImpact(id);
     const archivedCourse = await this.courseRepository.archiveById(id);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
@@ -337,7 +381,8 @@ export class CourseService {
       entityId: id,
       metadata: {
         before: { status: course.status },
-        after: { status: COURSE_STATUS.archived }
+        after: { status: COURSE_STATUS.archived },
+        impact
       }
     });
 
