@@ -98,7 +98,7 @@ import {
   useUpdateLesson,
   useUpdateCourse
 } from "../hooks/use-courses";
-import { useEnrollCourse, useMyEnrollments } from "../hooks/use-enrollments";
+import { useMyEnrollments } from "../hooks/use-enrollments";
 import { CourseEnrollButton } from "../components/course-enroll-button";
 import { useExamIntegrityMonitor } from "../hooks/use-exam-integrity-monitor";
 import { useArchiveExam, useCourseExams, useCreateExam, useCreateExamQuestion, useDeleteExamQuestion, useExamAttempt, useExamAttempts, useExamQuestions, useGradeExamAttempt, useSaveExamAttemptAnswers, useStartExamAttempt, useSubmitExamAttempt, useUpdateExam, useUpdateExamQuestion } from "../hooks/use-exams";
@@ -244,7 +244,6 @@ export function CourseDetailPage() {
   const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const courseQuery = useCourseDetail(courseId);
   const myEnrollmentsQuery = useMyEnrollments(isAuthenticated && !isBootstrapping);
-  const enrollMutation = useEnrollCourse();
   const createLessonMutation = useCreateLesson(courseId);
   const updateLessonMutation = useUpdateLesson(courseId);
   const reorderLessonsMutation = useReorderLessons(courseId);
@@ -450,6 +449,8 @@ export function CourseDetailPage() {
       requirements: "",
       outcomes: "",
       coverImageUrl: "",
+      priceCents: "",
+      currency: "USD",
       status: COURSE_STATUS.draft
     }
   });
@@ -464,6 +465,7 @@ export function CourseDetailPage() {
       liveMeetingUrl: "",
       liveStartsAt: "",
       liveInstructions: "",
+      liveDurationMinutes: "",
       sortOrder: 1
     }
   });
@@ -543,6 +545,8 @@ export function CourseDetailPage() {
       requirements: courseQuery.data.requirements ?? "",
       outcomes: courseQuery.data.outcomes ?? "",
       coverImageUrl: courseQuery.data.coverImageUrl ?? "",
+      priceCents: courseQuery.data.priceCents ?? 0,
+      currency: (courseQuery.data.currency ?? "USD").toUpperCase(),
       status: courseQuery.data.status
     });
   }, [courseForm, courseQuery.data]);
@@ -854,6 +858,7 @@ export function CourseDetailPage() {
           liveMeetingUrl: "",
           liveStartsAt: "",
           liveInstructions: "",
+          liveDurationMinutes: "",
           sortOrder: sortOrder + 1
         });
         form.clearErrors();
@@ -883,6 +888,8 @@ export function CourseDetailPage() {
         requirements: values.requirements || null,
         outcomes: values.outcomes || null,
         coverImageUrl: values.coverImageUrl || null,
+        priceCents: values.priceCents === "" ? 0 : Number(values.priceCents),
+        currency: (values.currency ?? "USD").trim().toUpperCase(),
         ...(values.status === COURSE_STATUS.locked ? {} : { status: values.status })
       });
       toast.success(t("courseDetail.courseUpdated"));
@@ -1535,6 +1542,7 @@ export function CourseDetailPage() {
       liveMeetingUrl: parsedContent.meetingUrl ?? "",
       liveStartsAt: parsedContent.startsAt ? parsedContent.startsAt.slice(0, 16) : "",
       liveInstructions: parsedContent.instructions ?? "",
+      liveDurationMinutes: parsedContent.durationMinutes ?? "",
       sortOrder: lesson.sortOrder
     });
   };
@@ -1552,6 +1560,7 @@ export function CourseDetailPage() {
       liveMeetingUrl: "",
       liveStartsAt: "",
       liveInstructions: "",
+      liveDurationMinutes: "",
       sortOrder: nextLessonSortOrder
     });
   };
@@ -2469,6 +2478,22 @@ export function CourseDetailPage() {
                           error={getLessonError(form.formState.errors.liveStartsAt?.message)}
                         >
                           <Input id="lesson-live-starts" type="datetime-local" {...form.register("liveStartsAt")} />
+                        </FormField>
+                        <FormField
+                          id="lesson-live-duration"
+                          label={t("courseDetail.liveSessionDurationMinutes")}
+                          hint={t("courseDetail.liveSessionDurationHint")}
+                          error={getLessonError(form.formState.errors.liveDurationMinutes?.message)}
+                        >
+                          <Input
+                            id="lesson-live-duration"
+                            inputMode="numeric"
+                            min={5}
+                            max={480}
+                            type="number"
+                            placeholder={t("courseDetail.liveSessionDurationPlaceholder")}
+                            {...form.register("liveDurationMinutes")}
+                          />
                         </FormField>
                         <FormField
                           id="lesson-live-instructions"
@@ -4370,6 +4395,31 @@ export function CourseDetailPage() {
                       <FormField id="edit-course-outcomes" label={t("courseDetail.courseOutcomes")} hint={t("courseDetail.optional")} error={courseForm.formState.errors.outcomes?.message}>
                         <TextareaField id="edit-course-outcomes" placeholder={t("courseDetail.courseOutcomesPlaceholder")} rows={4} {...courseForm.register("outcomes")} />
                       </FormField>
+                    </div>
+
+                    <div className="grid gap-3 rounded-xl bg-muted/40 ring-1 ring-foreground/10 p-4">
+                      <div>
+                        <h2 className="text-sm font-semibold">{t("courseDetail.coursePricing")}</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.coursePricingDescription")}</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <FormField
+                          id="edit-course-price"
+                          label={t("courseDetail.coursePriceCents")}
+                          hint={t("courseDetail.coursePriceCentsHint")}
+                          error={courseForm.formState.errors.priceCents?.message}
+                        >
+                          <Input id="edit-course-price" inputMode="numeric" min={0} type="number" placeholder="0" {...courseForm.register("priceCents")} />
+                        </FormField>
+                        <FormField
+                          id="edit-course-currency"
+                          label={t("courseDetail.courseCurrency")}
+                          hint={t("courseDetail.courseCurrencyHint")}
+                          error={courseForm.formState.errors.currency?.message}
+                        >
+                          <Input id="edit-course-currency" maxLength={3} placeholder="USD" {...courseForm.register("currency")} />
+                        </FormField>
+                      </div>
                     </div>
 
                     <FormField id="edit-course-status" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>

@@ -26,6 +26,7 @@ type LessonFormContentInput = {
   liveMeetingUrl?: string;
   liveStartsAt?: string;
   liveInstructions?: string;
+  liveDurationMinutes?: number | "" | null;
 };
 
 export function buildLessonContentFromForm(values: LessonFormContentInput) {
@@ -41,13 +42,19 @@ export function buildLessonContentFromForm(values: LessonFormContentInput) {
     const meetingUrl = values.liveMeetingUrl?.trim();
     const instructions = values.liveInstructions?.trim();
     const startsAt = values.liveStartsAt?.trim();
+    const durationRaw = values.liveDurationMinutes;
+    const durationMinutes =
+      durationRaw === "" || durationRaw === null || durationRaw === undefined
+        ? undefined
+        : Number(durationRaw);
 
     return serializeLessonContent({
       version: 1,
       kind: LESSON_CONTENT_TYPE.liveSession,
       ...(meetingUrl ? { meetingUrl } : {}),
       ...(instructions ? { instructions } : {}),
-      ...(startsAt ? { startsAt } : {})
+      ...(startsAt ? { startsAt } : {}),
+      ...(durationMinutes !== undefined && Number.isFinite(durationMinutes) ? { durationMinutes } : {})
     });
   }
 

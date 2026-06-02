@@ -36,6 +36,8 @@ export function updateCourseFormSchema(t: Translate) {
     requirements: z.string().max(2000, t("validation.courseLongTextMax")).optional(),
     outcomes: z.string().max(2000, t("validation.courseLongTextMax")).optional(),
     coverImageUrl: z.string().max(2000, t("validation.courseCoverUrlMax")).optional(),
+    priceCents: z.coerce.number().int().min(0, t("validation.coursePriceMin")).max(10_000_000, t("validation.coursePriceMax")).optional().or(z.literal("")),
+    currency: z.string().trim().length(3, t("validation.courseCurrencyInvalid")).optional(),
     status: z.enum([COURSE_STATUS.draft, COURSE_STATUS.published, COURSE_STATUS.archived, COURSE_STATUS.locked]).default(COURSE_STATUS.draft)
   });
 }
@@ -60,6 +62,7 @@ export function createLessonFormSchema(t: Translate) {
       liveMeetingUrl: z.string().optional(),
       liveStartsAt: z.string().optional(),
       liveInstructions: z.string().optional(),
+      liveDurationMinutes: z.coerce.number().int().min(5, t("validation.lessonLiveDurationMin")).max(480, t("validation.lessonLiveDurationMax")).optional().or(z.literal("")),
       sortOrder: z.coerce.number().int().min(1),
       prerequisiteLessonId: z.string().nullable().optional()
     })
