@@ -305,4 +305,4 @@ Legend:
 2. Add per-lesson progress weights in schema (optional enhancement).
 3. Add append-only audit hardening and wider grade/admin audit coverage.
 4. Queue certificate PDF generation (move off request thread).
-5. Assignment direct upload picker (replace URL-only attachment field).
+5. [x] Assignment direct upload picker on course learn page (Supabase storage + optional URL fallback).
