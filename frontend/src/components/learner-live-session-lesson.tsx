@@ -2,7 +2,9 @@ import { CalendarDays, ExternalLink, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { LIVE_SESSION_STATUS } from "../constants/business";
 import type { LessonContentPayload } from "../lib/lesson-content";
+import { resolveLiveSessionStatus } from "../lib/live-session-status";
 
 type LearnerLiveSessionLessonProps = {
   content: LessonContentPayload;
@@ -10,6 +12,10 @@ type LearnerLiveSessionLessonProps = {
   scheduledLabel: string;
   instructionsLabel: string;
   noDetailsLabel: string;
+  statusLiveLabel: string;
+  statusUpcomingLabel: string;
+  statusEndedLabel: string;
+  statusUnscheduledLabel: string;
 };
 
 export function LearnerLiveSessionLesson({
@@ -17,12 +23,29 @@ export function LearnerLiveSessionLesson({
   joinSessionLabel,
   scheduledLabel,
   instructionsLabel,
-  noDetailsLabel
+  noDetailsLabel,
+  statusLiveLabel,
+  statusUpcomingLabel,
+  statusEndedLabel,
+  statusUnscheduledLabel
 }: LearnerLiveSessionLessonProps) {
   const startsAt = content.startsAt ? new Date(content.startsAt) : null;
   const hasValidStart = startsAt && !Number.isNaN(startsAt.getTime());
   const meetingUrl = content.meetingUrl?.trim();
   const instructions = content.instructions?.trim();
+  const status = resolveLiveSessionStatus({
+    startsAt: content.startsAt,
+    durationMinutes: content.durationMinutes
+  });
+
+  const statusLabel =
+    status === LIVE_SESSION_STATUS.live
+      ? statusLiveLabel
+      : status === LIVE_SESSION_STATUS.upcoming
+        ? statusUpcomingLabel
+        : status === LIVE_SESSION_STATUS.ended
+          ? statusEndedLabel
+          : statusUnscheduledLabel;
 
   if (!meetingUrl && !instructions) {
     return <p className="text-sm text-muted-foreground">{noDetailsLabel}</p>;
@@ -30,6 +53,14 @@ export function LearnerLiveSessionLesson({
 
   return (
     <div className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge
+          variant={status === LIVE_SESSION_STATUS.live ? "default" : status === LIVE_SESSION_STATUS.upcoming ? "secondary" : "outline"}
+          className="h-6 rounded-md px-2 text-[11px] font-medium"
+        >
+          {statusLabel}
+        </Badge>
+      </div>
       {hasValidStart ? (
         <div className="flex items-start gap-3 rounded-xl bg-muted/30 px-4 py-3 ring-1 ring-foreground/10">
           <CalendarDays className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />

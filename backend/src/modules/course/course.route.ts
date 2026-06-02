@@ -21,6 +21,7 @@ import {
 } from "../course-discussion/course-discussion.schema";
 import { CourseDiscussionService } from "../course-discussion/course-discussion.service";
 import { LessonRepository } from "../lesson/lesson.repository";
+import { courseLiveSessionRouter } from "../live-session/live-session.route";
 import { ExamController } from "../exam/exam.controller";
 import { ExamRepository } from "../exam/exam.repository";
 import { createExamSchema, courseExamsParamSchema } from "../exam/exam.schema";
@@ -124,6 +125,7 @@ courseRouter.delete(
   validateRequest(deleteCourseDiscussionCommentSchema),
   asyncHandler(courseDiscussionController.deleteComment)
 );
+courseRouter.use("/:id/live-sessions", courseLiveSessionRouter);
 courseRouter.get(
   "/:id/enrollments",
   authMiddleware,

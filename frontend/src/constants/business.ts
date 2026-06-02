@@ -117,3 +117,12 @@ export const LESSON_CONTENT_TYPE = {
 } as const;
 
 export type LessonContentType = (typeof LESSON_CONTENT_TYPE)[keyof typeof LESSON_CONTENT_TYPE];
+
+export const LIVE_SESSION_STATUS = {
+  unscheduled: "UNSCHEDULED",
+  upcoming: "UPCOMING",
+  live: "LIVE",
+  ended: "ENDED"
+} as const;
+
+export type LiveSessionStatus = (typeof LIVE_SESSION_STATUS)[keyof typeof LIVE_SESSION_STATUS];

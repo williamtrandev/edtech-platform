@@ -28,6 +28,7 @@ export type LessonContentPayload = {
   meetingUrl?: string;
   startsAt?: string;
   instructions?: string;
+  durationMinutes?: number;
 };
 
 export function parseLessonContentPayload(content: string, contentType: LessonContentType): LessonContentPayload {
@@ -45,7 +46,8 @@ export function parseLessonContentPayload(content: string, contentType: LessonCo
         examId: parsed.examId,
         meetingUrl: parsed.meetingUrl,
         startsAt: parsed.startsAt,
-        instructions: parsed.instructions
+        instructions: parsed.instructions,
+        durationMinutes: parsed.durationMinutes
       };
     }
   } catch {

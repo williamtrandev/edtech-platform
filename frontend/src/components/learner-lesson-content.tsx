@@ -137,6 +137,10 @@ export function LearnerLessonContent({
         scheduledLabel={t("courseLearn.liveSessionScheduled")}
         instructionsLabel={t("courseLearn.liveSessionInstructions")}
         noDetailsLabel={t("courseLearn.liveSessionEmpty")}
+        statusLiveLabel={t("liveSessions.statusLive")}
+        statusUpcomingLabel={t("liveSessions.statusUpcoming")}
+        statusEndedLabel={t("liveSessions.statusEnded")}
+        statusUnscheduledLabel={t("liveSessions.statusUnscheduled")}
       />
     );
   }

@@ -61,6 +61,13 @@ export async function validateAndNormalizeLessonContent(
       }
     }
 
+    const durationMinutes = parsed.durationMinutes;
+    if (durationMinutes !== undefined && durationMinutes !== null) {
+      if (!Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > 480) {
+        throw new AppError("Live session duration must be between 5 and 480 minutes", 422, LESSON_CONTENT_ERROR_CODE.invalidContent);
+      }
+    }
+
     if (meetingUrl) {
       try {
         const url = new URL(meetingUrl);
@@ -77,7 +84,8 @@ export async function validateAndNormalizeLessonContent(
       kind: LESSON_CONTENT_TYPE.liveSession,
       ...(meetingUrl ? { meetingUrl } : {}),
       ...(instructions ? { instructions } : {}),
-      ...(startsAt ? { startsAt } : {})
+      ...(startsAt ? { startsAt } : {}),
+      ...(durationMinutes !== undefined && durationMinutes !== null ? { durationMinutes } : {})
     });
   }
 
