@@ -2,7 +2,6 @@ import { randomBytes } from "crypto";
 import { CertificateStatus } from "@prisma/client";
 import { AUDIT_ACTION } from "../../common/constants/analytics";
 import { CERTIFICATE_STATUS, NOTIFICATION_TYPE, USER_ROLE } from "../../common/constants/business";
-import { CERTIFICATE_PDF_POLL } from "../../common/constants/certificate-pdf";
 import { AppError } from "../../common/errors/app-error";
 import { enqueueCertificatePdfJob } from "../../jobs/certificate-pdf.jobs";
 import { AuditRepository } from "../audit/audit.repository";
@@ -207,9 +206,6 @@ export class CertificateService {
     let buffer = await getCachedCertificatePdf(certificateId);
     if (!buffer) {
       await this.enqueuePdfGeneration(certificateId);
-      buffer = await this.waitForCachedPdf(certificateId);
-    }
-    if (!buffer) {
       throw new AppError("Certificate PDF is still generating", 503, "CERTIFICATE_PDF_PROCESSING");
     }
 
@@ -247,22 +243,6 @@ export class CertificateService {
     } catch {
       await this.generateAndCachePdf(certificateId);
     }
-  }
-
-  private async waitForCachedPdf(certificateId: string) {
-    const deadline = Date.now() + CERTIFICATE_PDF_POLL.maxWaitMs;
-    while (Date.now() < deadline) {
-      const cached = await getCachedCertificatePdf(certificateId);
-      if (cached) {
-        return cached;
-      }
-
-      await new Promise((resolve) => {
-        setTimeout(resolve, CERTIFICATE_PDF_POLL.intervalMs);
-      });
-    }
-
-    return null;
   }
 
   private createPdfFilename(courseTitle: string, verificationCode: string) {
