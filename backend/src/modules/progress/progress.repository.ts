@@ -66,6 +66,15 @@ export class ProgressRepository {
     });
   }
 
+  async sumCourseLessonProgressWeight(courseId: string) {
+    const result = await prisma.lesson.aggregate({
+      where: { courseId, archivedAt: null },
+      _sum: { progressWeight: true }
+    });
+
+    return result._sum?.progressWeight ?? 0;
+  }
+
   async countCompletedCourseLessons(userId: string, courseId: string) {
     return prisma.lessonProgress.count({
       where: {
@@ -77,6 +86,26 @@ export class ProgressRepository {
         }
       }
     });
+  }
+
+  async sumCompletedCourseLessonProgressWeight(userId: string, courseId: string) {
+    const rows = await prisma.lessonProgress.findMany({
+      where: {
+        userId,
+        isCompleted: true,
+        lesson: {
+          courseId,
+          archivedAt: null
+        }
+      },
+      select: {
+        lesson: {
+          select: { progressWeight: true }
+        }
+      }
+    });
+
+    return rows.reduce((total, row) => total + row.lesson.progressWeight, 0);
   }
 
   async countLessonTotalsByCourses(courseIds: string[]) {

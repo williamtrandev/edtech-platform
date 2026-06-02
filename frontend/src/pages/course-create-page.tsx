@@ -87,6 +87,7 @@ type PendingLesson = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  progressWeight: number;
   prerequisiteLessonId: string | null;
 };
 
@@ -165,6 +166,7 @@ export function CourseCreatePage() {
       liveInstructions: "",
       liveDurationMinutes: "",
       sortOrder: 1,
+      progressWeight: 1,
       prerequisiteLessonId: null
     }
   });
@@ -190,6 +192,7 @@ export function CourseCreatePage() {
         contentType: lesson.contentType,
         content: lesson.content,
         sortOrder: lesson.sortOrder,
+        progressWeight: lesson.progressWeight ?? 1,
         prerequisiteLessonId: lesson.prerequisiteLessonId ?? null
       }));
   const nextLessonSortOrder = getNextLessonSortOrder(curriculumLessons);
@@ -409,6 +412,7 @@ export function CourseCreatePage() {
         contentType: lesson.contentType,
         content: lesson.content,
         sortOrder: lesson.sortOrder,
+        progressWeight: lesson.progressWeight,
         prerequisiteLessonId: lesson.prerequisiteLessonId
       });
     }
@@ -659,6 +663,7 @@ export function CourseCreatePage() {
                   title: values.title,
                   contentType: values.contentType,
                   content,
+                  progressWeight: values.progressWeight,
                   prerequisiteLessonId: values.prerequisiteLessonId ?? null
                 }
               : lesson
@@ -674,6 +679,7 @@ export function CourseCreatePage() {
             contentType: values.contentType,
             content,
             sortOrder: nextLessonSortOrder,
+            progressWeight: values.progressWeight,
             prerequisiteLessonId: values.prerequisiteLessonId ?? null
           }
         ]);
@@ -688,6 +694,7 @@ export function CourseCreatePage() {
           liveInstructions: "",
           liveDurationMinutes: "",
           sortOrder: nextLessonSortOrder + 1,
+          progressWeight: 1,
           prerequisiteLessonId: null
         });
         setSelectedLessonId(null);
@@ -707,6 +714,7 @@ export function CourseCreatePage() {
             title: values.title,
             contentType: values.contentType,
             content,
+            progressWeight: values.progressWeight,
             prerequisiteLessonId: values.prerequisiteLessonId ?? null
           }
         });
@@ -718,6 +726,7 @@ export function CourseCreatePage() {
           ...values,
           sortOrder: nextLessonSortOrder,
           content,
+          progressWeight: values.progressWeight,
           prerequisiteLessonId: values.prerequisiteLessonId ?? null
         });
         toast.success(t("courseDetail.lessonCreated"));
@@ -731,6 +740,7 @@ export function CourseCreatePage() {
           liveInstructions: "",
           liveDurationMinutes: "",
           sortOrder: nextLessonSortOrder + 1,
+          progressWeight: 1,
           prerequisiteLessonId: null
         });
         lessonForm.clearErrors();
@@ -850,6 +860,7 @@ export function CourseCreatePage() {
       liveInstructions: parsedContent.instructions ?? "",
       liveDurationMinutes: parsedContent.durationMinutes ?? "",
       sortOrder: lesson.sortOrder,
+      progressWeight: lesson.progressWeight ?? 1,
       prerequisiteLessonId: lesson.prerequisiteLessonId ?? null
     });
   };
@@ -869,6 +880,7 @@ export function CourseCreatePage() {
       liveInstructions: "",
       liveDurationMinutes: "",
       sortOrder: nextLessonSortOrder,
+      progressWeight: 1,
       prerequisiteLessonId: null
     });
   };
@@ -1160,6 +1172,22 @@ export function CourseCreatePage() {
                     />
                   </FormField>
                 ) : null}
+
+                <FormField
+                  id="new-lesson-progress-weight"
+                  label={t("courseDetail.progressWeight")}
+                  hint={t("courseDetail.progressWeightHint")}
+                  error={getLessonError(lessonForm.formState.errors.progressWeight?.message)}
+                >
+                  <Input
+                    id="new-lesson-progress-weight"
+                    type="number"
+                    min={1}
+                    max={100}
+                    className="max-w-[8rem]"
+                    {...lessonForm.register("progressWeight", { valueAsNumber: true })}
+                  />
+                </FormField>
 
                 <FormField id="new-lesson-type" label={t("courseDetail.lessonType")} error={getLessonError(lessonForm.formState.errors.contentType?.message)}>
                   <Controller

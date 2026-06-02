@@ -13,6 +13,7 @@ export class LessonRepository {
     contentType: true,
     content: true,
     sortOrder: true,
+    progressWeight: true,
     prerequisiteLessonId: true,
     archivedAt: true,
     createdAt: true,

@@ -44,10 +44,12 @@ export class CourseProgressService {
   ) {}
 
   async getSnapshot(userId: string, courseId: string): Promise<CourseProgressSnapshot> {
-    const [totalLessons, completedLessons, totalExams, passedExams, totalAssignments, submittedAssignments] =
+    const [totalLessons, completedLessons, totalLessonWeight, completedLessonWeight, totalExams, passedExams, totalAssignments, submittedAssignments] =
       await Promise.all([
         this.progressRepository.countCourseLessons(courseId),
         this.progressRepository.countCompletedCourseLessons(userId, courseId),
+        this.progressRepository.sumCourseLessonProgressWeight(courseId),
+        this.progressRepository.sumCompletedCourseLessonProgressWeight(userId, courseId),
         this.courseProgressRepository.countPublishedExams(courseId),
         this.courseProgressRepository.countPassedExamsForUser(userId, courseId),
         this.courseProgressRepository.countPublishedAssignments(courseId),
@@ -55,7 +57,9 @@ export class CourseProgressService {
       ]);
 
     const cappedCompletedLessons = totalLessons > 0 ? Math.min(completedLessons, totalLessons) : 0;
-    const lessonsPercent = this.segmentPercent(cappedCompletedLessons, totalLessons);
+    const cappedCompletedLessonWeight =
+      totalLessonWeight > 0 ? Math.min(completedLessonWeight, totalLessonWeight) : 0;
+    const lessonsPercent = this.segmentPercent(cappedCompletedLessonWeight, totalLessonWeight);
     const examsPercent = this.segmentPercent(passedExams, totalExams);
     const assignmentsPercent = this.segmentPercent(submittedAssignments, totalAssignments);
     const weights = this.resolveWeights(totalExams > 0, totalAssignments > 0);

@@ -458,6 +458,7 @@ model Lesson {
   contentType          LessonContentType
   content              String
   sortOrder            Int
+  progressWeight       Int               @default(1)
   prerequisiteLessonId String?
   archivedAt           DateTime?
   createdAt            DateTime          @default(now())

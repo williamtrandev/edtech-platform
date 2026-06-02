@@ -118,6 +118,12 @@ export const LESSON_CONTENT_TYPE = {
 
 export type LessonContentType = (typeof LESSON_CONTENT_TYPE)[keyof typeof LESSON_CONTENT_TYPE];
 
+export const LESSON_PROGRESS_WEIGHT = {
+  min: 1,
+  max: 100,
+  default: 1
+} as const;
+
 export const LIVE_SESSION_STATUS = {
   unscheduled: "UNSCHEDULED",
   upcoming: "UPCOMING",

@@ -17,6 +17,7 @@ type CreateLessonPayload = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  progressWeight?: number;
   prerequisiteLessonId?: string | null;
 };
 
@@ -30,6 +31,7 @@ type UpdateLessonPayload = {
   title: string;
   contentType: LessonContentType;
   content: string;
+  progressWeight?: number;
   prerequisiteLessonId?: string | null;
 };
 
@@ -148,6 +150,7 @@ export class LessonService {
         contentType: payload.contentType,
         content,
         sortOrder: payload.sortOrder,
+        ...(payload.progressWeight !== undefined ? { progressWeight: payload.progressWeight } : {}),
         ...(prerequisiteLessonId ? { prerequisiteLesson: { connect: { id: prerequisiteLessonId } } } : {})
       });
     } catch (error: unknown) {
@@ -255,6 +258,7 @@ export class LessonService {
       title: payload.title,
       contentType: payload.contentType,
       content,
+      ...(payload.progressWeight !== undefined ? { progressWeight: payload.progressWeight } : {}),
       ...(payload.prerequisiteLessonId !== undefined
         ? prerequisiteLessonId
           ? { prerequisiteLesson: { connect: { id: prerequisiteLessonId } } }

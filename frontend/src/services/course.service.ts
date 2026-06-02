@@ -193,6 +193,7 @@ export type Lesson = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  progressWeight: number;
   prerequisiteLessonId: string | null;
   archivedAt?: string | null;
 };
@@ -233,6 +234,7 @@ export type CreateLessonPayload = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  progressWeight?: number;
   prerequisiteLessonId?: string | null;
 };
 
@@ -240,6 +242,7 @@ export type UpdateLessonPayload = {
   title: string;
   contentType: LessonContentType;
   content: string;
+  progressWeight?: number;
   prerequisiteLessonId?: string | null;
 };
 

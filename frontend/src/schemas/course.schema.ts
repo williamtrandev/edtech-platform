@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { ASSIGNMENT_STATUS, COURSE_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, LESSON_CONTENT_TYPE } from "../constants/business";
+import {
+  ASSIGNMENT_STATUS,
+  COURSE_STATUS,
+  EXAM_QUESTION_TYPE,
+  EXAM_STATUS,
+  LESSON_CONTENT_TYPE,
+  LESSON_PROGRESS_WEIGHT
+} from "../constants/business";
 import type { I18nKey } from "../i18n";
 import { isLessonHtmlEmpty } from "../lib/lesson-content";
 
@@ -66,6 +73,12 @@ export function createLessonFormSchema(t: Translate) {
       liveInstructions: z.string().optional(),
       liveDurationMinutes: z.coerce.number().int().min(5, t("validation.lessonLiveDurationMin")).max(480, t("validation.lessonLiveDurationMax")).optional().or(z.literal("")),
       sortOrder: z.coerce.number().int().min(1),
+      progressWeight: z.coerce
+        .number()
+        .int()
+        .min(LESSON_PROGRESS_WEIGHT.min, t("validation.lessonProgressWeightMin"))
+        .max(LESSON_PROGRESS_WEIGHT.max, t("validation.lessonProgressWeightMax"))
+        .default(LESSON_PROGRESS_WEIGHT.default),
       prerequisiteLessonId: z.string().nullable().optional()
     })
     .superRefine((values, context) => {
