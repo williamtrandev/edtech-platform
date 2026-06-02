@@ -1,4 +1,13 @@
 import { z } from "zod";
+import { NOTIFICATION_TYPE } from "../../common/constants/business";
+
+const notificationTypeValues = [
+  NOTIFICATION_TYPE.enrollmentSuccess,
+  NOTIFICATION_TYPE.assignmentGraded,
+  NOTIFICATION_TYPE.certificateIssued,
+  NOTIFICATION_TYPE.coursePublished,
+  NOTIFICATION_TYPE.system
+] as const;
 
 export const listNotificationsSchema = z.object({
   query: z.object({
@@ -31,3 +40,13 @@ export const updateNotificationPreferencesSchema = z.object({
 });
 
 export type UpdateNotificationPreferencesInput = z.infer<typeof notificationPreferencesBodySchema>;
+
+export const listPlatformNotificationsSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    search: z.string().optional(),
+    type: z.enum(notificationTypeValues).optional(),
+    unreadOnly: z.coerce.boolean().default(false)
+  })
+});

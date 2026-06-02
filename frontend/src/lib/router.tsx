@@ -14,6 +14,7 @@ import { LearningPathsPage } from "../pages/learning-paths-page";
 import { LearningPathsStudioPage } from "../pages/learning-paths-studio-page";
 import { ForgotPasswordPage } from "../pages/forgot-password-page";
 import { JobsPage } from "../pages/jobs-page";
+import { NotificationManagementPage } from "../pages/notification-management-page";
 import { LoginPage } from "../pages/login-page";
 import { MyLearningPage } from "../pages/my-learning-page";
 import { MyProgressPage } from "../pages/my-progress-page";
@@ -199,6 +200,16 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <JobsPage />
+          }
+        ]
+      },
+      {
+        path: "/notifications",
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <NotificationManagementPage />
           }
         ]
       }

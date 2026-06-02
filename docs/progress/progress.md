@@ -276,7 +276,7 @@ Legend:
 - [x] Role change
 - [x] Audit logs
 - [~] Queue dashboard
-- [~] Notification management
+- [x] Notification management
 - [~] Platform analytics
 
 ### Phase 6 - Advanced Features

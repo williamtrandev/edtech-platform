@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
+import { USER_ROLE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
 import { notificationEmailQueue, notificationEmailJobOptions } from "../../jobs/notification-email.queue";
-import { NotificationRepository } from "./notification.repository";
+import { NotificationRepository, PlatformNotificationFilters } from "./notification.repository";
 import { UpdateNotificationPreferencesInput } from "./notification.schema";
 
 type CreateNotificationInput = {
@@ -114,6 +115,40 @@ export class NotificationService {
     return {
       updatedCount: result.count
     };
+  }
+
+  async listPlatformNotifications(
+    user: Express.UserClaims | undefined,
+    page: number,
+    limit: number,
+    filters: PlatformNotificationFilters = {}
+  ) {
+    this.requireAdmin(user);
+
+    const { items, total, unreadTotal } = await this.notificationRepository.findManyForPlatform(page, limit, filters);
+    return {
+      items,
+      unreadTotal,
+      pagination: {
+        page,
+        limit,
+        total
+      }
+    };
+  }
+
+  async getPlatformSummary(user: Express.UserClaims | undefined) {
+    this.requireAdmin(user);
+    return this.notificationRepository.getPlatformSummary();
+  }
+
+  private requireAdmin(user: Express.UserClaims | undefined) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+    if (user.role !== USER_ROLE.admin) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
   }
 
   private requireUserId(user: Express.UserClaims | undefined) {

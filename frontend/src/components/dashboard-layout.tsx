@@ -1,4 +1,4 @@
-import { Activity, BarChart3, BookMarked, ClipboardList, Compass, GraduationCap, Layers3, Library, LogIn, Users } from "lucide-react";
+import { Activity, BarChart3, BellRing, BookMarked, ClipboardList, Compass, GraduationCap, Layers3, Library, LogIn, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -33,11 +33,12 @@ const USERS_NAV: HeaderNavItem = { to: "/users", labelKey: "nav.users", icon: Us
 const ANALYTICS_NAV: HeaderNavItem = { to: "/analytics", labelKey: "nav.analytics", icon: BarChart3 };
 const AUDIT_NAV: HeaderNavItem = { to: "/audit", labelKey: "nav.audit", icon: ClipboardList };
 const JOBS_NAV: HeaderNavItem = { to: "/jobs", labelKey: "nav.jobs", icon: Activity };
+const NOTIFICATION_RECORDS_NAV: HeaderNavItem = { to: "/notifications", labelKey: "nav.notificationRecords", icon: BellRing };
 
 const NAV_BY_ROLE: Record<UserRole, HeaderNavItem[]> = {
   [USER_ROLE.user]: [EXPLORE_NAV, LEARNING_PATHS_NAV, MY_LEARNING_NAV, PROGRESS_NAV],
   [USER_ROLE.instructor]: [EXPLORE_NAV, COURSE_STUDIO_NAV],
-  [USER_ROLE.admin]: [COURSE_STUDIO_NAV, USERS_NAV, ANALYTICS_NAV, AUDIT_NAV, JOBS_NAV]
+  [USER_ROLE.admin]: [COURSE_STUDIO_NAV, USERS_NAV, ANALYTICS_NAV, AUDIT_NAV, JOBS_NAV, NOTIFICATION_RECORDS_NAV]
 };
 
 const GUEST_NAV: HeaderNavItem[] = [EXPLORE_NAV, LEARNING_PATHS_NAV];
