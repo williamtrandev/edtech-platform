@@ -283,11 +283,11 @@ Legend:
 
 - [x] Anti-cheat logs (exam attempt integrity events API + instructor UI)
 - [x] Course review workflow
-- [ ] Live session
+- [x] Live session
 - [x] Discussion/comments
 - [x] Rating/review
-- [ ] Learning path
-- [ ] Payment support
+- [x] Learning path
+- [x] Payment support
 
 ## 19. Constants / Domain Model
 
