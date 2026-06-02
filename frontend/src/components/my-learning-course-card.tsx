@@ -97,7 +97,7 @@ export function MyLearningCourseCard({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {secondaryAction}
             <Button asChild size="sm" className="h-10 flex-1 rounded-md px-4">
-              <Link to={getCourseLearnPath(enrollment.courseId)}>
+              <Link to={getCourseLearnPath(enrollment.courseId, enrollment.progress?.continueLessonId ?? undefined)}>
                 {continueLabel}
                 <ArrowUpRight className="size-4" aria-hidden />
               </Link>

@@ -32,6 +32,7 @@ export type EnrollmentProgress = {
       assignments: number;
     };
   };
+  continueLessonId?: string | null;
 };
 
 export type Enrollment = {

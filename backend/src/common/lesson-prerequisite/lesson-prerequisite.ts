@@ -79,3 +79,57 @@ export function getLessonUnlockState(
 ): LessonUnlockState | undefined {
   return buildLessonUnlockMap(lessons, completedLessonIds).get(lessonId);
 }
+
+type ContinueLessonProgress = {
+  isCompleted: boolean;
+  watchPositionSeconds?: number;
+};
+
+export function resolveContinueLessonId(
+  lessons: LessonPrerequisiteNode[],
+  progressByLessonId: Map<string, ContinueLessonProgress>,
+  completedLessonIds: ReadonlySet<string>
+): string | null {
+  if (lessons.length === 0) {
+    return null;
+  }
+
+  const unlockByLessonId = buildLessonUnlockMap(lessons, completedLessonIds);
+  let resumeLessonId: string | null = null;
+  let resumeWatchSeconds = 0;
+
+  for (const lesson of lessons) {
+    const unlock = unlockByLessonId.get(lesson.id);
+    if (unlock && !unlock.isUnlocked) {
+      continue;
+    }
+
+    const progress = progressByLessonId.get(lesson.id);
+    if (progress?.isCompleted) {
+      continue;
+    }
+
+    const watchPositionSeconds = progress?.watchPositionSeconds ?? 0;
+    if (watchPositionSeconds > resumeWatchSeconds) {
+      resumeLessonId = lesson.id;
+      resumeWatchSeconds = watchPositionSeconds;
+    }
+  }
+
+  if (resumeLessonId) {
+    return resumeLessonId;
+  }
+
+  for (const lesson of lessons) {
+    const unlock = unlockByLessonId.get(lesson.id);
+    if (unlock && !unlock.isUnlocked) {
+      continue;
+    }
+
+    if (!progressByLessonId.get(lesson.id)?.isCompleted) {
+      return lesson.id;
+    }
+  }
+
+  return lessons[0]?.id ?? null;
+}

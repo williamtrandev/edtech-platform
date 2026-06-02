@@ -197,7 +197,10 @@ export class EnrollmentService {
     return deleted;
   }
 
-  private toProgressPayload(snapshot: Awaited<ReturnType<CourseProgressService["getSnapshot"]>>) {
+  private toProgressPayload(
+    snapshot: Awaited<ReturnType<CourseProgressService["getSnapshot"]>>,
+    continueLessonId: string | null
+  ) {
     return {
       courseId: snapshot.courseId,
       totalLessons: snapshot.totalLessons,
@@ -209,16 +212,20 @@ export class EnrollmentService {
       percentage: snapshot.percentage,
       isComplete: snapshot.isComplete,
       completionCriteria: snapshot.completionCriteria,
-      breakdown: snapshot.breakdown
+      breakdown: snapshot.breakdown,
+      continueLessonId
     };
   }
 
   private async withProgressSnapshot<T extends { courseId: string }>(enrollment: T, userId: string, courseId: string) {
-    const snapshot = await this.courseProgressService.getSnapshot(userId, courseId);
+    const [snapshot, continueLessonId] = await Promise.all([
+      this.courseProgressService.getSnapshot(userId, courseId),
+      this.courseProgressService.getContinueLessonId(userId, courseId)
+    ]);
 
     return {
       ...enrollment,
-      progress: this.toProgressPayload(snapshot)
+      progress: this.toProgressPayload(snapshot, continueLessonId)
     };
   }
 
@@ -229,10 +236,13 @@ export class EnrollmentService {
 
     const snapshots = await Promise.all(
       enrollments.map(async (enrollment) => {
-        const snapshot = await this.courseProgressService.getSnapshot(userId, enrollment.courseId);
+        const [snapshot, continueLessonId] = await Promise.all([
+          this.courseProgressService.getSnapshot(userId, enrollment.courseId),
+          this.courseProgressService.getContinueLessonId(userId, enrollment.courseId)
+        ]);
         return {
           ...enrollment,
-          progress: this.toProgressPayload(snapshot)
+          progress: this.toProgressPayload(snapshot, continueLessonId)
         };
       })
     );

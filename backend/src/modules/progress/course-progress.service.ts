@@ -4,6 +4,7 @@ import {
   COURSE_PROGRESS_WEIGHTS,
   type CourseCompletionCriteriaType
 } from "../../common/constants/progress";
+import { resolveContinueLessonId } from "../../common/lesson-prerequisite/lesson-prerequisite";
 import { ProgressRepository } from "./progress.repository";
 import { CourseProgressRepository } from "./course-progress.repository";
 
@@ -98,6 +99,26 @@ export class CourseProgressService {
         weights
       }
     };
+  }
+
+  async getContinueLessonId(userId: string, courseId: string): Promise<string | null> {
+    const [lessons, progressRows, completedLessonIds] = await Promise.all([
+      this.progressRepository.findCourseLessonsForUnlock(courseId),
+      this.progressRepository.findMyLessonProgressByCourse(userId, courseId),
+      this.progressRepository.findCompletedLessonIdsByCourse(userId, courseId)
+    ]);
+
+    const progressByLessonId = new Map(
+      progressRows.map((row) => [
+        row.lessonId,
+        {
+          isCompleted: row.isCompleted,
+          watchPositionSeconds: row.watchPositionSeconds
+        }
+      ])
+    );
+
+    return resolveContinueLessonId(lessons, progressByLessonId, completedLessonIds);
   }
 
   private segmentPercent(completed: number, total: number) {

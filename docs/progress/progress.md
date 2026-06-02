@@ -167,14 +167,14 @@ Legend:
 - [x] Role update for existing users exists in UI/API flow.
 - [x] Suspend/reactivate exists with `ACTIVE`/`SUSPENDED` user status.
 - [x] Last admin protection exists for role downgrade/delete.
-- [~] Admin role/status updates are audited; full admin action audit UI missing.
+- [x] Admin role/status updates are audited; audit log UI covers grade, enrollment, and certificate actions.
 
 ## 13. Audit Flow
 
 - [x] Audit log model/schema exists.
 - [x] Role/status change audit implemented for admin user updates.
 - [x] Course publish/archive audit implemented.
-- [~] Grade/certificate/admin override audit partially implemented (certificate revoke/restore audited).
+- [x] Grade/certificate/admin override audit implemented (manual/auto exam grade, assignment grade, manager enrollment, certificates).
 - [x] Append-only audit rules enforced in Prisma client (`auditLog` update/delete/upsert blocked).
 - [x] Audit UI implemented for admin audit log browsing/filtering.
 
@@ -241,7 +241,7 @@ Legend:
 - [x] Enrollment
 - [x] Lesson learning (course detail learner reader + prev/next)
 - [x] Lesson completion
-- [~] My Learning dashboard
+- [x] My Learning dashboard with resume lesson deep links (`continueLessonId` on enrollment progress).
 
 ### Phase 2 - Instructor Studio
 
