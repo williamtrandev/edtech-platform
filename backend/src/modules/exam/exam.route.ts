@@ -6,6 +6,7 @@ import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { ExamAttemptController } from "../exam-attempt/exam-attempt.controller";
+import { ExamAttemptIntegrityRepository } from "../exam-attempt/exam-attempt-integrity.repository";
 import { ExamAttemptRepository } from "../exam-attempt/exam-attempt.repository";
 import { listExamAttemptsSchema, startExamAttemptSchema } from "../exam-attempt/exam-attempt.schema";
 import { ExamAttemptService } from "../exam-attempt/exam-attempt.service";
@@ -13,6 +14,8 @@ import { ExamQuestionController } from "../exam-question/exam-question.controlle
 import { ExamQuestionRepository } from "../exam-question/exam-question.repository";
 import { createExamQuestionSchema, examQuestionsParamSchema } from "../exam-question/exam-question.schema";
 import { ExamQuestionService } from "../exam-question/exam-question.service";
+import { NotificationRepository } from "../notification/notification.repository";
+import { NotificationService } from "../notification/notification.service";
 import { ExamController } from "./exam.controller";
 import { ExamRepository } from "./exam.repository";
 import { ExamService } from "./exam.service";
@@ -25,7 +28,17 @@ const auditRepository = new AuditRepository();
 const examService = new ExamService(examRepository, courseRepository, auditRepository);
 const examController = new ExamController(examService);
 const examAttemptRepository = new ExamAttemptRepository();
-const examAttemptService = new ExamAttemptService(examAttemptRepository, courseRepository, enrollmentRepository, auditRepository);
+const examAttemptIntegrityRepository = new ExamAttemptIntegrityRepository();
+const notificationRepository = new NotificationRepository();
+const notificationService = new NotificationService(notificationRepository);
+const examAttemptService = new ExamAttemptService(
+  examAttemptRepository,
+  examAttemptIntegrityRepository,
+  courseRepository,
+  enrollmentRepository,
+  auditRepository,
+  notificationService
+);
 const examAttemptController = new ExamAttemptController(examAttemptService);
 const examQuestionRepository = new ExamQuestionRepository();
 const examQuestionService = new ExamQuestionService(examQuestionRepository, examRepository, courseRepository, auditRepository);

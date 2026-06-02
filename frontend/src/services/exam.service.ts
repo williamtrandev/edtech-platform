@@ -1,4 +1,10 @@
-import type { ExamAttemptStatus, ExamQuestionType, ExamStatus } from "../constants/business";
+import type {
+  ExamAttemptEventType,
+  ExamAttemptStatus,
+  ExamQuestionType,
+  ExamStatus,
+  ExamSubmitReason
+} from "../constants/business";
 import { httpClient } from "../lib/http-client";
 
 type ApiResponse<T> = {
@@ -79,9 +85,25 @@ export type ExamAttempt = {
   submittedAt?: string | null;
   gradedAt?: string | null;
   score?: number | null;
+  suspiciousEventCount?: number;
   createdAt: string;
   updatedAt: string;
   answers: ExamAttemptAnswer[];
+};
+
+export type ExamIntegrityEvent = {
+  id: string;
+  attemptId: string;
+  type: ExamAttemptEventType;
+  clientEventId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type ExamIntegrityEventInput = {
+  type: ExamAttemptEventType;
+  clientEventId?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type ExamAttemptForReview = Omit<ExamAttempt, "answers"> & {
@@ -134,6 +156,13 @@ export type SubmitExamAttemptPayload = {
     questionId: string;
     answer: string | string[] | null;
   }>;
+  submitReason?: ExamSubmitReason;
+};
+
+export type ExamIntegrityEventsResponse = {
+  attemptId: string;
+  events: ExamIntegrityEvent[];
+  suspiciousEventCount: number;
 };
 
 export type GradeExamAttemptPayload = {
@@ -206,6 +235,19 @@ export const examService = {
   },
   async gradeExamAttempt(attemptId: string, payload: GradeExamAttemptPayload): Promise<{ attempt: ExamAttempt }> {
     const response = await httpClient.patch<ApiResponse<{ attempt: ExamAttempt }>>(`/exam-attempts/${attemptId}/grading`, payload);
+    return response.data.data;
+  },
+  async recordExamIntegrityEvents(attemptId: string, events: ExamIntegrityEventInput[]) {
+    const response = await httpClient.post<ApiResponse<{ events: ExamIntegrityEvent[] }>>(
+      `/exam-attempts/${attemptId}/integrity-events`,
+      { events }
+    );
+    return response.data.data;
+  },
+  async listExamIntegrityEvents(attemptId: string): Promise<ExamIntegrityEventsResponse> {
+    const response = await httpClient.get<ApiResponse<ExamIntegrityEventsResponse>>(
+      `/exam-attempts/${attemptId}/integrity-events`
+    );
     return response.data.data;
   }
 };

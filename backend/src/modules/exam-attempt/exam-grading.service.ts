@@ -1,5 +1,7 @@
 import { ExamAttemptStatus, ExamQuestionType, Prisma } from "@prisma/client";
 import { EXAM_QUESTION_TYPE } from "../../common/constants/business";
+import { CertificateEligibilityService } from "../progress/certificate-eligibility.service";
+import { NotificationService } from "../notification/notification.service";
 import { ExamAttemptRepository } from "./exam-attempt.repository";
 
 type GradingQuestion = {
@@ -66,7 +68,11 @@ function isObjectiveAnswerCorrect(type: ExamQuestionType, answer: Prisma.JsonVal
 }
 
 export class ExamGradingService {
-  constructor(private readonly examAttemptRepository: ExamAttemptRepository) {}
+  constructor(
+    private readonly examAttemptRepository: ExamAttemptRepository,
+    private readonly notificationService?: NotificationService,
+    private readonly certificateEligibilityService?: CertificateEligibilityService
+  ) {}
 
   async gradeAttempt(attemptId: string) {
     const gradingContext = await this.examAttemptRepository.findAttemptForGrading(attemptId);
@@ -102,6 +108,25 @@ export class ExamGradingService {
     }
 
     const score = totalPoints === 0 ? 0 : Math.round((earnedPoints / totalPoints) * 100);
-    return this.examAttemptRepository.markAttemptGraded(attemptId, score);
+    const gradedAttempt = await this.examAttemptRepository.markAttemptGraded(attemptId, score);
+    await this.notificationService?.createNotification({
+      userId: gradingContext.userId,
+      type: "SYSTEM",
+      title: "Exam graded",
+      body: `Your exam was graded. Score: ${gradedAttempt.score ?? score}.`,
+      linkUrl: "/my-progress",
+      metadata: {
+        examId: gradingContext.examId,
+        attemptId: gradedAttempt.id,
+        score: gradedAttempt.score
+      }
+    });
+
+    const courseId = gradingContext.exam.courseId;
+    if (courseId) {
+      await this.certificateEligibilityService?.tryIssueCertificateIfEligible(gradingContext.userId, courseId);
+    }
+
+    return gradedAttempt;
   }
 }

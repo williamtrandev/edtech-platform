@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ExamAttemptStatus } from "../constants/business";
+import type { ExamAttemptStatus, ExamSubmitReason } from "../constants/business";
 import {
   examService,
   type CreateExamPayload,
@@ -163,12 +163,27 @@ export function useSubmitExamAttempt(courseId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ attemptId, answers }: { attemptId: string; answers: Array<{ questionId: string; answer: string | string[] | null }> }) =>
-      examService.submitExamAttempt(attemptId, { answers }),
+    mutationFn: ({
+      attemptId,
+      answers,
+      submitReason
+    }: {
+      attemptId: string;
+      answers: Array<{ questionId: string; answer: string | string[] | null }>;
+      submitReason?: ExamSubmitReason;
+    }) => examService.submitExamAttempt(attemptId, { answers, submitReason }),
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "exams"] });
       await queryClient.invalidateQueries({ queryKey: ["exam-attempts", variables.attemptId] });
     }
+  });
+}
+
+export function useExamIntegrityEvents(attemptId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["exam-integrity-events", attemptId],
+    queryFn: () => examService.listExamIntegrityEvents(attemptId!),
+    enabled: Boolean(attemptId) && enabled
   });
 }
 
