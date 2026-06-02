@@ -220,6 +220,8 @@ export type UpdateCoursePayload = {
   requirements?: string | null;
   outcomes?: string | null;
   coverImageUrl?: string | null;
+  priceCents?: number;
+  currency?: string;
   status?: EditableCourseStatus;
 };
 
