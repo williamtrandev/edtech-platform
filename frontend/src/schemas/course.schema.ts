@@ -19,6 +19,8 @@ export function createCourseFormSchema(t: Translate) {
     requirements: z.string().trim().min(1, t("validation.courseRequirementsRequired")).max(2000, t("validation.courseLongTextMax")),
     outcomes: z.string().trim().min(1, t("validation.courseOutcomesRequired")).max(2000, t("validation.courseLongTextMax")),
     coverImageUrl: z.string().trim().min(1, t("validation.courseCoverRequired")).max(2000, t("validation.courseCoverUrlMax")),
+    priceCents: z.coerce.number().int().min(0, t("validation.coursePriceMin")).max(10_000_000, t("validation.coursePriceMax")).optional().or(z.literal("")),
+    currency: z.string().trim().length(3, t("validation.courseCurrencyInvalid")).optional(),
     status: z.enum([COURSE_STATUS.draft, COURSE_STATUS.published, COURSE_STATUS.archived]).default(COURSE_STATUS.draft)
   });
 }

@@ -207,6 +207,8 @@ export type CreateCoursePayload = {
   requirements: string;
   outcomes: string;
   coverImageUrl: string;
+  priceCents?: number;
+  currency?: string;
   status: EditableCourseStatus;
 };
 

@@ -1,7 +1,6 @@
-import { BookOpen, Loader2, Search, X } from "lucide-react";
+import { BookOpen, Search, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,15 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { AppShell } from "../components/app-shell";
 import { CourseCatalogCard } from "../components/course-catalog-card";
+import { CourseEnrollButton } from "../components/course-enroll-button";
 import { EmptyState } from "../components/empty-state";
 import { CourseCardGridSkeleton } from "../components/skeleton";
 import { COURSE_STATUS } from "../constants/business";
 import { useAuth } from "../hooks/use-auth";
 import { useCourseFacets, useInfiniteCourses } from "../hooks/use-courses";
 import { useCurrentUser } from "../hooks/use-current-user";
-import { useEnrollCourse, useMyEnrollments } from "../hooks/use-enrollments";
+import { useMyEnrollments } from "../hooks/use-enrollments";
 import { useI18n } from "../i18n";
 import { canSelfEnrollInCourse } from "../lib/enrollment-access";
+import { formatMoney, isPaidCourse } from "../lib/course-pricing";
 import { getCourseLearnPath } from "../lib/course-learn-path";
 import { STUDIO_FORM_SHELL, STUDIO_NOTICE } from "../lib/studio-ui";
 
@@ -53,7 +54,6 @@ export function ExploreCoursesPage() {
   const { isAuthenticated, isBootstrapping } = useAuth();
   const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const myEnrollmentsQuery = useMyEnrollments(isAuthenticated && !isBootstrapping);
-  const enrollMutation = useEnrollCourse();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [category, setCategory] = useState(ALL_FILTER_VALUE);
@@ -115,8 +115,6 @@ export function ExploreCoursesPage() {
     () => new Set((myEnrollmentsQuery.data ?? []).map((item) => item.courseId)),
     [myEnrollmentsQuery.data]
   );
-  const enrollingCourseId = enrollMutation.isPending ? enrollMutation.variables : undefined;
-
   const clearFilters = () => {
     setQuery("");
     setCategory(ALL_FILTER_VALUE);
@@ -194,15 +192,6 @@ export function ExploreCoursesPage() {
   }, [category, enrollment, facets.instructors, instructorId, isAuthenticated, language, level, query, sort, t]);
 
   const hasActiveFilters = activeFilterChips.length > 0;
-
-  const handleEnroll = async (courseId: string) => {
-    try {
-      await enrollMutation.mutateAsync(courseId);
-      toast.success(t("explore.enrolled"));
-    } catch (e) {
-      toast.error(formatError(e, "explore.enrollFailed"));
-    }
-  };
 
   return (
     <AppShell title={t("explore.title")} subtitle={t("explore.subtitle")}>
@@ -375,7 +364,9 @@ export function ExploreCoursesPage() {
                     courseStatus: course.status,
                     isEnrolled
                   });
-                  const isEnrollingThisCourse = enrollingCourseId === course.id;
+                  const priceLabel = isPaidCourse(course.priceCents)
+                    ? formatMoney(course.priceCents ?? 0, course.currency ?? "USD")
+                    : null;
 
                   return (
                     <CourseCatalogCard
@@ -386,29 +377,23 @@ export function ExploreCoursesPage() {
                       noDescriptionLabel={t("explore.noDescription")}
                       enrolledLearnersLabel={t("explore.enrolledLearners")}
                       durationUnitLabel={t("courseStudio.courseDurationUnit")}
+                      metaSlot={
+                        priceLabel ? (
+                          <span className="text-xs font-semibold text-foreground">{priceLabel}</span>
+                        ) : undefined
+                      }
                       secondaryAction={
                         isAuthenticated && isEnrolled ? (
                           <Button asChild variant="secondary" size="sm" className="h-10 flex-1 rounded-lg px-4">
                             <Link to={getCourseLearnPath(course.id)}>{t("explore.continueLearning")}</Link>
                           </Button>
                         ) : showEnroll ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
+                          <CourseEnrollButton
+                            courseId={course.id}
+                            priceCents={course.priceCents}
+                            currency={course.currency}
                             className="h-10 flex-1 rounded-lg px-4"
-                            disabled={Boolean(enrollingCourseId)}
-                            type="button"
-                            onClick={() => void handleEnroll(course.id)}
-                          >
-                            {isEnrollingThisCourse ? (
-                              <>
-                                <Loader2 className="size-4 animate-spin" aria-hidden />
-                                {t("explore.enrolling")}
-                              </>
-                            ) : (
-                              t("explore.enroll")
-                            )}
-                          </Button>
+                          />
                         ) : undefined
                       }
                     />
