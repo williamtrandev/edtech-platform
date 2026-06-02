@@ -7,6 +7,7 @@ import { CourseRepository } from "../course/course.repository";
 import { NotificationService } from "../notification/notification.service";
 import { CourseProgressService } from "../progress/course-progress.service";
 import { UserRepository } from "../user/user.repository";
+import { CoursePaymentRepository } from "../course-payment/course-payment.repository";
 import { EnrollmentRepository } from "./enrollment.repository";
 
 export class EnrollmentService {
@@ -15,7 +16,8 @@ export class EnrollmentService {
     private readonly courseRepository: CourseRepository,
     private readonly courseProgressService: CourseProgressService,
     private readonly userRepository: UserRepository,
-    private readonly notificationService?: NotificationService
+    private readonly notificationService?: NotificationService,
+    private readonly coursePaymentRepository?: CoursePaymentRepository
   ) {}
 
   async listMyEnrollments(user: Express.UserClaims | undefined) {
@@ -51,6 +53,13 @@ export class EnrollmentService {
     }
 
     assertCanSelfEnroll({ id: actor.id, status: actor.status }, { instructorId: course.instructorId });
+
+    if (course.priceCents > 0) {
+      const payment = await this.coursePaymentRepository?.findCompletedByUserAndCourse(user.id, payload.courseId);
+      if (!payment) {
+        throw new AppError("Complete payment before enrolling", 402, "PAYMENT_REQUIRED");
+      }
+    }
 
     try {
       const enrollment = await this.enrollmentRepository.create(user.id, payload.courseId);

@@ -20,6 +20,8 @@ export type Course = {
   coverImageUrl?: string | null;
   ratingAverage: number;
   ratingCount: number;
+  priceCents?: number;
+  currency?: string;
   status: CourseStatus;
   instructorId: string;
   instructor?: {

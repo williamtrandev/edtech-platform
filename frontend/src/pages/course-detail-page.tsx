@@ -99,6 +99,7 @@ import {
   useUpdateCourse
 } from "../hooks/use-courses";
 import { useEnrollCourse, useMyEnrollments } from "../hooks/use-enrollments";
+import { CourseEnrollButton } from "../components/course-enroll-button";
 import { useExamIntegrityMonitor } from "../hooks/use-exam-integrity-monitor";
 import { useArchiveExam, useCourseExams, useCreateExam, useCreateExamQuestion, useDeleteExamQuestion, useExamAttempt, useExamAttempts, useExamQuestions, useGradeExamAttempt, useSaveExamAttemptAnswers, useStartExamAttempt, useSubmitExamAttempt, useUpdateExam, useUpdateExamQuestion } from "../hooks/use-exams";
 import { useCourseCertificates, useRestoreCertificate, useRevokeCertificate } from "../hooks/use-certificates";
@@ -1741,25 +1742,13 @@ export function CourseDetailPage() {
             </Button>
           ) : null}
           {canSelfEnroll ? (
-            <Button
-              size="sm"
+            <CourseEnrollButton
+              courseId={courseId}
+              priceCents={courseQuery.data?.priceCents}
+              currency={courseQuery.data?.currency}
               className="rounded-lg shadow-none"
-              disabled={enrollMutation.isPending}
-              type="button"
-              onClick={() => {
-                void (async () => {
-                  try {
-                    await enrollMutation.mutateAsync(courseId);
-                    toast.success(t("courseDetail.enrolled"));
-                    setActiveTab("curriculum");
-                  } catch (e) {
-                    toast.error(formatError(e, "courseDetail.enrollFailed"));
-                  }
-                })();
-              }}
-            >
-              {enrollMutation.isPending ? t("courseDetail.enrolling") : t("courseDetail.enroll")}
-            </Button>
+              onEnrolled={() => setActiveTab("curriculum")}
+            />
           ) : null}
           {showOwnerCannotEnrollHint ? (
             <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">{t("courseDetail.enrollmentOwnerCannotEnroll")}</p>
@@ -2073,24 +2062,13 @@ export function CourseDetailPage() {
                           <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
                         </Button>
                       ) : canSelfEnroll ? (
-                        <Button
+                        <CourseEnrollButton
+                          courseId={courseId}
+                          priceCents={courseQuery.data?.priceCents}
+                          currency={courseQuery.data?.currency}
                           className="h-10 rounded-md px-4"
-                          size="sm"
-                          disabled={enrollMutation.isPending}
-                          type="button"
-                          onClick={() => {
-                            void (async () => {
-                              try {
-                                await enrollMutation.mutateAsync(courseId);
-                                toast.success(t("courseDetail.enrolled"));
-                              } catch (e) {
-                                toast.error(formatError(e, "courseDetail.enrollFailed"));
-                              }
-                            })();
-                          }}
-                        >
-                          {enrollMutation.isPending ? t("courseDetail.enrolling") : t("courseDetail.enroll")}
-                        </Button>
+                          onEnrolled={() => setActiveTab("curriculum")}
+                        />
                       ) : null
                     }
                   />

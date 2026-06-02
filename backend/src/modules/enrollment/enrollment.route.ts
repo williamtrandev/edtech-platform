@@ -13,6 +13,7 @@ import { EnrollmentRepository } from "./enrollment.repository";
 import { EnrollmentService } from "./enrollment.service";
 import { adminEnrollCourseSchema, adminRemoveCourseEnrollmentSchema, createEnrollmentSchema, dropEnrollmentSchema } from "./enrollment.schema";
 import { UserRepository } from "../user/user.repository";
+import { CoursePaymentRepository } from "../course-payment/course-payment.repository";
 
 const enrollmentRepository = new EnrollmentRepository();
 const courseRepository = new CourseRepository();
@@ -22,12 +23,14 @@ const courseProgressService = new CourseProgressService(progressRepository, cour
 const notificationRepository = new NotificationRepository();
 const notificationService = new NotificationService(notificationRepository);
 const userRepository = new UserRepository();
+const coursePaymentRepository = new CoursePaymentRepository();
 const enrollmentService = new EnrollmentService(
   enrollmentRepository,
   courseRepository,
   courseProgressService,
   userRepository,
-  notificationService
+  notificationService,
+  coursePaymentRepository
 );
 const enrollmentController = new EnrollmentController(enrollmentService);
 
