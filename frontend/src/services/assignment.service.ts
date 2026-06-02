@@ -15,6 +15,31 @@ type PaginatedResponse<T> = {
   };
 };
 
+export type AssignmentRubricCriterion = {
+  id: string;
+  title: string;
+  description?: string | null;
+  maxPoints: number;
+  sortOrder: number;
+};
+
+export type AssignmentRubricCriterionInput = {
+  title: string;
+  description?: string | null;
+  maxPoints: number;
+};
+
+export type AssignmentRubricScore = {
+  criterionId: string;
+  points: number;
+  criterion: {
+    id: string;
+    title: string;
+    maxPoints: number;
+    sortOrder: number;
+  };
+};
+
 export type AssignmentSubmission = {
   id: string;
   assignmentId: string;
@@ -29,6 +54,7 @@ export type AssignmentSubmission = {
   feedback?: string | null;
   createdAt: string;
   updatedAt: string;
+  rubricScores?: AssignmentRubricScore[];
   user?: {
     id: string;
     email: string;
@@ -49,6 +75,7 @@ export type Assignment = {
   createdAt: string;
   updatedAt: string;
   submissionCount: number;
+  rubricCriteria?: AssignmentRubricCriterion[];
   mySubmission?: AssignmentSubmission | null;
 };
 
@@ -69,8 +96,13 @@ export type SubmitAssignmentPayload = {
 };
 
 export type GradeAssignmentPayload = {
-  score: number;
+  score?: number;
   feedback?: string | null;
+  rubricScores?: Array<{ criterionId: string; points: number }>;
+};
+
+export type ReplaceAssignmentRubricPayload = {
+  criteria: AssignmentRubricCriterionInput[];
 };
 
 export const assignmentService = {
@@ -102,6 +134,10 @@ export const assignmentService = {
   },
   async gradeAssignmentSubmission(submissionId: string, payload: GradeAssignmentPayload): Promise<AssignmentSubmission> {
     const response = await httpClient.patch<ApiResponse<AssignmentSubmission>>(`/assignment-submissions/${submissionId}/grading`, payload);
+    return response.data.data;
+  },
+  async replaceAssignmentRubric(assignmentId: string, payload: ReplaceAssignmentRubricPayload): Promise<Assignment> {
+    const response = await httpClient.put<ApiResponse<Assignment>>(`/assignments/${assignmentId}/rubric-criteria`, payload);
     return response.data.data;
   }
 };

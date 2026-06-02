@@ -23,4 +23,9 @@ export class AssignmentController {
     const assignment = await this.assignmentService.archiveAssignment(req.user, req.params.assignmentId);
     res.status(200).json({ success: true, data: assignment });
   };
+
+  replaceAssignmentRubric = async (req: Request, res: Response): Promise<void> => {
+    const assignment = await this.assignmentService.replaceAssignmentRubric(req.user, req.params.assignmentId, req.body.criteria);
+    res.status(200).json({ success: true, data: assignment });
+  };
 }

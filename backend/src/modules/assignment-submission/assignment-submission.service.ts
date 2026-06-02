@@ -6,6 +6,8 @@ import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { NotificationService } from "../notification/notification.service";
+import { CertificateEligibilityService } from "../progress/certificate-eligibility.service";
+import { assertScoreWithinAssignmentMax, resolveGradeScore } from "../../common/assignment-rubric/assignment-rubric";
 import { AssignmentSubmissionRepository } from "./assignment-submission.repository";
 
 type SubmitAssignmentPayload = {
@@ -14,8 +16,9 @@ type SubmitAssignmentPayload = {
 };
 
 type GradeAssignmentPayload = {
-  score: number;
+  score?: number;
   feedback?: string | null;
+  rubricScores?: Array<{ criterionId: string; points: number }>;
 };
 
 export class AssignmentSubmissionService {
@@ -24,7 +27,8 @@ export class AssignmentSubmissionService {
     private readonly courseRepository: CourseRepository,
     private readonly enrollmentRepository: EnrollmentRepository,
     private readonly auditRepository?: AuditRepository,
-    private readonly notificationService?: NotificationService
+    private readonly notificationService?: NotificationService,
+    private readonly certificateEligibilityService?: CertificateEligibilityService
   ) {}
 
   async listAssignmentSubmissions(user: Express.UserClaims | undefined, assignmentId: string, page: number, limit: number) {
@@ -89,6 +93,8 @@ export class AssignmentSubmissionService {
       isLate
     });
 
+    await this.certificateEligibilityService?.tryIssueCertificateIfEligible(user.id, assignment.courseId);
+
     return submission;
   }
 
@@ -109,12 +115,14 @@ export class AssignmentSubmissionService {
 
     this.assertCanManageCourse(user, course.instructorId);
 
-    const maxScore = submission.assignment.maxScore;
-    if (maxScore !== null && maxScore !== undefined && payload.score > maxScore) {
-      throw new AppError("Score exceeds assignment maximum", 422, "ASSIGNMENT_SCORE_EXCEEDS_MAX");
-    }
+    const { score, rubricScores } = resolveGradeScore(submission.assignment.rubricCriteria, payload);
+    assertScoreWithinAssignmentMax(score, submission.assignment.maxScore);
 
-    const gradedSubmission = await this.assignmentSubmissionRepository.gradeSubmission(submissionId, payload);
+    const gradedSubmission = await this.assignmentSubmissionRepository.gradeSubmission(submissionId, {
+      score,
+      feedback: payload.feedback,
+      rubricScores
+    });
     await this.notificationService?.createNotification({
       userId: submission.userId,
       type: NOTIFICATION_TYPE.assignmentGraded,

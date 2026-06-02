@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { assignmentService, type CreateAssignmentPayload, type GradeAssignmentPayload, type SubmitAssignmentPayload, type UpdateAssignmentPayload } from "../services/assignment.service";
+import {
+  assignmentService,
+  type CreateAssignmentPayload,
+  type GradeAssignmentPayload,
+  type ReplaceAssignmentRubricPayload,
+  type SubmitAssignmentPayload,
+  type UpdateAssignmentPayload
+} from "../services/assignment.service";
 
 export function useCourseAssignments(courseId: string, enabled = true) {
   return useQuery({
@@ -61,6 +68,19 @@ export function useAssignmentSubmissions(courseId: string, assignmentId: string 
     queryKey: ["courses", courseId, "assignments", assignmentId, "submissions", page],
     queryFn: () => assignmentService.getAssignmentSubmissions(assignmentId!, page),
     enabled: Boolean(courseId && assignmentId) && enabled
+  });
+}
+
+export function useReplaceAssignmentRubric(courseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ assignmentId, payload }: { assignmentId: string; payload: ReplaceAssignmentRubricPayload }) =>
+      assignmentService.replaceAssignmentRubric(assignmentId, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "assignments"] });
+      await queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+    }
   });
 }
 

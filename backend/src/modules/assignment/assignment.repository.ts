@@ -10,11 +10,31 @@ export class AssignmentRepository {
     attachmentUrl: true,
     status: true,
     submittedAt: true,
+    isLate: true,
     gradedAt: true,
     score: true,
     feedback: true,
     createdAt: true,
     updatedAt: true,
+    rubricScores: {
+      select: {
+        criterionId: true,
+        points: true,
+        criterion: {
+          select: {
+            id: true,
+            title: true,
+            maxPoints: true,
+            sortOrder: true
+          }
+        }
+      },
+      orderBy: {
+        criterion: {
+          sortOrder: "asc"
+        }
+      }
+    },
     user: {
       select: {
         id: true,
@@ -23,6 +43,14 @@ export class AssignmentRepository {
       }
     }
   } satisfies Prisma.AssignmentSubmissionSelect;
+
+  private readonly rubricCriterionSelect = {
+    id: true,
+    title: true,
+    description: true,
+    maxPoints: true,
+    sortOrder: true
+  } satisfies Prisma.AssignmentRubricCriterionSelect;
 
   private readonly assignmentSelect = {
     id: true,
@@ -35,7 +63,11 @@ export class AssignmentRepository {
     attachmentUrl: true,
     archivedAt: true,
     createdAt: true,
-    updatedAt: true
+    updatedAt: true,
+    rubricCriteria: {
+      select: this.rubricCriterionSelect,
+      orderBy: { sortOrder: "asc" as const }
+    }
   } satisfies Prisma.AssignmentSelect;
 
   private mapAssignment<T extends { _count?: { submissions: number }; submissions?: unknown[] }>(assignment: T) {

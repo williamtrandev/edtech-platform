@@ -23,12 +23,40 @@ export class AssignmentSubmissionRepository {
         role: true
       }
     },
+    rubricScores: {
+      select: {
+        criterionId: true,
+        points: true,
+        criterion: {
+          select: {
+            id: true,
+            title: true,
+            maxPoints: true,
+            sortOrder: true
+          }
+        }
+      },
+      orderBy: {
+        criterion: {
+          sortOrder: "asc"
+        }
+      }
+    },
     assignment: {
       select: {
         id: true,
         courseId: true,
         title: true,
-        maxScore: true
+        maxScore: true,
+        rubricCriteria: {
+          select: {
+            id: true,
+            title: true,
+            maxPoints: true,
+            sortOrder: true
+          },
+          orderBy: { sortOrder: "asc" }
+        }
       }
     }
   } satisfies Prisma.AssignmentSubmissionSelect;
@@ -93,22 +121,43 @@ export class AssignmentSubmissionRepository {
         isLate: data.isLate ?? false,
         gradedAt: null,
         score: null,
-        feedback: null
+        feedback: null,
+        rubricScores: {
+          deleteMany: {}
+        }
       },
       select: this.submissionSelect
     });
   }
 
-  async gradeSubmission(id: string, data: { score: number; feedback?: string | null }) {
-    return prisma.assignmentSubmission.update({
-      where: { id },
-      data: {
-        status: AssignmentSubmissionStatus.GRADED,
-        score: data.score,
-        feedback: data.feedback || null,
-        gradedAt: new Date()
-      },
-      select: this.submissionSelect
+  async gradeSubmission(
+    id: string,
+    data: { score: number; feedback?: string | null; rubricScores?: Array<{ criterionId: string; points: number }> }
+  ) {
+    return prisma.$transaction(async (tx) => {
+      if (data.rubricScores?.length) {
+        await tx.assignmentRubricScore.deleteMany({
+          where: { submissionId: id }
+        });
+        await tx.assignmentRubricScore.createMany({
+          data: data.rubricScores.map((entry) => ({
+            submissionId: id,
+            criterionId: entry.criterionId,
+            points: entry.points
+          }))
+        });
+      }
+
+      return tx.assignmentSubmission.update({
+        where: { id },
+        data: {
+          status: AssignmentSubmissionStatus.GRADED,
+          score: data.score,
+          feedback: data.feedback || null,
+          gradedAt: new Date()
+        },
+        select: this.submissionSelect
+      });
     });
   }
 }

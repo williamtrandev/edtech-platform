@@ -5,6 +5,8 @@ import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
+import { ASSIGNMENT_RUBRIC_LIMITS } from "../../common/constants/assignment";
+import { AssignmentRubricRepository } from "./assignment-rubric.repository";
 import { AssignmentRepository } from "./assignment.repository";
 
 type AssignmentPayload = {
@@ -18,9 +20,16 @@ type AssignmentPayload = {
 
 type UpdateAssignmentPayload = Partial<AssignmentPayload>;
 
+type ReplaceRubricCriterionPayload = {
+  title: string;
+  description?: string | null;
+  maxPoints: number;
+};
+
 export class AssignmentService {
   constructor(
     private readonly assignmentRepository: AssignmentRepository,
+    private readonly assignmentRubricRepository: AssignmentRubricRepository,
     private readonly courseRepository: CourseRepository,
     private readonly enrollmentRepository: EnrollmentRepository,
     private readonly auditRepository?: AuditRepository
@@ -170,6 +179,48 @@ export class AssignmentService {
     });
 
     return archivedAssignment;
+  }
+
+  async replaceAssignmentRubric(
+    user: Express.UserClaims | undefined,
+    assignmentId: string,
+    criteria: ReplaceRubricCriterionPayload[]
+  ) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (criteria.length > ASSIGNMENT_RUBRIC_LIMITS.maxCriteria) {
+      throw new AppError("Too many rubric criteria", 422, "VALIDATION_ERROR");
+    }
+
+    const assignment = await this.assignmentRepository.findById(assignmentId);
+    if (!assignment) {
+      throw new AppError("Assignment not found", 404, "ASSIGNMENT_NOT_FOUND");
+    }
+
+    const course = await this.courseRepository.findById(assignment.courseId);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    this.assertCanManageCourse(user, course.instructorId);
+
+    const rubricCriteria = await this.assignmentRubricRepository.replaceCriteria(assignmentId, criteria);
+    const refreshedAssignment = await this.assignmentRepository.findById(assignmentId);
+
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: "ASSIGNMENT_RUBRIC_UPDATED",
+      entityType: "Assignment",
+      entityId: assignmentId,
+      metadata: {
+        courseId: assignment.courseId,
+        criterionCount: rubricCriteria.length
+      }
+    });
+
+    return refreshedAssignment;
   }
 
   private assertCanManageCourse(user: Express.UserClaims, instructorId: string) {
