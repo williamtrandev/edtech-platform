@@ -29,6 +29,41 @@ type LessonFormContentInput = {
   liveDurationMinutes?: number | "" | null;
 };
 
+type LessonSubmitValues = LessonFormContentInput & {
+  contentType: LessonContentType;
+  content: string;
+};
+
+export function buildLessonContentForSubmit(
+  values: LessonSubmitValues,
+  uploadedFile?: { fileName?: string; mimeType?: string; size?: number } | null
+) {
+  if (values.contentType === LESSON_CONTENT_TYPE.text) {
+    return serializeLessonContent({
+      version: 1,
+      kind: values.contentType,
+      body: values.content.trim()
+    });
+  }
+
+  if (values.contentType === LESSON_CONTENT_TYPE.video || values.contentType === LESSON_CONTENT_TYPE.resource) {
+    return serializeLessonContent({
+      version: 1,
+      kind: values.contentType,
+      url: values.content.trim(),
+      ...(uploadedFile?.fileName
+        ? {
+            fileName: uploadedFile.fileName,
+            mimeType: uploadedFile.mimeType,
+            size: uploadedFile.size
+          }
+        : {})
+    });
+  }
+
+  return buildLessonContentFromForm(values);
+}
+
 export function buildLessonContentFromForm(values: LessonFormContentInput) {
   if (values.contentType === LESSON_CONTENT_TYPE.quiz) {
     return serializeLessonContent({
