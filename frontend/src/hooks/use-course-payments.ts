@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createCoursePayment, getMyCoursePaymentStatus } from "../services/course-payment.service";
+import {
+  createCoursePayment,
+  getMyCoursePaymentStatus,
+  listMyCoursePayments
+} from "../services/course-payment.service";
 
 export function useCoursePaymentStatus(courseId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ["course-payments", "me", courseId],
     queryFn: () => getMyCoursePaymentStatus(courseId!),
     enabled: Boolean(courseId) && enabled
+  });
+}
+
+export function useMyCoursePayments(page = 1, limit = 10, enabled = true) {
+  return useQuery({
+    queryKey: ["course-payments", "history", page, limit],
+    queryFn: () => listMyCoursePayments(page, limit),
+    enabled
   });
 }
 
@@ -17,6 +29,7 @@ export function useCreateCoursePayment() {
       createCoursePayment(courseId, idempotencyKey),
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["course-payments", "me", variables.courseId] });
+      void queryClient.invalidateQueries({ queryKey: ["course-payments", "history"] });
     }
   });
 }

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
 import { MetricCard } from "../components/metric-card";
+import { MyCoursePurchasesPanel } from "../components/my-course-purchases-panel";
 import { UpcomingLiveSessionsPanel } from "../components/upcoming-live-sessions-panel";
 import { MyLearningCourseCard } from "../components/my-learning-course-card";
 import { MetricCardSkeleton } from "../components/skeleton";
@@ -108,6 +109,8 @@ export function MyLearningPage() {
         </section>
 
         <UpcomingLiveSessionsPanel enabled={!isLoading && !isError} />
+
+        <MyCoursePurchasesPanel enabled={!isLoading && !isError} />
 
         <section className={cn(STUDIO_FORM_SHELL, "space-y-5")}>
           <div className="flex flex-wrap items-end justify-between gap-3">

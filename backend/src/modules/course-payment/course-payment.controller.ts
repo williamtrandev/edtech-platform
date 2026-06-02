@@ -10,6 +10,13 @@ export class CoursePaymentController {
     res.status(200).json({ success: true, data });
   };
 
+  listMyPayments = async (req: Request, res: Response): Promise<void> => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const data = await this.coursePaymentService.listMyPayments(req.user, page, limit);
+    res.status(200).json({ success: true, data });
+  };
+
   createCoursePayment = async (req: Request, res: Response): Promise<void> => {
     const idempotencyKey = req.header("Idempotency-Key") ?? req.header("idempotency-key") ?? undefined;
     const data = await this.coursePaymentService.createCoursePayment(req.user, req.body.courseId, idempotencyKey);

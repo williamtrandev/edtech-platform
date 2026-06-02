@@ -29,9 +29,41 @@ export type CoursePaymentStatusResponse = {
   latestPayment?: CoursePaymentRecord | null;
 };
 
+export type CoursePaymentHistoryItem = {
+  id: string;
+  courseId: string;
+  amountCents: number;
+  currency: string;
+  status: CoursePaymentStatus;
+  provider: string;
+  completedAt: string | null;
+  createdAt: string;
+  course: {
+    id: string;
+    title: string;
+    coverImageUrl: string | null;
+  };
+};
+
+export type CoursePaymentHistoryResponse = {
+  items: CoursePaymentHistoryItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+};
+
 export async function getMyCoursePaymentStatus(courseId: string) {
   const response = await httpClient.get<ApiResponse<CoursePaymentStatusResponse>>("/course-payments/me", {
     params: { courseId }
+  });
+  return response.data.data;
+}
+
+export async function listMyCoursePayments(page = 1, limit = 20) {
+  const response = await httpClient.get<ApiResponse<CoursePaymentHistoryResponse>>("/course-payments/history", {
+    params: { page, limit }
   });
   return response.data.data;
 }

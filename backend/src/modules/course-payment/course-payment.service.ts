@@ -50,6 +50,33 @@ export class CoursePaymentService {
     };
   }
 
+  async listMyPayments(user: Express.UserClaims | undefined, page: number, limit: number) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const { items, total } = await this.coursePaymentRepository.findCompletedByUser(user.id, page, limit);
+
+    return {
+      items: items.map((payment) => ({
+        id: payment.id,
+        courseId: payment.courseId,
+        amountCents: payment.amountCents,
+        currency: payment.currency,
+        status: payment.status,
+        provider: payment.provider,
+        completedAt: payment.completedAt,
+        createdAt: payment.createdAt,
+        course: payment.course
+      })),
+      pagination: {
+        page,
+        limit,
+        total
+      }
+    };
+  }
+
   async createCoursePayment(user: Express.UserClaims | undefined, courseId: string, idempotencyKey: string | undefined) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");

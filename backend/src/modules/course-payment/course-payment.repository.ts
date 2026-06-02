@@ -84,4 +84,45 @@ export class CoursePaymentRepository {
       select: coursePaymentSelect
     });
   }
+
+  async findCompletedByUser(userId: string, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      prisma.coursePayment.findMany({
+        where: {
+          userId,
+          status: COURSE_PAYMENT_STATUS.completed
+        },
+        orderBy: { completedAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          courseId: true,
+          amountCents: true,
+          currency: true,
+          status: true,
+          provider: true,
+          completedAt: true,
+          createdAt: true,
+          course: {
+            select: {
+              id: true,
+              title: true,
+              coverImageUrl: true
+            }
+          }
+        }
+      }),
+      prisma.coursePayment.count({
+        where: {
+          userId,
+          status: COURSE_PAYMENT_STATUS.completed
+        }
+      })
+    ]);
+
+    return { items, total };
+  }
 }

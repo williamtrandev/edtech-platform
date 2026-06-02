@@ -6,7 +6,11 @@ import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
 import { CoursePaymentController } from "./course-payment.controller";
 import { CoursePaymentRepository } from "./course-payment.repository";
-import { coursePaymentStatusSchema, createCoursePaymentSchema } from "./course-payment.schema";
+import {
+  coursePaymentStatusSchema,
+  createCoursePaymentSchema,
+  listMyCoursePaymentsSchema
+} from "./course-payment.schema";
 import { CoursePaymentService } from "./course-payment.service";
 
 const coursePaymentRepository = new CoursePaymentRepository();
@@ -19,5 +23,10 @@ export const coursePaymentRouter = Router();
 
 coursePaymentRouter.use(authMiddleware);
 
+coursePaymentRouter.get(
+  "/history",
+  validateRequest(listMyCoursePaymentsSchema),
+  asyncHandler(coursePaymentController.listMyPayments)
+);
 coursePaymentRouter.get("/me", validateRequest(coursePaymentStatusSchema), asyncHandler(coursePaymentController.getMyPaymentStatus));
 coursePaymentRouter.post("/", validateRequest(createCoursePaymentSchema), asyncHandler(coursePaymentController.createCoursePayment));
