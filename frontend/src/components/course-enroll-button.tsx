@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { type VariantProps } from "class-variance-authority";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useCoursePaymentStatus, useCreateCoursePayment } from "../hooks/use-course-payments";
 import { useEnrollCourse } from "../hooks/use-enrollments";
 import { useI18n } from "../i18n";
@@ -11,10 +12,18 @@ type CourseEnrollButtonProps = {
   priceCents?: number | null;
   currency?: string;
   className?: string;
+  variant?: VariantProps<typeof buttonVariants>["variant"];
   onEnrolled?: () => void;
 };
 
-export function CourseEnrollButton({ courseId, priceCents, currency = "USD", className, onEnrolled }: CourseEnrollButtonProps) {
+export function CourseEnrollButton({
+  courseId,
+  priceCents,
+  currency = "USD",
+  className,
+  variant = "default",
+  onEnrolled
+}: CourseEnrollButtonProps) {
   const { t, formatError } = useI18n();
   const enrollMutation = useEnrollCourse();
   const purchaseMutation = useCreateCoursePayment();
@@ -61,6 +70,7 @@ export function CourseEnrollButton({ courseId, priceCents, currency = "USD", cla
     return (
       <Button
         size="sm"
+        variant={variant}
         className={className}
         disabled={busy}
         type="button"
@@ -76,6 +86,7 @@ export function CourseEnrollButton({ courseId, priceCents, currency = "USD", cla
   return (
     <Button
       size="sm"
+      variant={variant}
       className={className}
       disabled={busy}
       type="button"

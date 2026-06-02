@@ -1,4 +1,4 @@
-import { BookOpen, Compass, GraduationCap, TrendingUp } from "lucide-react";
+import { BookOpen, Compass, GraduationCap, Layers3, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -68,12 +68,20 @@ export function MyLearningPage() {
       title={t("myLearning.title")}
       subtitle={t("myLearning.subtitle")}
       actions={
-        <Button asChild variant="outline" size="sm" className="rounded-lg gap-1.5 shadow-sm">
-          <Link to="/explore">
-            <Compass className="size-4" aria-hidden />
-            {t("myLearning.exploreCatalog")}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="rounded-lg gap-1.5 shadow-sm">
+            <Link to="/learning-paths">
+              <Layers3 className="size-4" aria-hidden />
+              {t("nav.learningPaths")}
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="rounded-lg gap-1.5 shadow-sm">
+            <Link to="/explore">
+              <Compass className="size-4" aria-hidden />
+              {t("myLearning.exploreCatalog")}
+            </Link>
+          </Button>
+        </div>
       }
     >
       <div className="space-y-8">

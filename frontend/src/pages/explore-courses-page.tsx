@@ -1,4 +1,4 @@
-import { BookOpen, Search, X } from "lucide-react";
+import { ArrowUpRight, BookOpen, Layers3, Search, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -214,6 +214,24 @@ export function ExploreCoursesPage() {
 
           {!isAuthenticated ? <p className={cn(STUDIO_NOTICE, "text-sm leading-6 text-muted-foreground")}>{t("explore.guestHint")}</p> : null}
 
+          <div className="flex flex-col gap-4 rounded-xl border border-border/70 bg-muted/15 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-background text-muted-foreground ring-1 ring-foreground/10">
+                <Layers3 className="size-4" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-foreground">{t("explore.learningPathsTitle")}</h2>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("explore.learningPathsDescription")}</p>
+              </div>
+            </div>
+            <Button asChild size="sm" variant="outline" className="h-10 shrink-0 rounded-lg shadow-none">
+              <Link to="/learning-paths">
+                {t("explore.browseLearningPaths")}
+                <ArrowUpRight className="ml-1 size-4" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <ExploreFilterField label={t("explore.categoryPlaceholder")}>
               <Select value={category} onValueChange={setCategory}>
@@ -392,6 +410,7 @@ export function ExploreCoursesPage() {
                             courseId={course.id}
                             priceCents={course.priceCents}
                             currency={course.currency}
+                            variant="secondary"
                             className="h-10 flex-1 rounded-lg px-4"
                           />
                         ) : undefined
