@@ -11,6 +11,7 @@ import { CourseLearnCurriculum } from "../components/course-learn-curriculum";
 import { CourseProgressBar } from "../components/course-progress-bar";
 import { ProgressOfflineSyncBanner } from "../components/progress-offline-sync-banner";
 import { EmptyState } from "../components/empty-state";
+import { LearnerAssignmentPanel } from "../components/learner-assignment-panel";
 import { LearnerLessonContent } from "../components/learner-lesson-content";
 import { LESSON_CONTENT_TYPE, USER_ROLE } from "../constants/business";
 import { useAuth } from "../hooks/use-auth";
@@ -368,12 +369,21 @@ export function CourseLearnPage() {
                         resumeVideoLabel={t("courseLearn.resumeVideo")}
                       />
                       {canLearn && !isPreviewMode ? (
-                        <CourseDiscussionPanel
-                          courseId={courseId}
-                          lessonId={selectedLesson.id}
-                          currentUserId={meQuery.data?.id}
-                          canParticipate={canLearn}
-                        />
+                        <>
+                          <CourseDiscussionPanel
+                            courseId={courseId}
+                            lessonId={selectedLesson.id}
+                            currentUserId={meQuery.data?.id}
+                            canParticipate={canLearn}
+                          />
+                          <LearnerAssignmentPanel
+                            courseId={courseId}
+                            enabled={canLearn}
+                            onSubmitted={() => {
+                              void progressQuery.refetch();
+                            }}
+                          />
+                        </>
                       ) : null}
                     </>
                   )}

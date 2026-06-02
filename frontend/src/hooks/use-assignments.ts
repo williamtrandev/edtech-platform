@@ -59,6 +59,9 @@ export function useSubmitAssignment(courseId: string) {
     mutationFn: ({ assignmentId, payload }: { assignmentId: string; payload: SubmitAssignmentPayload }) => assignmentService.submitAssignment(assignmentId, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "assignments"] });
+      await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "progress"] });
+      await queryClient.invalidateQueries({ queryKey: ["learner-analytics", "course", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["learner-analytics", "me"] });
     }
   });
 }
