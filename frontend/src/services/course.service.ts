@@ -76,6 +76,29 @@ export type CourseFacets = {
   }>;
 };
 
+export type LearnerInsightStatus = "INACTIVE" | "STALLED" | "LOW_PROGRESS";
+
+export type CourseLearnerInsight = {
+  userId: string;
+  email: string;
+  enrolledAt: string;
+  completedLessons: number;
+  totalLessons: number;
+  progressPercent: number;
+  lastActivityAt: string | null;
+  status: LearnerInsightStatus;
+};
+
+export type CourseCertificateHistoryEvent = {
+  id: string;
+  certificateId: string;
+  type: "ISSUED" | "REVOKED" | "RESTORED";
+  occurredAt: string;
+  learnerEmail: string;
+  actorEmail: string | null;
+  verificationCode?: string;
+};
+
 export type CourseAnalytics = {
   courseId: string;
   enrollmentCount: number;
@@ -93,6 +116,36 @@ export type CourseAnalytics = {
   lateAssignmentSubmissionCount: number;
   ratingAverage: number;
   ratingCount: number;
+  completionCriteria: {
+    type: "ALL_LESSONS_COMPLETED" | "FULL_COURSE_REQUIREMENTS";
+    lessonCount: number;
+    examCount: number;
+    assignmentCount: number;
+  };
+  learnerInsights: {
+    inactiveCount: number;
+    stalledCount: number;
+    lowProgressCount: number;
+    items: CourseLearnerInsight[];
+  };
+  certificateHistory: CourseCertificateHistoryEvent[];
+};
+
+export type CourseArchiveImpactCounts = {
+  enrollments: number;
+  lessons: number;
+  publishedExams: number;
+  publishedAssignments: number;
+  activeCertificates: number;
+  inProgressExamAttempts: number;
+  submittedAssignmentSubmissions: number;
+};
+
+export type CourseArchiveImpact = {
+  courseId: string;
+  courseTitle: string;
+  courseStatus: CourseStatus;
+  impact: CourseArchiveImpactCounts;
 };
 
 export type CourseListParams = {
@@ -138,6 +191,8 @@ export type Lesson = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  prerequisiteLessonId: string | null;
+  archivedAt?: string | null;
 };
 
 export type CreateCoursePayload = {
@@ -172,12 +227,14 @@ export type CreateLessonPayload = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  prerequisiteLessonId?: string | null;
 };
 
 export type UpdateLessonPayload = {
   title: string;
   contentType: LessonContentType;
   content: string;
+  prerequisiteLessonId?: string | null;
 };
 
 export const courseService = {
@@ -225,6 +282,11 @@ export const courseService = {
 
   async getCourseAnalytics(courseId: string): Promise<CourseAnalytics> {
     const response = await httpClient.get<ApiResponse<CourseAnalytics>>(`/courses/${courseId}/analytics`);
+    return response.data.data;
+  },
+
+  async getCourseArchiveImpact(courseId: string): Promise<CourseArchiveImpact> {
+    const response = await httpClient.get<ApiResponse<CourseArchiveImpact>>(`/courses/${courseId}/archive-impact`);
     return response.data.data;
   },
 
@@ -300,6 +362,10 @@ export const courseService = {
   },
   async deleteLesson(lessonId: string): Promise<Lesson> {
     const response = await httpClient.delete<ApiResponse<Lesson>>(`/lessons/${lessonId}`);
+    return response.data.data;
+  },
+  async restoreLesson(lessonId: string): Promise<Lesson> {
+    const response = await httpClient.post<ApiResponse<Lesson>>(`/lessons/${lessonId}/restore`);
     return response.data.data;
   }
 };

@@ -42,6 +42,25 @@ export const EXAM_ATTEMPT_STATUS = {
 
 export type ExamAttemptStatus = (typeof EXAM_ATTEMPT_STATUS)[keyof typeof EXAM_ATTEMPT_STATUS];
 
+export const EXAM_ATTEMPT_EVENT_TYPE = {
+  tabHidden: "TAB_HIDDEN",
+  tabVisible: "TAB_VISIBLE",
+  windowBlur: "WINDOW_BLUR",
+  windowFocus: "WINDOW_FOCUS",
+  reconnect: "RECONNECT",
+  timerExpired: "TIMER_EXPIRED",
+  manualSubmit: "MANUAL_SUBMIT"
+} as const;
+
+export type ExamAttemptEventType = (typeof EXAM_ATTEMPT_EVENT_TYPE)[keyof typeof EXAM_ATTEMPT_EVENT_TYPE];
+
+export const EXAM_SUBMIT_REASON = {
+  manual: "MANUAL",
+  timer: "TIMER"
+} as const;
+
+export type ExamSubmitReason = (typeof EXAM_SUBMIT_REASON)[keyof typeof EXAM_SUBMIT_REASON];
+
 export const ASSIGNMENT_STATUS = {
   draft: "DRAFT",
   published: "PUBLISHED",
@@ -92,7 +111,9 @@ export type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
 export const LESSON_CONTENT_TYPE = {
   text: "TEXT",
   video: "VIDEO",
-  resource: "RESOURCE"
+  resource: "RESOURCE",
+  quiz: "QUIZ",
+  liveSession: "LIVE_SESSION"
 } as const;
 
 export type LessonContentType = (typeof LESSON_CONTENT_TYPE)[keyof typeof LESSON_CONTENT_TYPE];

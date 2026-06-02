@@ -5,6 +5,7 @@ import { AuditLogsPage } from "../pages/audit-logs-page";
 import { CertificateVerifyPage } from "../pages/certificate-verify-page";
 import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
+import { CourseLearnPage } from "../pages/course-learn-page";
 import { CoursesPage } from "../pages/courses-page";
 import { EmailConfirmedPage } from "../pages/email-confirmed-page";
 import { ExploreCoursesPage } from "../pages/explore-courses-page";
@@ -65,6 +66,22 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      {
+        path: "/courses/:courseId/learn",
+        element: <CourseLearnPage />
+      },
+      {
+        path: "/courses/:courseId/learn/:lessonId",
+        element: <CourseLearnPage />
+      },
+      {
+        path: "/courses/:courseId/preview",
+        element: <CourseLearnPage />
+      },
+      {
+        path: "/courses/:courseId/preview/:lessonId",
+        element: <CourseLearnPage />
+      },
       {
         path: "/dashboard",
         element: <LearnerWorkspaceGate />,

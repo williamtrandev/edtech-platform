@@ -46,16 +46,58 @@ export function createLessonFormSchema(t: Translate) {
   return z
     .object({
       title: z.string().min(3, t("validation.lessonTitleMin")),
-      contentType: z.enum([LESSON_CONTENT_TYPE.video, LESSON_CONTENT_TYPE.text, LESSON_CONTENT_TYPE.resource]).default(LESSON_CONTENT_TYPE.text),
-      content: z.string().min(1, t("validation.lessonContentRequired")),
-      sortOrder: z.coerce.number().int().min(1)
+      contentType: z
+        .enum([
+          LESSON_CONTENT_TYPE.video,
+          LESSON_CONTENT_TYPE.text,
+          LESSON_CONTENT_TYPE.resource,
+          LESSON_CONTENT_TYPE.quiz,
+          LESSON_CONTENT_TYPE.liveSession
+        ])
+        .default(LESSON_CONTENT_TYPE.text),
+      content: z.string().default(""),
+      quizExamId: z.string().optional(),
+      liveMeetingUrl: z.string().optional(),
+      liveStartsAt: z.string().optional(),
+      liveInstructions: z.string().optional(),
+      sortOrder: z.coerce.number().int().min(1),
+      prerequisiteLessonId: z.string().nullable().optional()
     })
     .superRefine((values, context) => {
-      if (values.contentType !== LESSON_CONTENT_TYPE.text) {
+      if (values.contentType === LESSON_CONTENT_TYPE.quiz) {
+        if (!values.quizExamId?.trim()) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["quizExamId"],
+            message: t("validation.lessonQuizExamRequired")
+          });
+        }
         return;
       }
 
-      if (isLessonHtmlEmpty(values.content)) {
+      if (values.contentType === LESSON_CONTENT_TYPE.liveSession) {
+        const meetingUrl = values.liveMeetingUrl?.trim() ?? "";
+        const instructions = values.liveInstructions?.trim() ?? "";
+        if (!meetingUrl && !instructions) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["liveMeetingUrl"],
+            message: t("validation.lessonLiveSessionRequired")
+          });
+        }
+        return;
+      }
+
+      if (!values.content.trim()) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["content"],
+          message: t("validation.lessonContentRequired")
+        });
+        return;
+      }
+
+      if (values.contentType === LESSON_CONTENT_TYPE.text && isLessonHtmlEmpty(values.content)) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["content"],

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Download, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Download, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users, Video } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -45,9 +45,15 @@ import {
   STUDIO_TAB_COUNT_ACTIVE,
   STUDIO_TAB_COUNT_IDLE,
   STUDIO_TAB_IDLE,
-  STUDIO_WORKSPACE_GRID
+  STUDIO_WORKSPACE_GRID,
+  LEARNER_CURRICULUM_GRID,
+  STUDIO_EDITOR_PANEL
 } from "../lib/studio-layout";
+import { AssignmentRubricBreakdown, AssignmentRubricEditor } from "../components/assignment-rubric-editor";
 import { AppShell } from "../components/app-shell";
+import { CourseArchivedLessonsPanel } from "../components/course-archived-lessons-panel";
+import { CourseArchiveImpactSummary } from "../components/course-archive-impact-summary";
+import { CourseAnalyticsInsights } from "../components/course-analytics-insights";
 import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { CourseCoverFrame } from "../components/course-cover-frame";
 import { CourseStatusBadge } from "../components/course-status-badge";
@@ -57,14 +63,25 @@ import { FormField } from "../components/form-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { TextareaField } from "../components/textarea-field";
-import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
-import { useArchiveAssignment, useAssignmentSubmissions, useCourseAssignments, useCreateAssignment, useGradeAssignmentSubmission, useSubmitAssignment, useUpdateAssignment } from "../hooks/use-assignments";
+import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, EXAM_SUBMIT_REASON, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
+import { ExamIntegrityEventsPanel } from "../components/exam-integrity-events-panel";
+import {
+  useArchiveAssignment,
+  useAssignmentSubmissions,
+  useCourseAssignments,
+  useCreateAssignment,
+  useGradeAssignmentSubmission,
+  useReplaceAssignmentRubric,
+  useSubmitAssignment,
+  useUpdateAssignment
+} from "../hooks/use-assignments";
 import { useAuth } from "../hooks/use-auth";
 import {
   useArchiveCourse,
   useAdminEnrollLearner,
   useAdminRemoveLearner,
   useAssignCourseInstructor,
+  useCourseArchiveImpact,
   useCourseAnalytics,
   useCourseDetail,
   useCourseEnrollments,
@@ -73,6 +90,7 @@ import {
   useCreateLesson,
   useDeleteMyCourseReview,
   useDeleteLesson,
+  useRestoreLesson,
   useLockCourse,
   useReorderLessons,
   useUnlockCourse,
@@ -81,12 +99,17 @@ import {
   useUpdateCourse
 } from "../hooks/use-courses";
 import { useEnrollCourse, useMyEnrollments } from "../hooks/use-enrollments";
+import { useExamIntegrityMonitor } from "../hooks/use-exam-integrity-monitor";
 import { useArchiveExam, useCourseExams, useCreateExam, useCreateExamQuestion, useDeleteExamQuestion, useExamAttempt, useExamAttempts, useExamQuestions, useGradeExamAttempt, useSaveExamAttemptAnswers, useStartExamAttempt, useSubmitExamAttempt, useUpdateExam, useUpdateExamQuestion } from "../hooks/use-exams";
 import { useCourseCertificates, useRestoreCertificate, useRevokeCertificate } from "../hooks/use-certificates";
 import { useCurrentUser } from "../hooks/use-current-user";
 import { useCompleteLesson, useCourseLessonProgress, useCourseProgress } from "../hooks/use-progress";
 import { useUsers } from "../hooks/use-users";
-import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { buildLessonContentFromForm, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import type { AssignmentRubricCriterionInput } from "../lib/assignment-rubric";
+import { sumRubricMaxPoints, sumRubricPoints, toRubricCriterionInputs } from "../lib/assignment-rubric";
+import { getCourseLearnPath, getCoursePreviewPath } from "../lib/course-learn-path";
+import { canSelfEnrollInCourse, isEnrolledStudentExperience, showOwnerCannotSelfEnrollHint } from "../lib/enrollment-access";
 import { downloadBlob } from "../lib/download-file";
 import { certificateService } from "../services/certificate.service";
 import { createAssignmentFormSchema, createAssignmentGradeFormSchema, createAssignmentSubmissionFormSchema, createExamAttemptGradeFormSchema, createExamFormSchema, createExamQuestionFormSchema, createLessonFormSchema, AssignmentFormValues, AssignmentGradeFormValues, AssignmentSubmissionFormValues, CreateLessonFormValues, ExamAttemptGradeFormValues, ExamFormValues, ExamQuestionFormValues, updateCourseFormSchema, UpdateCourseFormValues } from "../schemas/course.schema";
@@ -96,8 +119,9 @@ import type { Assignment, AssignmentSubmission } from "../services/assignment.se
 import type { Lesson } from "../services/course.service";
 import { type I18nKey, useI18n } from "../i18n";
 
-function getNextLessonSortOrder(lessons: { sortOrder: number }[] | undefined) {
-  const maxSortOrder = lessons?.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0) ?? 0;
+function getNextLessonSortOrder(lessons: { sortOrder: number; archivedAt?: string | null }[] | undefined) {
+  const activeLessons = (lessons ?? []).filter((lesson) => !lesson.archivedAt);
+  const maxSortOrder = activeLessons.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0);
   return maxSortOrder + 1;
 }
 
@@ -131,7 +155,7 @@ function renderLearnerLessonContent(lesson: Lesson) {
   const parsed = parseLessonContent(lesson.content, lesson.contentType);
 
   if (parsed.kind === LESSON_CONTENT_TYPE.text && parsed.body) {
-    return <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: parsed.body }} />;
+    return <div className="prose prose-base max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: parsed.body }} />;
   }
 
   if (parsed.kind === LESSON_CONTENT_TYPE.video && parsed.url) {
@@ -143,6 +167,20 @@ function renderLearnerLessonContent(lesson: Lesson) {
       <a className="inline-flex h-10 items-center rounded-md ring-1 ring-foreground/10 px-4 text-sm font-medium hover:bg-muted/40" href={parsed.url} rel="noreferrer" target="_blank">
         {parsed.fileName ?? parsed.url}
       </a>
+    );
+  }
+
+  if (parsed.kind === LESSON_CONTENT_TYPE.quiz && parsed.examId) {
+    return <p className="text-sm text-muted-foreground">{parsed.examId}</p>;
+  }
+
+  if (parsed.kind === LESSON_CONTENT_TYPE.liveSession) {
+    return (
+      <div className="grid gap-2 text-sm text-muted-foreground">
+        {parsed.startsAt ? <p>{parsed.startsAt}</p> : null}
+        {parsed.meetingUrl ? <p>{parsed.meetingUrl}</p> : null}
+        {parsed.instructions ? <p className="whitespace-pre-wrap">{parsed.instructions}</p> : null}
+      </div>
     );
   }
 
@@ -171,6 +209,31 @@ function formatAttemptAnswer(answer: string | string[] | null | undefined) {
   return answer?.trim() || "—";
 }
 
+function normalizeRubricCriteriaForSave(criteria: AssignmentRubricCriterionInput[]) {
+  return criteria
+    .map((criterion) => ({
+      title: criterion.title.trim(),
+      description: criterion.description?.trim() || null,
+      maxPoints: Number(criterion.maxPoints)
+    }))
+    .filter((criterion) => criterion.title.length > 0);
+}
+
+function isValidRubricCriteriaForSave(criteria: ReturnType<typeof normalizeRubricCriteriaForSave>) {
+  return criteria.every((criterion) => criterion.maxPoints >= 1 && criterion.maxPoints <= 1000);
+}
+
+function buildRubricGradePointsMap(
+  criteria: Array<{ id: string }>,
+  scores?: Array<{ criterionId: string; points: number }>
+) {
+  const pointsByCriterionId = Object.fromEntries(criteria.map((criterion) => [criterion.id, 0]));
+  for (const score of scores ?? []) {
+    pointsByCriterionId[score.criterionId] = score.points;
+  }
+  return pointsByCriterionId;
+}
+
 type CourseDetailTab = "curriculum" | "exams" | "assignments" | "reviews" | "learners" | "settings";
 
 export function CourseDetailPage() {
@@ -185,6 +248,7 @@ export function CourseDetailPage() {
   const updateLessonMutation = useUpdateLesson(courseId);
   const reorderLessonsMutation = useReorderLessons(courseId);
   const deleteLessonMutation = useDeleteLesson(courseId);
+  const restoreLessonMutation = useRestoreLesson(courseId);
   const createExamMutation = useCreateExam(courseId);
   const updateExamMutation = useUpdateExam(courseId);
   const archiveExamMutation = useArchiveExam(courseId);
@@ -193,6 +257,7 @@ export function CourseDetailPage() {
   const submitExamAttemptMutation = useSubmitExamAttempt(courseId);
   const createAssignmentMutation = useCreateAssignment(courseId);
   const updateAssignmentMutation = useUpdateAssignment(courseId);
+  const replaceAssignmentRubricMutation = useReplaceAssignmentRubric(courseId);
   const archiveAssignmentMutation = useArchiveAssignment(courseId);
   const submitAssignmentMutation = useSubmitAssignment(courseId);
   const completeLessonMutation = useCompleteLesson(courseId);
@@ -238,8 +303,11 @@ export function CourseDetailPage() {
   const [examNow, setExamNow] = useState(() => Date.now());
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [assignmentPendingArchive, setAssignmentPendingArchive] = useState<Assignment | null>(null);
+  const [courseArchiveOpen, setCourseArchiveOpen] = useState(false);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [assignmentSubmissionPage, setAssignmentSubmissionPage] = useState(1);
+  const [assignmentRubricCriteria, setAssignmentRubricCriteria] = useState<AssignmentRubricCriterionInput[]>([]);
+  const [rubricGradePoints, setRubricGradePoints] = useState<Record<string, number>>({});
   const [reviewRating, setReviewRating] = useState("5");
   const [reviewComment, setReviewComment] = useState("");
   const reorderSaveTimerRef = useRef<number | null>(null);
@@ -266,9 +334,21 @@ export function CourseDetailPage() {
   const canAccessCourseWorkspace = canManageCourse || canReviewCourse;
   const canViewExamWorkspace = canAccessCourseWorkspace;
 
-  const isLearner = meQuery.data?.role === USER_ROLE.user;
   const isCoursePublished = courseQuery.data?.status === COURSE_STATUS.published;
   const isEnrolled = myEnrollmentsQuery.data?.some((enrollment) => enrollment.courseId === courseId) ?? false;
+  const canSelfEnroll = canSelfEnrollInCourse({
+    userId: meQuery.data?.id,
+    instructorId: courseQuery.data?.instructorId,
+    courseStatus: courseQuery.data?.status,
+    isEnrolled
+  });
+  const isEnrolledStudent = isEnrolledStudentExperience({ isEnrolled, canAccessCourseWorkspace });
+  const showOwnerCannotEnrollHint = showOwnerCannotSelfEnrollHint({
+    isAuthenticated,
+    isCoursePublished,
+    isEnrolled,
+    canManageCourse
+  });
   const canReadLessons = Boolean(canAccessCourseWorkspace || isEnrolled);
   const isCourseLocked = courseQuery.data?.status === COURSE_STATUS.locked;
   const canEditCourse = canManageCourse && !isCourseLocked;
@@ -288,10 +368,15 @@ export function CourseDetailPage() {
   const lessonProgressQuery = useCourseLessonProgress(courseId, isAuthenticated && !isBootstrapping && canReadLessons && !canManageCourse);
   const pollExamAttempt = activeExamSession?.attempt.status === EXAM_ATTEMPT_STATUS.submitted;
   const examAttemptQuery = useExamAttempt(activeExamSession?.attempt.id ?? null, Boolean(activeExamSession), pollExamAttempt);
+  useExamIntegrityMonitor({
+    attemptId: activeExamSession?.attempt.id ?? null,
+    enabled: activeExamSession?.attempt.status === EXAM_ATTEMPT_STATUS.inProgress
+  });
   const nextLessonSortOrder = getNextLessonSortOrder(lessonQuery.data);
 
   const enrollmentsQuery = useCourseEnrollments(courseId, Boolean(canAccessCourseWorkspace && courseQuery.data), enrollmentPage, learnerSearch.trim());
   const courseAnalyticsQuery = useCourseAnalytics(courseId, Boolean(canAccessCourseWorkspace && courseQuery.data));
+  const courseArchiveImpactQuery = useCourseArchiveImpact(courseId, Boolean(canManageCourse && courseArchiveOpen));
   const certificatesQuery = useCourseCertificates(courseId, certificatePage, certificateStatusFilter, Boolean(canAccessCourseWorkspace && courseQuery.data));
   const revokeCertificateMutation = useRevokeCertificate(courseId, certificatePage, certificateStatusFilter);
   const restoreCertificateMutation = useRestoreCertificate(courseId, certificatePage, certificateStatusFilter);
@@ -304,6 +389,7 @@ export function CourseDetailPage() {
   const certificatesTotal = certificatesQuery.data?.pagination.total ?? 0;
   const certificatesTotalPages = Math.max(1, Math.ceil(certificatesTotal / 20));
   const lessons = orderedLessons;
+  const archivedLessons = (lessonQuery.data ?? []).filter((lesson) => lesson.archivedAt);
   const selectedLesson = selectedLessonId ? lessons.find((lesson) => lesson.id === selectedLessonId) : undefined;
   const selectedLessonIndex = selectedLesson ? lessons.findIndex((lesson) => lesson.id === selectedLesson.id) : -1;
   const completedLessonIds = new Set(
@@ -323,6 +409,13 @@ export function CourseDetailPage() {
   const assignmentSubmissionsTotal = assignmentSubmissionsQuery.data?.pagination.total ?? 0;
   const assignmentSubmissionsTotalPages = Math.max(1, Math.ceil(assignmentSubmissionsTotal / 20));
   const selectedAssignment = selectedAssignmentId ? assignments.find((assignment) => assignment.id === selectedAssignmentId) : undefined;
+  const selectedAssignmentRubric = selectedAssignment?.rubricCriteria ?? [];
+  const hasAssignmentRubric = selectedAssignmentRubric.length > 0;
+  const rubricGradeTotal = sumRubricPoints(
+    selectedAssignmentRubric.map((criterion) => ({
+      points: Number(rubricGradePoints[criterion.id] ?? 0)
+    }))
+  );
   const selectedSubmission = selectedSubmissionId ? assignmentSubmissions.find((submission) => submission.id === selectedSubmissionId) : undefined;
   const courseAnalytics = courseAnalyticsQuery.data;
   const analyticsLoading = courseAnalyticsQuery.isLoading;
@@ -366,6 +459,10 @@ export function CourseDetailPage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
+      quizExamId: "",
+      liveMeetingUrl: "",
+      liveStartsAt: "",
+      liveInstructions: "",
       sortOrder: 1
     }
   });
@@ -450,8 +547,8 @@ export function CourseDetailPage() {
   }, [courseForm, courseQuery.data]);
 
   useEffect(() => {
-    const nextLessons = lessonQuery.data ?? [];
-    setOrderedLessons(nextLessons);
+    const activeLessons = (lessonQuery.data ?? []).filter((lesson) => !lesson.archivedAt);
+    setOrderedLessons(activeLessons);
   }, [lessonQuery.data]);
 
   useEffect(() => {
@@ -476,6 +573,29 @@ export function CourseDetailPage() {
 
     setSelectedLessonId(lessons[0]?.id ?? null);
   }, [canManageCourse, canReadLessons, lessons, selectedLessonId]);
+
+  useEffect(() => {
+    if (
+      activeTab !== "curriculum" ||
+      !isEnrolledStudent ||
+      canAccessCourseWorkspace ||
+      lessonQuery.isLoading ||
+      !lessons.length
+    ) {
+      return;
+    }
+
+    navigate(getCourseLearnPath(courseId, selectedLessonId ?? lessons[0]?.id), { replace: true });
+  }, [
+    activeTab,
+    canAccessCourseWorkspace,
+    courseId,
+    isEnrolledStudent,
+    lessonQuery.isLoading,
+    lessons,
+    navigate,
+    selectedLessonId
+  ]);
 
   useEffect(() => {
     if (!examAttemptQuery.data) {
@@ -567,7 +687,8 @@ export function CourseDetailPage() {
       try {
         const submitted = await submitExamAttemptMutation.mutateAsync({
           attemptId: activeExamSession.attempt.id,
-          answers
+          answers,
+          submitReason: EXAM_SUBMIT_REASON.timer
         });
         setActiveExamSession({
           ...activeExamSession,
@@ -690,22 +811,23 @@ export function CourseDetailPage() {
       return;
     }
 
-    const body = values.content.trim();
     const content =
       values.contentType === LESSON_CONTENT_TYPE.text
         ? serializeLessonContent({
             version: 1,
             kind: values.contentType,
-            body
+            body: values.content.trim()
           })
-        : serializeLessonContent({
-            version: 1,
-            kind: values.contentType,
-            url: body,
-            fileName: uploadedLessonFile?.fileName,
-            mimeType: uploadedLessonFile?.mimeType,
-            size: uploadedLessonFile?.size
-          });
+        : values.contentType === LESSON_CONTENT_TYPE.video || values.contentType === LESSON_CONTENT_TYPE.resource
+          ? serializeLessonContent({
+              version: 1,
+              kind: values.contentType,
+              url: values.content.trim(),
+              fileName: uploadedLessonFile?.fileName,
+              mimeType: uploadedLessonFile?.mimeType,
+              size: uploadedLessonFile?.size
+            })
+          : buildLessonContentFromForm(values);
 
     try {
       if (lessonId) {
@@ -727,6 +849,10 @@ export function CourseDetailPage() {
           title: "",
           contentType: LESSON_CONTENT_TYPE.text,
           content: "",
+          quizExamId: "",
+          liveMeetingUrl: "",
+          liveStartsAt: "",
+          liveInstructions: "",
           sortOrder: sortOrder + 1
         });
         form.clearErrors();
@@ -994,22 +1120,43 @@ export function CourseDetailPage() {
     }
   };
 
+  const persistAssignmentRubric = async (assignmentId: string) => {
+    const criteria = normalizeRubricCriteriaForSave(assignmentRubricCriteria);
+    if (criteria.length > 0 && !isValidRubricCriteriaForSave(criteria)) {
+      throw new Error(t("courseDetail.rubricInvalid"));
+    }
+
+    await replaceAssignmentRubricMutation.mutateAsync({
+      assignmentId,
+      payload: { criteria }
+    });
+  };
+
   const onSubmitAssignment = async (values: AssignmentFormValues) => {
+    const normalizedRubric = normalizeRubricCriteriaForSave(assignmentRubricCriteria);
+    if (normalizedRubric.length > 0 && !isValidRubricCriteriaForSave(normalizedRubric)) {
+      toast.error(t("courseDetail.rubricInvalid"));
+      return;
+    }
+
+    const rubricMaxScore = normalizedRubric.length > 0 ? sumRubricMaxPoints(normalizedRubric) : null;
     const payload = {
       title: values.title,
       instructions: values.instructions || null,
       status: values.status,
       dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null,
-      maxScore: values.maxScore === "" ? null : Number(values.maxScore),
+      maxScore: rubricMaxScore ?? (values.maxScore === "" ? null : Number(values.maxScore)),
       attachmentUrl: values.attachmentUrl || null
     };
 
     try {
       if (selectedAssignmentId) {
         await updateAssignmentMutation.mutateAsync({ assignmentId: selectedAssignmentId, payload });
+        await persistAssignmentRubric(selectedAssignmentId);
         toast.success(t("courseDetail.assignmentUpdated"));
       } else {
-        await createAssignmentMutation.mutateAsync(payload);
+        const created = await createAssignmentMutation.mutateAsync(payload);
+        await persistAssignmentRubric(created.id);
         toast.success(t("courseDetail.assignmentCreated"));
         onNewAssignment();
       }
@@ -1034,6 +1181,8 @@ export function CourseDetailPage() {
       maxScore: assignment.maxScore ?? "",
       attachmentUrl: assignment.attachmentUrl ?? ""
     });
+    setAssignmentRubricCriteria(toRubricCriterionInputs(assignment.rubricCriteria ?? []));
+    setRubricGradePoints(buildRubricGradePointsMap(assignment.rubricCriteria ?? []));
     assignmentSubmissionForm.reset({
       content: assignment.mySubmission?.content ?? "",
       attachmentUrl: assignment.mySubmission?.attachmentUrl ?? ""
@@ -1055,6 +1204,8 @@ export function CourseDetailPage() {
       maxScore: "",
       attachmentUrl: ""
     });
+    setAssignmentRubricCriteria([]);
+    setRubricGradePoints({});
     assignmentSubmissionForm.reset({
       content: "",
       attachmentUrl: ""
@@ -1075,6 +1226,17 @@ export function CourseDetailPage() {
       toast.success(t("courseDetail.assignmentArchived"));
     } catch (e) {
       toast.error(formatError(e, "courseDetail.assignmentArchiveFailed"));
+    }
+  };
+
+  const confirmArchiveCourse = async () => {
+    try {
+      await archiveCourseMutation.mutateAsync(courseId);
+      setCourseArchiveOpen(false);
+      toast.success(t("courseDetail.courseArchived"));
+      navigate("/courses", { replace: true });
+    } catch (e) {
+      toast.error(formatError(e, "courseDetail.archiveFailed"));
     }
   };
 
@@ -1105,6 +1267,7 @@ export function CourseDetailPage() {
       score: submission.score ?? 0,
       feedback: submission.feedback ?? ""
     });
+    setRubricGradePoints(buildRubricGradePointsMap(selectedAssignmentRubric, submission.rubricScores));
   };
 
   const onGradeAssignmentSubmission = async (values: AssignmentGradeFormValues) => {
@@ -1114,12 +1277,22 @@ export function CourseDetailPage() {
     }
 
     try {
+      const payload = hasAssignmentRubric
+        ? {
+            rubricScores: selectedAssignmentRubric.map((criterion) => ({
+              criterionId: criterion.id,
+              points: Number(rubricGradePoints[criterion.id] ?? 0)
+            })),
+            feedback: values.feedback || null
+          }
+        : {
+            score: Number(values.score),
+            feedback: values.feedback || null
+          };
+
       await gradeAssignmentSubmissionMutation.mutateAsync({
         submissionId: selectedSubmissionId,
-        payload: {
-          score: Number(values.score),
-          feedback: values.feedback || null
-        }
+        payload
       });
       toast.success(t("courseDetail.assignmentGraded"));
     } catch (e) {
@@ -1185,7 +1358,8 @@ export function CourseDetailPage() {
       }
       const submitted = await submitExamAttemptMutation.mutateAsync({
         attemptId: activeExamSession.attempt.id,
-        answers
+        answers,
+        submitReason: EXAM_SUBMIT_REASON.manual
       });
       setActiveExamSession({
         ...activeExamSession,
@@ -1356,6 +1530,10 @@ export function CourseDetailPage() {
       title: lesson.title,
       contentType: lesson.contentType,
       content: parsedContent.kind === LESSON_CONTENT_TYPE.text ? parsedContent.body ?? "" : parsedContent.url ?? "",
+      quizExamId: parsedContent.examId ?? "",
+      liveMeetingUrl: parsedContent.meetingUrl ?? "",
+      liveStartsAt: parsedContent.startsAt ? parsedContent.startsAt.slice(0, 16) : "",
+      liveInstructions: parsedContent.instructions ?? "",
       sortOrder: lesson.sortOrder
     });
   };
@@ -1369,6 +1547,10 @@ export function CourseDetailPage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
+      quizExamId: "",
+      liveMeetingUrl: "",
+      liveStartsAt: "",
+      liveInstructions: "",
       sortOrder: nextLessonSortOrder
     });
   };
@@ -1389,9 +1571,18 @@ export function CourseDetailPage() {
         onNewLesson();
       }
       setLessonPendingDelete(null);
-      toast.success(t("courseDetail.lessonDeleted"));
+      toast.success(t("courseDetail.lessonArchived"));
     } catch (e) {
-      toast.error(formatError(e, "courseDetail.lessonDeleteFailed"));
+      toast.error(formatError(e, "courseDetail.lessonArchiveFailed"));
+    }
+  };
+
+  const onRestoreArchivedLesson = async (lessonId: string) => {
+    try {
+      await restoreLessonMutation.mutateAsync(lessonId);
+      toast.success(t("courseDetail.lessonRestored"));
+    } catch (e) {
+      toast.error(formatError(e, "courseDetail.lessonRestoreFailed"));
     }
   };
 
@@ -1427,7 +1618,8 @@ export function CourseDetailPage() {
   const questionType = questionForm.watch("type");
   const isLessonSubmitPending = createLessonMutation.isPending || updateLessonMutation.isPending;
   const isQuestionSubmitPending = createExamQuestionMutation.isPending || updateExamQuestionMutation.isPending;
-  const isAssignmentSubmitPending = createAssignmentMutation.isPending || updateAssignmentMutation.isPending;
+  const isAssignmentSubmitPending =
+    createAssignmentMutation.isPending || updateAssignmentMutation.isPending || replaceAssignmentRubricMutation.isPending;
   const lessonSubmitLabel = updateLessonMutation.isPending
     ? t("courseDetail.savingLesson")
     : createLessonMutation.isPending
@@ -1453,8 +1645,21 @@ export function CourseDetailPage() {
       icon: Paperclip,
       label: t("lessonType.RESOURCE"),
       description: t("courseDetail.resourceTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.quiz,
+      icon: ClipboardCheck,
+      label: t("lessonType.QUIZ"),
+      description: t("courseDetail.quizTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.liveSession,
+      icon: Video,
+      label: t("lessonType.LIVE_SESSION"),
+      description: t("courseDetail.liveSessionTypeHint")
     }
   ];
+  const publishedExamOptions = exams.filter((exam) => exam.status === EXAM_STATUS.published);
   const publishChecks = [
     { label: t("courseDetail.publishRequirementTitle"), done: hasText(courseTitle) },
     { label: t("courseDetail.publishRequirementCover"), done: hasText(courseCoverImageUrl) },
@@ -1525,12 +1730,17 @@ export function CourseDetailPage() {
               <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
             </Button>
           ) : null}
-          {isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
-            <Button size="sm" className="rounded-lg shadow-none" type="button" onClick={() => setActiveTab("curriculum")}>
-              {t("courseDetail.continueLearning")}
+          {isAuthenticated && isEnrolledStudent && isCoursePublished ? (
+            <Button asChild size="sm" className="rounded-lg shadow-none">
+              <Link to={getCourseLearnPath(courseId)}>{t("courseDetail.continueLearning")}</Link>
             </Button>
           ) : null}
-          {isAuthenticated && isLearner && isCoursePublished && !isEnrolled ? (
+          {canAccessCourseWorkspace && lessons.length > 0 ? (
+            <Button asChild size="sm" variant="outline" className="rounded-lg shadow-none">
+              <Link to={getCoursePreviewPath(courseId)}>{t("courseDetail.previewAsLearner")}</Link>
+            </Button>
+          ) : null}
+          {canSelfEnroll ? (
             <Button
               size="sm"
               className="rounded-lg shadow-none"
@@ -1551,6 +1761,9 @@ export function CourseDetailPage() {
               {enrollMutation.isPending ? t("courseDetail.enrolling") : t("courseDetail.enroll")}
             </Button>
           ) : null}
+          {showOwnerCannotEnrollHint ? (
+            <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">{t("courseDetail.enrollmentOwnerCannotEnroll")}</p>
+          ) : null}
           {canManageCourse && courseQuery.data?.status !== COURSE_STATUS.archived && !isCourseLocked ? (
             <Button
               variant="destructive"
@@ -1558,20 +1771,7 @@ export function CourseDetailPage() {
               className="rounded-lg shadow-none"
               disabled={archiveCourseMutation.isPending}
               type="button"
-              onClick={() => {
-                if (!window.confirm(t("courseDetail.archiveConfirm"))) {
-                  return;
-                }
-                void (async () => {
-                  try {
-                    await archiveCourseMutation.mutateAsync(courseId);
-                    toast.success(t("courseDetail.courseArchived"));
-                    navigate("/courses", { replace: true });
-                  } catch (e) {
-                    toast.error(formatError(e, "courseDetail.archiveFailed"));
-                  }
-                })();
-              }}
+              onClick={() => setCourseArchiveOpen(true)}
             >
               {archiveCourseMutation.isPending ? t("courseDetail.archiving") : t("courseDetail.archiveCourse")}
             </Button>
@@ -1768,6 +1968,7 @@ export function CourseDetailPage() {
                 })}
               </div>
             )}
+            <CourseAnalyticsInsights analytics={courseAnalytics} isLoading={analyticsLoading} />
           </section>
         ) : null}
 
@@ -1834,15 +2035,19 @@ export function CourseDetailPage() {
               canReadLessons && (canManageCourse || canReviewCourse)
                 ? STUDIO_WORKSPACE_GRID
                 : canReadLessons
-                  ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start"
+                  ? LEARNER_CURRICULUM_GRID
                   : "grid gap-4"
             )}
           >
-            <Card className={cn("", canManageCourse || canReviewCourse ? STUDIO_LIST_STICKY : undefined)}>
+            <Card className={cn("min-w-0", canManageCourse || canReviewCourse ? STUDIO_LIST_STICKY : undefined)}>
               <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
-                <div>
-                  <CardTitle className="text-base">{t("courseDetail.curriculum")}</CardTitle>
-                  <CardDescription>{t("courseDetail.curriculumDescription")}</CardDescription>
+                <div className="min-w-0">
+                  <CardTitle className={cn(canManageCourse || canReviewCourse ? "text-base" : "text-sm")}>
+                    {t("courseDetail.curriculum")}
+                  </CardTitle>
+                  {canManageCourse || canReviewCourse ? (
+                    <CardDescription>{t("courseDetail.curriculumDescription")}</CardDescription>
+                  ) : null}
                 </div>
                 {canManageCourse ? (
                   <Button type="button" variant="outline" size="sm" className="h-9 rounded-md shadow-none" onClick={onNewLesson}>
@@ -1855,13 +2060,19 @@ export function CourseDetailPage() {
                   <EmptyState
                     icon={BookOpenText}
                     title={t("courseDetail.lessonsLockedTitle")}
-                    description={isAuthenticated ? t("courseDetail.lessonsLockedEnrollDescription") : t("courseDetail.lessonsLockedSignInDescription")}
+                    description={
+                      !isAuthenticated
+                        ? t("courseDetail.lessonsLockedSignInDescription")
+                        : showOwnerCannotEnrollHint
+                          ? t("courseDetail.enrollmentOwnerCannotEnroll")
+                          : t("courseDetail.lessonsLockedEnrollDescription")
+                    }
                     action={
                       !isAuthenticated ? (
                         <Button asChild className="h-10 rounded-md px-4" size="sm">
                           <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
                         </Button>
-                      ) : isLearner && isCoursePublished ? (
+                      ) : canSelfEnroll ? (
                         <Button
                           className="h-10 rounded-md px-4"
                           size="sm"
@@ -1892,7 +2103,7 @@ export function CourseDetailPage() {
                 ) : null}
                 {canReadLessons && !lessonQuery.isLoading && !lessonQuery.isError ? (
                   lessons.length ? (
-                    <div className="max-h-[min(70vh,42rem)] overflow-auto rounded-xl bg-muted/40 p-1.5 ring-1 ring-foreground/10">
+                    <div className="max-h-[min(70vh,42rem)] overflow-y-auto overflow-x-hidden rounded-xl bg-muted/40 p-1.5 ring-1 ring-foreground/10">
                       <div className="grid gap-1" role="list" aria-label={t("courseDetail.curriculum")}>
                         {lessons.map((lesson, index) => {
                           const selected = selectedLessonId === lesson.id;
@@ -1955,7 +2166,10 @@ export function CourseDetailPage() {
                                 </div>
                                 <p className="mt-1 truncate text-sm font-medium text-foreground">{lesson.title}</p>
                                 {!canManageCourse && completedLessonIds.has(lesson.id) ? (
-                                  <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.lessonCompleted")}</p>
+                                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-primary">
+                                    <CheckCircle2 className="size-3.5" aria-hidden />
+                                    {t("courseDetail.lessonCompleted")}
+                                  </p>
                                 ) : null}
                               </div>
                               {canManageCourse ? (
@@ -1964,7 +2178,7 @@ export function CourseDetailPage() {
                                   size="sm"
                                   className="size-8 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                                   disabled={deleteLessonMutation.isPending}
-                                  aria-label={t("courseDetail.deleteLesson")}
+                                  aria-label={t("courseDetail.archiveLesson")}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     setLessonPendingDelete(lesson);
@@ -1972,17 +2186,6 @@ export function CourseDetailPage() {
                                   type="button"
                                 >
                                   <Trash2 className="size-4" aria-hidden />
-                                </Button>
-                              ) : isAuthenticated && isLearner ? (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-8 shrink-0 rounded-md"
-                                  disabled={completeLessonMutation.isPending}
-                                  onClick={() => void completeLessonMutation.mutateAsync(lesson.id)}
-                                  type="button"
-                                >
-                                  {t("courseDetail.markComplete")}
                                 </Button>
                               ) : null}
                             </div>
@@ -1994,14 +2197,26 @@ export function CourseDetailPage() {
                     <EmptyState icon={BookOpenText} title={t("courseDetail.noLessons")} description={t("courseDetail.noLessonsDescription")} />
                   )
                 ) : null}
+                {canManageCourse ? (
+                  <CourseArchivedLessonsPanel
+                    lessons={archivedLessons}
+                    isRestoring={restoreLessonMutation.isPending}
+                    restoringLessonId={restoreLessonMutation.variables ?? null}
+                    onRestore={(lessonId) => {
+                      void onRestoreArchivedLesson(lessonId);
+                    }}
+                  />
+                ) : null}
               </CardContent>
             </Card>
 
             {!canManageCourse && canReadLessons ? (
-              <Card>
-                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+              <Card className={STUDIO_EDITOR_PANEL}>
+                <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="text-base">{selectedLesson?.title ?? t("courseDetail.selectLesson")}</CardTitle>
+                    <CardTitle className="text-lg font-semibold tracking-tight">
+                      {selectedLesson?.title ?? t("courseDetail.selectLesson")}
+                    </CardTitle>
                     <CardDescription>
                       {selectedLesson
                         ? `${progressQuery.data?.completedLessons ?? 0}/${progressQuery.data?.totalLessons ?? lessons.length} ${t("courseDetail.lessonsCompletedLabel")}`
@@ -2009,16 +2224,16 @@ export function CourseDetailPage() {
                     </CardDescription>
                   </div>
                   {selectedLesson && completedLessonIds.has(selectedLesson.id) ? (
-                    <Badge variant="default" className="rounded-md">
+                    <Badge variant="default" className="shrink-0 rounded-md">
                       <CheckCircle2 className="mr-1 size-3.5" aria-hidden />
                       {t("courseDetail.lessonCompleted")}
                     </Badge>
                   ) : null}
                 </CardHeader>
-                <CardContent className="grid gap-4">
+                <CardContent className="grid gap-4 pt-6">
                   {selectedLesson ? (
                     <>
-                      <div className="min-h-[min(60vh,28rem)]">{renderLearnerLessonContent(selectedLesson)}</div>
+                      <div className="min-h-[min(70vh,40rem)] w-full">{renderLearnerLessonContent(selectedLesson)}</div>
                       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                         <div className="flex gap-2">
                           <Button
@@ -2054,15 +2269,15 @@ export function CourseDetailPage() {
                             <ChevronRight className="ml-1 size-4" aria-hidden />
                           </Button>
                         </div>
-                        {isAuthenticated && isLearner ? (
+                        {isAuthenticated && isEnrolledStudent && selectedLesson && !completedLessonIds.has(selectedLesson.id) ? (
                           <Button
                             type="button"
                             size="sm"
                             className="h-9 rounded-md shadow-none"
-                            disabled={completeLessonMutation.isPending || completedLessonIds.has(selectedLesson.id)}
+                            disabled={completeLessonMutation.isPending}
                             onClick={() => void completeLessonMutation.mutateAsync(selectedLesson.id)}
                           >
-                            {completedLessonIds.has(selectedLesson.id) ? t("courseDetail.lessonCompleted") : t("courseDetail.markComplete")}
+                            {completeLessonMutation.isPending ? t("courseLearn.savingProgress") : t("courseDetail.markComplete")}
                           </Button>
                         ) : null}
                       </div>
@@ -2118,6 +2333,10 @@ export function CourseDetailPage() {
                                   onClick={() => {
                                     field.onChange(option.value);
                                     form.setValue("content", "", { shouldDirty: true });
+                                    form.setValue("quizExamId", "", { shouldDirty: true });
+                                    form.setValue("liveMeetingUrl", "", { shouldDirty: true });
+                                    form.setValue("liveStartsAt", "", { shouldDirty: true });
+                                    form.setValue("liveInstructions", "", { shouldDirty: true });
                                     setUploadedLessonFile(null);
                                   }}
                                 >
@@ -2221,6 +2440,69 @@ export function CourseDetailPage() {
                       </FormField>
                     ) : null}
 
+                    {lessonContentType === LESSON_CONTENT_TYPE.quiz ? (
+                      <FormField
+                        id="lesson-quiz-exam"
+                        label={t("courseDetail.quizLinkedExam")}
+                        hint={t("courseDetail.quizLinkedExamHint")}
+                        error={getLessonError(form.formState.errors.quizExamId?.message)}
+                      >
+                        <Controller
+                          control={form.control}
+                          name="quizExamId"
+                          render={({ field }) => (
+                            <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                              <SelectTrigger id="lesson-quiz-exam" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                                <SelectValue placeholder={t("courseDetail.quizLinkedExamPlaceholder")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {publishedExamOptions.length ? (
+                                  publishedExamOptions.map((exam) => (
+                                    <SelectItem key={exam.id} value={exam.id}>
+                                      {exam.title}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="__none" disabled>
+                                    {t("courseDetail.quizNoPublishedExams")}
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FormField>
+                    ) : null}
+
+                    {lessonContentType === LESSON_CONTENT_TYPE.liveSession ? (
+                      <>
+                        <FormField
+                          id="lesson-live-url"
+                          label={t("courseDetail.liveSessionMeetingUrl")}
+                          hint={t("courseDetail.optional")}
+                          error={getLessonError(form.formState.errors.liveMeetingUrl?.message)}
+                        >
+                          <Input id="lesson-live-url" type="url" placeholder={t("courseDetail.liveSessionMeetingUrlPlaceholder")} {...form.register("liveMeetingUrl")} />
+                        </FormField>
+                        <FormField
+                          id="lesson-live-starts"
+                          label={t("courseDetail.liveSessionStartsAt")}
+                          hint={t("courseDetail.optional")}
+                          error={getLessonError(form.formState.errors.liveStartsAt?.message)}
+                        >
+                          <Input id="lesson-live-starts" type="datetime-local" {...form.register("liveStartsAt")} />
+                        </FormField>
+                        <FormField
+                          id="lesson-live-instructions"
+                          label={t("courseDetail.liveSessionInstructions")}
+                          hint={t("courseDetail.liveSessionInstructionsHint")}
+                          error={getLessonError(form.formState.errors.liveInstructions?.message)}
+                        >
+                          <TextareaField id="lesson-live-instructions" rows={5} placeholder={t("courseDetail.liveSessionInstructionsPlaceholder")} {...form.register("liveInstructions")} />
+                        </FormField>
+                      </>
+                    ) : null}
+
                     <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
                       <span className="text-xs text-muted-foreground">
                         {selectedLessonId ? t("courseDetail.editingSelectedLesson") : `${t("courseDetail.nextLessonOrder")} #${nextLessonSortOrder}`}
@@ -2273,7 +2555,7 @@ export function CourseDetailPage() {
                             key={exam.id}
                             className={cn(
                               "rounded-lg border bg-background px-4 py-3 transition-colors",
-                              canViewExamWorkspace || (isAuthenticated && isLearner && isCoursePublished && isEnrolled)
+                              canViewExamWorkspace || (isAuthenticated && isEnrolledStudent && isCoursePublished)
                                 ? "cursor-pointer hover:bg-accent/40"
                                 : undefined,
                               selected ? "bg-accent/70 ring-foreground/20" : "ring-1 ring-foreground/10"
@@ -2344,7 +2626,7 @@ export function CourseDetailPage() {
                                   <Eye className="size-3.5" aria-hidden />
                                   {t("courseDetail.viewExam")}
                                 </span>
-                              ) : isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
+                              ) : isAuthenticated && isEnrolledStudent && isCoursePublished ? (
                                 <Button
                                   type="button"
                                   size="sm"
@@ -2658,9 +2940,16 @@ export function CourseDetailPage() {
                                     {t("courseDetail.examAttempt")} #{attempt.attemptNumber}
                                   </p>
                                 </div>
-                                <Badge variant={attempt.status === EXAM_ATTEMPT_STATUS.graded ? "default" : "secondary"} className="shrink-0 rounded-md">
-                                  {t(`examAttemptStatus.${attempt.status}` as I18nKey)}
-                                </Badge>
+                                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                                  {(attempt.suspiciousEventCount ?? 0) > 0 ? (
+                                    <Badge variant="destructive" className="rounded-md text-[10px]">
+                                      {t("courseDetail.examIntegrityFlagged")}
+                                    </Badge>
+                                  ) : null}
+                                  <Badge variant={attempt.status === EXAM_ATTEMPT_STATUS.graded ? "default" : "secondary"} className="rounded-md">
+                                    {t(`examAttemptStatus.${attempt.status}` as I18nKey)}
+                                  </Badge>
+                                </div>
                               </div>
                               <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
                                 <span className="rounded-md bg-background/70 px-2 py-1">
@@ -2733,6 +3022,9 @@ export function CourseDetailPage() {
                         <EmptyState icon={FileCheck2} title={t("courseDetail.selectAttemptFirst")} description={t("courseDetail.examAttemptsDescription")} />
                       </div>
                     )}
+                    {selectedExamAttemptId ? (
+                      <ExamIntegrityEventsPanel attemptId={selectedExamAttemptId} enabled={Boolean(canManageCourse)} />
+                    ) : null}
                     <FormField id="exam-attempt-grade-score" label={t("courseDetail.score")} error={examAttemptGradeForm.formState.errors.score?.message}>
                       <Input id="exam-attempt-grade-score" inputMode="numeric" min={0} max={100} type="number" {...examAttemptGradeForm.register("score")} />
                     </FormField>
@@ -3150,10 +3442,28 @@ export function CourseDetailPage() {
                       <FormField id="assignment-due-at" label={t("courseDetail.assignmentDueAt")} hint={t("courseDetail.optional")} error={assignmentForm.formState.errors.dueAt?.message}>
                         <Input id="assignment-due-at" type="date" {...assignmentForm.register("dueAt")} />
                       </FormField>
-                      <FormField id="assignment-max-score" label={t("courseDetail.assignmentMaxScore")} error={assignmentForm.formState.errors.maxScore?.message}>
-                        <Input id="assignment-max-score" inputMode="numeric" min={1} type="number" placeholder="100" {...assignmentForm.register("maxScore")} />
+                      <FormField
+                        id="assignment-max-score"
+                        label={t("courseDetail.assignmentMaxScore")}
+                        hint={assignmentRubricCriteria.length > 0 ? t("courseDetail.assignmentMaxScoreRubricHint") : undefined}
+                        error={assignmentForm.formState.errors.maxScore?.message}
+                      >
+                        <Input
+                          id="assignment-max-score"
+                          inputMode="numeric"
+                          min={1}
+                          type="number"
+                          placeholder="100"
+                          disabled={assignmentRubricCriteria.length > 0}
+                          {...assignmentForm.register("maxScore")}
+                        />
                       </FormField>
                     </div>
+                    <AssignmentRubricEditor
+                      criteria={assignmentRubricCriteria}
+                      disabled={isAssignmentSubmitPending}
+                      onChange={setAssignmentRubricCriteria}
+                    />
                     <FormField id="assignment-attachment-url" label={t("courseDetail.assignmentAttachmentUrl")} hint={t("courseDetail.optional")} error={assignmentForm.formState.errors.attachmentUrl?.message}>
                       <LessonUploadField
                         id="assignment-attachment-url"
@@ -3322,9 +3632,44 @@ export function CourseDetailPage() {
                         {t("courseDetail.viewSubmissionFile")}
                       </a>
                     ) : null}
-                    <FormField id="assignment-grade-score" label={t("courseDetail.score")} error={assignmentGradeForm.formState.errors.score?.message}>
-                      <Input id="assignment-grade-score" inputMode="numeric" min={0} max={selectedAssignment?.maxScore ?? 10000} type="number" {...assignmentGradeForm.register("score")} />
-                    </FormField>
+                    {hasAssignmentRubric ? (
+                      <div className="grid gap-3">
+                        <p className="text-xs text-muted-foreground">{t("courseDetail.rubricScoreAutoSum")}</p>
+                        <ul className="grid gap-2">
+                          {selectedAssignmentRubric.map((criterion) => (
+                            <li key={criterion.id} className="grid gap-2 rounded-lg bg-background/70 p-3 ring-1 ring-foreground/10 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-end">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{criterion.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {t("courseDetail.rubricGradePoints")} 0-{criterion.maxPoints}
+                                </p>
+                              </div>
+                              <Input
+                                id={`rubric-grade-${criterion.id}`}
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={criterion.maxPoints}
+                                value={rubricGradePoints[criterion.id] ?? 0}
+                                onChange={(event) =>
+                                  setRubricGradePoints((current) => ({
+                                    ...current,
+                                    [criterion.id]: Number(event.target.value) || 0
+                                  }))
+                                }
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-sm font-medium tabular-nums">
+                          {t("courseDetail.score")}: {rubricGradeTotal} / {selectedAssignment?.maxScore ?? rubricGradeTotal}
+                        </p>
+                      </div>
+                    ) : (
+                      <FormField id="assignment-grade-score" label={t("courseDetail.score")} error={assignmentGradeForm.formState.errors.score?.message}>
+                        <Input id="assignment-grade-score" inputMode="numeric" min={0} max={selectedAssignment?.maxScore ?? 10000} type="number" {...assignmentGradeForm.register("score")} />
+                      </FormField>
+                    )}
                     <FormField id="assignment-grade-feedback" label={t("courseDetail.feedback")} hint={t("courseDetail.optional")} error={assignmentGradeForm.formState.errors.feedback?.message}>
                       <TextareaField id="assignment-grade-feedback" rows={4} placeholder={t("courseDetail.feedbackPlaceholder")} {...assignmentGradeForm.register("feedback")} />
                     </FormField>
@@ -3460,6 +3805,9 @@ export function CourseDetailPage() {
                         <p className="font-medium">
                           {t("courseDetail.assignmentScore")}: {selectedAssignment.mySubmission.score ?? "—"} / {selectedAssignment.maxScore ?? "—"}
                         </p>
+                        {selectedAssignment.mySubmission.rubricScores?.length ? (
+                          <AssignmentRubricBreakdown scores={selectedAssignment.mySubmission.rubricScores} className="mt-4" />
+                        ) : null}
                         {selectedAssignment.mySubmission.feedback ? <p className="mt-2 text-muted-foreground">{selectedAssignment.mySubmission.feedback}</p> : null}
                       </div>
                     ) : null}
@@ -3520,7 +3868,7 @@ export function CourseDetailPage() {
               </CardContent>
             </Card>
 
-            {isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
+            {isAuthenticated && isEnrolledStudent && isCoursePublished ? (
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">{t("courseDetail.yourReview")}</CardTitle>
@@ -4103,9 +4451,9 @@ export function CourseDetailPage() {
       <AlertDialog open={Boolean(lessonPendingDelete)} onOpenChange={(open) => !open && setLessonPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("courseDetail.deleteLesson")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("courseDetail.archiveLesson")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("courseDetail.deleteLessonConfirm")}
+              {t("courseDetail.archiveLessonConfirm")}
               {lessonPendingDelete ? <span className="mt-2 block font-medium text-foreground">{lessonPendingDelete.title}</span> : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -4119,7 +4467,7 @@ export function CourseDetailPage() {
                 void confirmDeleteLesson();
               }}
             >
-              {deleteLessonMutation.isPending ? t("courseDetail.lessonDeletePending") : t("courseDetail.deleteLesson")}
+              {deleteLessonMutation.isPending ? t("courseDetail.lessonArchivePending") : t("courseDetail.archiveLesson")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -4192,6 +4540,39 @@ export function CourseDetailPage() {
               }}
             >
               {archiveAssignmentMutation.isPending ? t("courseDetail.assignmentArchivePending") : t("courseDetail.archiveAssignment")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={courseArchiveOpen} onOpenChange={setCourseArchiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("courseDetail.archiveCourseConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="grid gap-3 text-left text-sm text-muted-foreground">
+                <p>{t("courseDetail.archiveConfirm")}</p>
+                {courseQuery.data ? <p className="font-medium text-foreground">{courseQuery.data.title}</p> : null}
+                {courseArchiveImpactQuery.isLoading ? (
+                  <p className="text-xs">{t("courseDetail.archiveImpactLoading")}</p>
+                ) : null}
+                {courseArchiveImpactQuery.isError ? (
+                  <p className="text-xs text-destructive">{t("courseDetail.archiveImpactLoadFailed")}</p>
+                ) : null}
+                {courseArchiveImpactQuery.data ? <CourseArchiveImpactSummary impact={courseArchiveImpactQuery.data.impact} /> : null}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={archiveCourseMutation.isPending}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
+              disabled={archiveCourseMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmArchiveCourse();
+              }}
+            >
+              {archiveCourseMutation.isPending ? t("courseDetail.archiving") : t("courseDetail.archiveCourse")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -43,3 +43,10 @@ export function getPreviousCourseCreateStep(stepId: CourseCreateStepId): CourseC
   }
   return COURSE_CREATE_STEPS[index - 1]?.id ?? null;
 }
+
+export function isCourseCreateStepId(value: string | null | undefined): value is CourseCreateStepId {
+  if (!value) {
+    return false;
+  }
+  return COURSE_CREATE_STEPS.some((step) => step.id === value);
+}

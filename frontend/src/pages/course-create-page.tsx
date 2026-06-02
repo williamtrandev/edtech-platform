@@ -37,6 +37,7 @@ import {
   STUDIO_WORKSPACE_GRID
 } from "../lib/studio-layout";
 import { AppShell } from "../components/app-shell";
+import { CourseArchivedLessonsPanel } from "../components/course-archived-lessons-panel";
 import { CourseCreateAssignmentsStep, type PendingAssignment } from "../components/course-create-assignments-step";
 import { CourseCreateExamsStep, type PendingExam } from "../components/course-create-exams-step";
 import { CourseCreateStepper } from "../components/course-create-stepper";
@@ -51,7 +52,7 @@ import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
 import { COURSE_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
-import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
+import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
 import {
   COURSE_CREATE_STEP,
@@ -59,6 +60,7 @@ import {
   getCourseCreateStepIndex,
   getNextCourseCreateStep,
   getPreviousCourseCreateStep,
+  isCourseCreateStepId,
   type CourseCreateStepId
 } from "../lib/course-create-wizard";
 import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
@@ -69,8 +71,9 @@ import { courseService, type Course, type Lesson } from "../services/course.serv
 import { uploadService, type UploadedFile } from "../services/upload.service";
 import { type I18nKey, useI18n } from "../i18n";
 
-function getNextLessonSortOrder(lessons: { sortOrder: number }[] | undefined) {
-  const maxSortOrder = lessons?.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0) ?? 0;
+function getNextLessonSortOrder(lessons: { sortOrder: number; archivedAt?: string | null }[] | undefined) {
+  const activeLessons = (lessons ?? []).filter((lesson) => !lesson.archivedAt);
+  const maxSortOrder = activeLessons.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0);
   return maxSortOrder + 1;
 }
 
@@ -84,6 +87,7 @@ type PendingLesson = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  prerequisiteLessonId: string | null;
 };
 
 function buildLessonContent(values: CreateLessonFormValues, uploadedLessonFile: UploadedFile | null) {
@@ -109,9 +113,15 @@ function buildLessonContent(values: CreateLessonFormValues, uploadedLessonFile: 
 export function CourseCreatePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const courseIdFromUrl = searchParams.get("courseId");
+  const stepFromUrl = searchParams.get("step");
   const createCourseMutation = useCreateCourse();
   const [courseId, setCourseId] = useState<string | null>(courseIdFromUrl);
-  const [activeStep, setActiveStep] = useState<CourseCreateStepId>(COURSE_CREATE_STEP.details);
+  const [activeStep, setActiveStep] = useState<CourseCreateStepId>(() => {
+    if (isCourseCreateStepId(stepFromUrl)) {
+      return stepFromUrl;
+    }
+    return COURSE_CREATE_STEP.details;
+  });
   const [maxReachedStepIndex, setMaxReachedStepIndex] = useState(
     courseIdFromUrl ? COURSE_CREATE_STEPS.length - 1 : 0
   );
@@ -138,6 +148,7 @@ export function CourseCreatePage() {
   const createLessonMutation = useCreateLesson(courseId ?? "");
   const updateLessonMutation = useUpdateLesson(courseId ?? "");
   const deleteLessonMutation = useDeleteLesson(courseId ?? "");
+  const restoreLessonMutation = useRestoreLesson(courseId ?? "");
   const reorderLessonsMutation = useReorderLessons(courseId ?? "");
   const updateCourseMutation = useUpdateCourse(courseId ?? "");
 
@@ -166,7 +177,8 @@ export function CourseCreatePage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
-      sortOrder: 1
+      sortOrder: 1,
+      prerequisiteLessonId: null
     }
   });
 
@@ -190,11 +202,19 @@ export function CourseCreatePage() {
         title: lesson.title,
         contentType: lesson.contentType,
         content: lesson.content,
-        sortOrder: lesson.sortOrder
+        sortOrder: lesson.sortOrder,
+        prerequisiteLessonId: lesson.prerequisiteLessonId ?? null
       }));
   const nextLessonSortOrder = getNextLessonSortOrder(curriculumLessons);
   const isRestoringCourse = Boolean(courseId && courseQuery.isLoading);
   const lessons = curriculumLessons;
+  const archivedLessons = (lessonsQuery.data ?? []).filter((lesson) => lesson.archivedAt);
+  const editingLessonSortOrder = selectedLessonId
+    ? (lessons.find((lesson) => lesson.id === selectedLessonId)?.sortOrder ?? nextLessonSortOrder)
+    : nextLessonSortOrder;
+  const prerequisiteLessonOptions = lessons.filter(
+    (lesson) => lesson.id !== selectedLessonId && lesson.sortOrder < editingLessonSortOrder
+  );
   const isLessonSubmitPending = createLessonMutation.isPending || updateLessonMutation.isPending;
   const lessonSubmitLabel = updateLessonMutation.isPending
     ? t("courseDetail.savingLesson")
@@ -239,15 +259,38 @@ export function CourseCreatePage() {
   const examCount = courseId ? (examsQuery.data?.length ?? 0) : pendingExams.length;
   const assignmentCount = courseId ? (assignmentsQuery.data?.length ?? 0) : pendingAssignments.length;
 
+  const syncWizardParams = (nextCourseId: string | null, stepId: CourseCreateStepId) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextCourseId) {
+      nextParams.set("courseId", nextCourseId);
+      nextParams.set("step", stepId);
+    } else {
+      nextParams.delete("courseId");
+      nextParams.delete("step");
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const setWizardStep = (stepId: CourseCreateStepId) => {
+    setActiveStep(stepId);
+    if (courseId) {
+      syncWizardParams(courseId, stepId);
+    }
+  };
+
   useEffect(() => {
     setCourseId(courseIdFromUrl);
     if (!courseIdFromUrl) {
       setActiveStep(COURSE_CREATE_STEP.details);
       setMaxReachedStepIndex(0);
-    } else {
-      setMaxReachedStepIndex(COURSE_CREATE_STEPS.length - 1);
+      return;
     }
-  }, [courseIdFromUrl]);
+
+    setMaxReachedStepIndex(COURSE_CREATE_STEPS.length - 1);
+    if (isCourseCreateStepId(stepFromUrl)) {
+      setActiveStep(stepFromUrl);
+    }
+  }, [courseIdFromUrl, stepFromUrl]);
 
   useEffect(() => {
     if (!courseQuery.data) {
@@ -269,7 +312,8 @@ export function CourseCreatePage() {
   }, [courseForm, courseQuery.data]);
 
   useEffect(() => {
-    setOrderedLessons(lessonsQuery.data ?? []);
+    const activeLessons = (lessonsQuery.data ?? []).filter((lesson) => !lesson.archivedAt);
+    setOrderedLessons(activeLessons);
   }, [lessonsQuery.data]);
 
   useEffect(() => {
@@ -317,10 +361,8 @@ export function CourseCreatePage() {
 
   const bindCourseToWizard = (course: Course) => {
     setCourseId(course.id);
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set("courseId", course.id);
-    setSearchParams(nextParams, { replace: true });
     resetCourseFormFromCourse(course);
+    syncWizardParams(course.id, activeStep);
   };
 
   const createCourseDraftFromForm = async (values: CreateCourseFormValues) => {
@@ -356,7 +398,8 @@ export function CourseCreatePage() {
         title: lesson.title,
         contentType: lesson.contentType,
         content: lesson.content,
-        sortOrder: lesson.sortOrder
+        sortOrder: lesson.sortOrder,
+        prerequisiteLessonId: lesson.prerequisiteLessonId
       });
     }
 
@@ -471,7 +514,7 @@ export function CourseCreatePage() {
   const goToStep = (stepId: CourseCreateStepId) => {
     const index = getCourseCreateStepIndex(stepId);
     if (index <= maxReachedStepIndex) {
-      setActiveStep(stepId);
+      setWizardStep(stepId);
     }
   };
 
@@ -495,7 +538,7 @@ export function CourseCreatePage() {
 
       const nextIndex = getCourseCreateStepIndex(nextStep);
       setMaxReachedStepIndex((current) => Math.max(current, nextIndex));
-      setActiveStep(nextStep);
+      setWizardStep(nextStep);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("courseStudio.stepSaveFailed"));
     } finally {
@@ -506,14 +549,14 @@ export function CourseCreatePage() {
   const goToPreviousStep = () => {
     const previousStep = getPreviousCourseCreateStep(activeStep);
     if (previousStep) {
-      setActiveStep(previousStep);
+      setWizardStep(previousStep);
     }
   };
 
   const onSaveCourse = async (values: CreateCourseFormValues) => {
     if (!courseId) {
       toast.error(t("courseStudio.detailsIncomplete"));
-      setActiveStep(COURSE_CREATE_STEP.details);
+      setWizardStep(COURSE_CREATE_STEP.details);
       return;
     }
 
@@ -605,7 +648,8 @@ export function CourseCreatePage() {
                   ...lesson,
                   title: values.title,
                   contentType: values.contentType,
-                  content
+                  content,
+                  prerequisiteLessonId: values.prerequisiteLessonId ?? null
                 }
               : lesson
           )
@@ -619,7 +663,8 @@ export function CourseCreatePage() {
             title: values.title,
             contentType: values.contentType,
             content,
-            sortOrder: nextLessonSortOrder
+            sortOrder: nextLessonSortOrder,
+            prerequisiteLessonId: values.prerequisiteLessonId ?? null
           }
         ]);
         toast.success(t("courseDetail.lessonCreated"));
@@ -645,7 +690,8 @@ export function CourseCreatePage() {
           payload: {
             title: values.title,
             contentType: values.contentType,
-            content
+            content,
+            prerequisiteLessonId: values.prerequisiteLessonId ?? null
           }
         });
         toast.success(t("courseDetail.lessonUpdated"));
@@ -655,7 +701,8 @@ export function CourseCreatePage() {
         await createLessonMutation.mutateAsync({
           ...values,
           sortOrder: nextLessonSortOrder,
-          content
+          content,
+          prerequisiteLessonId: values.prerequisiteLessonId ?? null
         });
         toast.success(t("courseDetail.lessonCreated"));
         lessonForm.reset({
@@ -775,7 +822,8 @@ export function CourseCreatePage() {
       title: lesson.title,
       contentType: lesson.contentType,
       content: parsedContent.kind === LESSON_CONTENT_TYPE.text ? parsedContent.body ?? "" : parsedContent.url ?? "",
-      sortOrder: lesson.sortOrder
+      sortOrder: lesson.sortOrder,
+      prerequisiteLessonId: lesson.prerequisiteLessonId ?? null
     });
   };
 
@@ -788,7 +836,8 @@ export function CourseCreatePage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
-      sortOrder: nextLessonSortOrder
+      sortOrder: nextLessonSortOrder,
+      prerequisiteLessonId: null
     });
   };
 
@@ -803,7 +852,7 @@ export function CourseCreatePage() {
         onNewLesson();
       }
       setLessonPendingDelete(null);
-      toast.success(t("courseDetail.lessonDeleted"));
+      toast.success(t("courseDetail.lessonArchived"));
       return;
     }
 
@@ -819,9 +868,22 @@ export function CourseCreatePage() {
         onNewLesson();
       }
       setLessonPendingDelete(null);
-      toast.success(t("courseDetail.lessonDeleted"));
+      toast.success(t("courseDetail.lessonArchived"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonDeleteFailed"));
+      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonArchiveFailed"));
+    }
+  };
+
+  const onRestoreArchivedLesson = async (lessonId: string) => {
+    if (!courseId) {
+      return;
+    }
+
+    try {
+      await restoreLessonMutation.mutateAsync(lessonId);
+      toast.success(t("courseDetail.lessonRestored"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonRestoreFailed"));
     }
   };
 
@@ -1010,6 +1072,37 @@ export function CourseCreatePage() {
                 <FormField id="new-lesson-title" label={t("courseDetail.lessonTitle")} error={getLessonError(lessonForm.formState.errors.title?.message)}>
                   <Input id="new-lesson-title" placeholder={t("courseDetail.lessonTitlePlaceholder")} {...lessonForm.register("title")} />
                 </FormField>
+
+                {prerequisiteLessonOptions.length > 0 ? (
+                  <FormField
+                    id="new-lesson-prerequisite"
+                    label={t("courseDetail.prerequisiteLesson")}
+                    hint={t("courseDetail.prerequisiteHint")}
+                  >
+                    <Controller
+                      control={lessonForm.control}
+                      name="prerequisiteLessonId"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value ?? "__none__"}
+                          onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                        >
+                          <SelectTrigger id="new-lesson-prerequisite" className="w-full">
+                            <SelectValue placeholder={t("courseDetail.prerequisiteNone")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">{t("courseDetail.prerequisiteNone")}</SelectItem>
+                            {prerequisiteLessonOptions.map((lesson) => (
+                              <SelectItem key={lesson.id} value={lesson.id}>
+                                {lesson.sortOrder}. {lesson.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </FormField>
+                ) : null}
 
                 <FormField id="new-lesson-type" label={t("courseDetail.lessonType")} error={getLessonError(lessonForm.formState.errors.contentType?.message)}>
                   <Controller
@@ -1205,7 +1298,7 @@ export function CourseCreatePage() {
                             size="sm"
                             className="size-8 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                             disabled={deleteLessonMutation.isPending}
-                            aria-label={t("courseDetail.deleteLesson")}
+                            aria-label={t("courseDetail.archiveLesson")}
                             onClick={(event) => {
                               event.stopPropagation();
                               setLessonPendingDelete(lesson);
@@ -1224,6 +1317,16 @@ export function CourseCreatePage() {
                 <p className="rounded-xl bg-muted/30 ring-1 ring-foreground/10 px-4 py-8 text-center text-sm text-muted-foreground">
                   {courseId ? t("courseDetail.noLessonsDescription") : t("courseStudio.addFirstLessonHint")}
                 </p>
+              ) : null}
+              {courseId ? (
+                <CourseArchivedLessonsPanel
+                  lessons={archivedLessons}
+                  isRestoring={restoreLessonMutation.isPending}
+                  restoringLessonId={restoreLessonMutation.variables ?? null}
+                  onRestore={(lessonId) => {
+                    void onRestoreArchivedLesson(lessonId);
+                  }}
+                />
               ) : null}
             </CardContent>
           </Card>
@@ -1349,9 +1452,9 @@ export function CourseCreatePage() {
       <AlertDialog open={Boolean(lessonPendingDelete)} onOpenChange={(open) => !open && setLessonPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("courseDetail.deleteLesson")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("courseDetail.archiveLesson")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("courseDetail.deleteLessonConfirm")}
+              {t("courseDetail.archiveLessonConfirm")}
               {lessonPendingDelete ? <span className="mt-2 block font-medium text-foreground">{lessonPendingDelete.title}</span> : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1365,7 +1468,7 @@ export function CourseCreatePage() {
                 void confirmDeleteLesson();
               }}
             >
-              {deleteLessonMutation.isPending ? t("courseDetail.lessonDeletePending") : t("courseDetail.deleteLesson")}
+              {deleteLessonMutation.isPending ? t("courseDetail.lessonArchivePending") : t("courseDetail.archiveLesson")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

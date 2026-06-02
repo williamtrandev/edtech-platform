@@ -115,6 +115,7 @@ export function useArchiveCourse() {
       await queryClient.invalidateQueries({ queryKey: ["courses"] });
       await queryClient.invalidateQueries({ queryKey: ["courses", id] });
       await queryClient.invalidateQueries({ queryKey: ["courses", id, "enrollments"] });
+      await queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }
   });
 }
@@ -195,6 +196,14 @@ export function useCourseAnalytics(courseId: string, enabled = true) {
   });
 }
 
+export function useCourseArchiveImpact(courseId: string, enabled = false) {
+  return useQuery({
+    queryKey: ["courses", courseId, "archive-impact"],
+    queryFn: () => courseService.getCourseArchiveImpact(courseId),
+    enabled: Boolean(courseId) && enabled
+  });
+}
+
 export function useCourseLessons(courseId: string, enabled = true) {
   return useQuery({
     queryKey: ["lessons", courseId],
@@ -261,6 +270,20 @@ export function useDeleteLesson(courseId: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["lessons", courseId] });
       await queryClient.invalidateQueries({ queryKey: ["progress", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["lesson-progress", courseId] });
+    }
+  });
+}
+
+export function useRestoreLesson(courseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (lessonId: string) => courseService.restoreLesson(lessonId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["lessons", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["progress", courseId] });
+      await queryClient.invalidateQueries({ queryKey: ["lesson-progress", courseId] });
     }
   });
 }
