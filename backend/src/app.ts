@@ -17,6 +17,8 @@ import { examRouter } from "./modules/exam/exam.route";
 import { jobRouter } from "./modules/job/job.route";
 import { learnerAnalyticsRouter } from "./modules/learner-analytics/learner-analytics.route";
 import { liveSessionRouter } from "./modules/live-session/live-session.route";
+import { learningPathRouter } from "./modules/learning-path/learning-path.route";
+import { coursePaymentRouter } from "./modules/course-payment/course-payment.route";
 import { lessonRouter } from "./modules/lesson/lesson.route";
 import { notificationRouter } from "./modules/notification/notification.route";
 import { progressRouter } from "./modules/progress/progress.route";
@@ -50,6 +52,8 @@ export function createApp() {
   app.use("/jobs", jobRouter);
   app.use("/learner-analytics", learnerAnalyticsRouter);
   app.use("/live-sessions", liveSessionRouter);
+  app.use("/learning-paths", learningPathRouter);
+  app.use("/course-payments", coursePaymentRouter);
   app.use("/lessons", lessonRouter);
   app.use("/notifications", notificationRouter);
   app.use("/lesson-progress", progressRouter);

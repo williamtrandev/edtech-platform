@@ -33,6 +33,8 @@ export class CourseRepository {
     coverImageUrl: true,
     ratingAverage: true,
     ratingCount: true,
+    priceCents: true,
+    currency: true,
     status: true,
     instructorId: true,
     instructor: {

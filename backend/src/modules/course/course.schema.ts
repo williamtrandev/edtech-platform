@@ -84,6 +84,8 @@ export const createCourseSchema = z.object({
     requirements: requiredTrimmedString(1, 2000),
     outcomes: requiredTrimmedString(1, 2000),
     coverImageUrl: mediaUrlSchema,
+    priceCents: z.coerce.number().int().min(0).max(10_000_000).default(0),
+    currency: z.string().trim().length(3).default("USD"),
     status: courseStatusSchema.default("DRAFT")
   })
 });
@@ -102,6 +104,8 @@ export const updateCourseSchema = z.object({
     requirements: optionalNullableTrimmedString(2000),
     outcomes: optionalNullableTrimmedString(2000),
     coverImageUrl: mediaUrlSchema.nullable().optional(),
+    priceCents: z.coerce.number().int().min(0).max(10_000_000).optional(),
+    currency: z.string().trim().length(3).optional(),
     status: courseStatusSchema.optional()
   })
 });

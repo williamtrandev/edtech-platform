@@ -9,6 +9,8 @@ import { CourseLearnPage } from "../pages/course-learn-page";
 import { CoursesPage } from "../pages/courses-page";
 import { EmailConfirmedPage } from "../pages/email-confirmed-page";
 import { ExploreCoursesPage } from "../pages/explore-courses-page";
+import { LearningPathDetailPage } from "../pages/learning-path-detail-page";
+import { LearningPathsPage } from "../pages/learning-paths-page";
 import { ForgotPasswordPage } from "../pages/forgot-password-page";
 import { JobsPage } from "../pages/jobs-page";
 import { LoginPage } from "../pages/login-page";
@@ -58,6 +60,14 @@ export const router = createBrowserRouter([
   {
     path: "/explore",
     element: <ExploreCoursesPage />
+  },
+  {
+    path: "/learning-paths",
+    element: <LearningPathsPage />
+  },
+  {
+    path: "/learning-paths/:pathId",
+    element: <LearningPathDetailPage />
   },
   {
     path: "/courses/:courseId",

@@ -1,4 +1,4 @@
-import { Activity, BarChart3, BookMarked, ClipboardList, Compass, GraduationCap, Library, LogIn, Users } from "lucide-react";
+import { Activity, BarChart3, BookMarked, ClipboardList, Compass, GraduationCap, Layers3, Library, LogIn, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -25,6 +25,7 @@ import {
 import { useI18n } from "../i18n";
 
 const EXPLORE_NAV: HeaderNavItem = { to: "/explore", labelKey: "nav.explore", icon: Compass };
+const LEARNING_PATHS_NAV: HeaderNavItem = { to: "/learning-paths", labelKey: "nav.learningPaths", icon: Layers3 };
 const MY_LEARNING_NAV: HeaderNavItem = { to: "/dashboard", labelKey: "nav.myLearning", icon: Library };
 const PROGRESS_NAV: HeaderNavItem = { to: "/my-progress", labelKey: "nav.progress", icon: GraduationCap };
 const COURSE_STUDIO_NAV: HeaderNavItem = { to: "/courses", labelKey: "nav.courseStudio", icon: BookMarked, activePath: "/courses" };
@@ -34,12 +35,12 @@ const AUDIT_NAV: HeaderNavItem = { to: "/audit", labelKey: "nav.audit", icon: Cl
 const JOBS_NAV: HeaderNavItem = { to: "/jobs", labelKey: "nav.jobs", icon: Activity };
 
 const NAV_BY_ROLE: Record<UserRole, HeaderNavItem[]> = {
-  [USER_ROLE.user]: [EXPLORE_NAV, MY_LEARNING_NAV, PROGRESS_NAV],
+  [USER_ROLE.user]: [EXPLORE_NAV, LEARNING_PATHS_NAV, MY_LEARNING_NAV, PROGRESS_NAV],
   [USER_ROLE.instructor]: [EXPLORE_NAV, COURSE_STUDIO_NAV],
   [USER_ROLE.admin]: [COURSE_STUDIO_NAV, USERS_NAV, ANALYTICS_NAV, AUDIT_NAV, JOBS_NAV]
 };
 
-const GUEST_NAV: HeaderNavItem[] = [EXPLORE_NAV];
+const GUEST_NAV: HeaderNavItem[] = [EXPLORE_NAV, LEARNING_PATHS_NAV];
 
 function getNavItemsForRole(role: UserRole | undefined, isAuthenticated: boolean): HeaderNavItem[] {
   if (!isAuthenticated || !role) {

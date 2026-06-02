@@ -26,6 +26,23 @@ enum CourseStatus {
   LOCKED
 }
 
+enum LearningPathStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CoursePaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  MOCK
+}
+
 enum LessonContentType {
   VIDEO
   TEXT
@@ -106,6 +123,8 @@ model User {
   notifications          Notification[]
   notificationPreference NotificationPreference?
   certificates           Certificate[]
+  learningPathsCreated   LearningPath[]   @relation("LearningPathCreator")
+  coursePayments         CoursePayment[]
 }
 
 model AuditLog {
@@ -191,6 +210,8 @@ model Course {
   coverImageUrl   String?
   ratingAverage   Float        @default(0)
   ratingCount     Int          @default(0)
+  priceCents      Int          @default(0)
+  currency        String       @default("USD")
   status          CourseStatus @default(DRAFT)
   instructorId    String
   lockReason      String?
@@ -210,6 +231,8 @@ model Course {
   discussionComments  CourseDiscussionComment[]
   assignments         Assignment[]
   certificates Certificate[]
+  learningPathCourses LearningPathCourse[]
+  coursePayments      CoursePayment[]
 
   @@index([status])
   @@index([instructorId])
@@ -481,4 +504,58 @@ model LessonProgress {
   @@unique([userId, lessonId])
   @@index([userId])
   @@index([lessonId])
+}
+
+model LearningPath {
+  id            String             @id @default(cuid())
+  title         String
+  description   String?
+  coverImageUrl String?
+  status        LearningPathStatus @default(DRAFT)
+  createdById   String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  archivedAt    DateTime?
+
+  createdBy User                 @relation("LearningPathCreator", fields: [createdById], references: [id])
+  courses   LearningPathCourse[]
+
+  @@index([status])
+  @@index([createdById])
+}
+
+model LearningPathCourse {
+  id             String @id @default(cuid())
+  learningPathId String
+  courseId       String
+  sortOrder      Int
+
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([learningPathId, courseId])
+  @@unique([learningPathId, sortOrder])
+  @@index([courseId])
+}
+
+model CoursePayment {
+  id             String              @id @default(cuid())
+  userId         String
+  courseId       String
+  amountCents    Int
+  currency       String              @default("USD")
+  status         CoursePaymentStatus @default(PENDING)
+  provider       PaymentProvider     @default(MOCK)
+  providerRef    String?
+  idempotencyKey String
+  createdAt      DateTime            @default(now())
+  completedAt    DateTime?
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, courseId])
+  @@index([courseId])
+  @@index([status])
 }
