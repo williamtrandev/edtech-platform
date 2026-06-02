@@ -1,4 +1,4 @@
-import { Job, Queue, Worker } from "bullmq";
+import { Job, Queue, Worker, type WorkerOptions } from "bullmq";
 import { redisConnection } from "../config/redis";
 import { BaseJobPayload } from "./queue.types";
 
@@ -10,9 +10,11 @@ export function createQueue(name: string) {
 
 export function createWorker(
   name: string,
-  processor: (job: Job<BaseJobPayload>) => Promise<void>
+  processor: (job: Job<BaseJobPayload>) => Promise<void>,
+  workerOptions: Omit<WorkerOptions, "connection"> = {}
 ) {
   return new Worker<BaseJobPayload>(name, processor, {
-    connection: redisConnection
+    connection: redisConnection,
+    ...workerOptions
   });
 }

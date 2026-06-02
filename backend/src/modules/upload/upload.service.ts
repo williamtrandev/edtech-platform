@@ -1,10 +1,11 @@
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { UPLOAD_STORAGE } from "../../common/constants/upload";
 import { AppError } from "../../common/errors/app-error";
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
-const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+const UPLOAD_ROOT = path.resolve(process.cwd(), UPLOAD_STORAGE.directoryName);
 
 const MIME_EXTENSION: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -58,7 +59,7 @@ export class UploadService {
     await writeFile(path.join(UPLOAD_ROOT, storedName), buffer);
 
     return {
-      url: `/uploads/${storedName}`,
+      url: `${UPLOAD_STORAGE.publicPathPrefix}${storedName}`,
       fileName: payload.fileName,
       mimeType: payload.mimeType,
       size: buffer.byteLength

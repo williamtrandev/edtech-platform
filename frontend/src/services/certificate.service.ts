@@ -1,4 +1,5 @@
 import type { CertificateStatus } from "../constants/business";
+import { ApiError } from "../lib/api-error";
 import { httpClient } from "../lib/http-client";
 
 type ApiResponse<T> = {
@@ -75,12 +76,33 @@ export const certificateService = {
     return response.data.data;
   },
   async downloadCertificatePdf(certificateId: string): Promise<{ blob: Blob; filename: string }> {
-    const response = await httpClient.get<Blob>(`/certificates/${certificateId}/pdf`, {
-      responseType: "blob"
-    });
-    return {
-      blob: response.data,
-      filename: getFilenameFromDisposition(response.headers["content-disposition"])
-    };
+    const maxAttempts = 8;
+    const retryDelayMs = 1200;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const response = await httpClient.get<Blob>(`/certificates/${certificateId}/pdf`, {
+          responseType: "blob"
+        });
+        return {
+          blob: response.data,
+          filename: getFilenameFromDisposition(response.headers["content-disposition"])
+        };
+      } catch (error) {
+        const shouldRetry =
+          error instanceof ApiError &&
+          (error.code === "CERTIFICATE_PDF_PROCESSING" || error.statusCode === 503) &&
+          attempt < maxAttempts - 1;
+        if (!shouldRetry) {
+          throw error;
+        }
+
+        await new Promise((resolve) => {
+          setTimeout(resolve, retryDelayMs);
+        });
+      }
+    }
+
+    throw new ApiError("Certificate PDF is still generating", "CERTIFICATE_PDF_PROCESSING", 503);
   }
 };

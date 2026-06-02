@@ -117,4 +117,15 @@ export class NotificationRepository {
       data: { readAt: new Date() }
     });
   }
+
+  async findUserEmailById(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true
+      }
+    });
+
+    return user?.email ?? null;
+  }
 }

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
+import { notificationEmailQueue, notificationEmailJobOptions } from "../../jobs/notification-email.queue";
 import { NotificationRepository } from "./notification.repository";
 import { UpdateNotificationPreferencesInput } from "./notification.schema";
 
@@ -18,19 +19,44 @@ export class NotificationService {
   async createNotification(input: CreateNotificationInput) {
     const preferences = await this.notificationRepository.findPreferenceByUser(input.userId);
     const preferenceKey = this.resolvePreferenceKey(input.type);
+    const shouldSendInApp = !preferences || (preferences.inAppEnabled && preferences[preferenceKey]);
+    const shouldQueueEmail = Boolean(preferences?.emailEnabled && preferences[preferenceKey]);
 
-    if (preferences && (!preferences.inAppEnabled || !preferences[preferenceKey])) {
+    if (!shouldSendInApp && !shouldQueueEmail) {
       return null;
     }
 
-    return this.notificationRepository.create({
-      user: { connect: { id: input.userId } },
-      type: input.type,
-      title: input.title,
-      body: input.body || null,
-      linkUrl: input.linkUrl || null,
-      metadata: input.metadata ?? Prisma.JsonNull
-    });
+    const notification = shouldSendInApp
+      ? await this.notificationRepository.create({
+          user: { connect: { id: input.userId } },
+          type: input.type,
+          title: input.title,
+          body: input.body || null,
+          linkUrl: input.linkUrl || null,
+          metadata: input.metadata ?? Prisma.JsonNull
+        })
+      : null;
+
+    if (shouldQueueEmail) {
+      const recipientEmail = await this.notificationRepository.findUserEmailById(input.userId);
+      if (recipientEmail) {
+        await notificationEmailQueue.add(
+          "send",
+          {
+            userId: input.userId,
+            email: recipientEmail,
+            type: input.type,
+            title: input.title,
+            body: input.body ?? null,
+            linkUrl: input.linkUrl ?? null,
+            notificationId: notification?.id ?? null
+          },
+          notificationEmailJobOptions
+        );
+      }
+    }
+
+    return notification;
   }
 
   async getMyPreferences(user: Express.UserClaims | undefined) {

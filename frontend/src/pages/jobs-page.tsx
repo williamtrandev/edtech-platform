@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
+import { QueueFailedJobsPanel } from "../components/queue-failed-jobs-panel";
 import { MetricCard } from "../components/metric-card";
 import { MetricCardSkeleton, Skeleton } from "../components/skeleton";
 import { useJobQueues, useRetryFailedJob } from "../hooks/use-jobs";
@@ -22,9 +23,19 @@ type QueueHealth = {
   icon: typeof AlertTriangle;
 };
 
-const QUEUE_LABEL_KEYS: Record<string, "jobs.queue.examGrading" | "jobs.queue.analyticsProcessing"> = {
+const QUEUE_LABEL_KEYS: Record<
+  string,
+  | "jobs.queue.examGrading"
+  | "jobs.queue.analyticsProcessing"
+  | "jobs.queue.notificationEmail"
+  | "jobs.queue.certificatePdf"
+  | "jobs.queue.fileCleanup"
+> = {
   "exam-grading": "jobs.queue.examGrading",
-  "analytics-processing": "jobs.queue.analyticsProcessing"
+  "analytics-processing": "jobs.queue.analyticsProcessing",
+  "notification-email": "jobs.queue.notificationEmail",
+  "certificate-pdf": "jobs.queue.certificatePdf",
+  "file-cleanup": "jobs.queue.fileCleanup"
 };
 
 function getQueueLabel(queue: JobQueueSummary, t: ReturnType<typeof useI18n>["t"]) {
@@ -144,6 +155,13 @@ function QueueCard({ onRetryJob, queue, retryingJobId }: { queue: JobQueueSummar
             </div>
           ))}
         </dl>
+        {queue.failureRate > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("jobs.failureRate")}:{" "}
+            <span className="font-semibold tabular-nums text-destructive">{queue.failureRate}%</span>
+          </p>
+        ) : null}
+        <QueueFailedJobsPanel queueName={queue.name} failedCount={queue.counts.failed} />
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="space-y-2">
             <h2 className="text-sm font-semibold text-foreground">{t("jobs.failedJobs")}</h2>
