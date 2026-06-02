@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppShell } from "../components/app-shell";
 import { EmptyState } from "../components/empty-state";
+import { EmailDeliveryPanel } from "../components/email-delivery-panel";
 import { QueueFailedJobsPanel } from "../components/queue-failed-jobs-panel";
 import { MetricCard } from "../components/metric-card";
 import { MetricCardSkeleton, Skeleton } from "../components/skeleton";
@@ -252,6 +253,8 @@ export function JobsPage() {
             {formatError(error, "jobs.loadFailed")}
           </div>
         ) : null}
+
+        <EmailDeliveryPanel />
 
         <section className="space-y-3" aria-label={t("jobs.queues")}>
           {isLoading ? (

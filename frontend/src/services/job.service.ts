@@ -35,6 +35,23 @@ export type JobQueuesResponse = {
   items: JobQueueSummary[];
 };
 
+export type EmailDeliveryStatus = {
+  configuredProvider: "LOG" | "SMTP" | "RESEND";
+  requestedProvider: "LOG" | "SMTP" | "RESEND";
+  deliversEmail: boolean;
+  emailFrom: string;
+  appPublicUrl: string;
+  smtp: {
+    host: string;
+    port: number;
+    secure: boolean;
+    hasCredentials: boolean;
+  } | null;
+  resend: {
+    configured: boolean;
+  };
+};
+
 export type FailedJobsResponse = {
   items: JobQueueJob[];
   pagination: {
@@ -51,6 +68,11 @@ export type RetryAllFailedJobsResponse = {
 };
 
 export const jobService = {
+  async getEmailDelivery(): Promise<EmailDeliveryStatus> {
+    const response = await httpClient.get<ApiResponse<EmailDeliveryStatus>>("/jobs/email-delivery");
+    return response.data.data;
+  },
+
   async getQueues(): Promise<JobQueuesResponse> {
     const response = await httpClient.get<ApiResponse<JobQueuesResponse>>("/jobs/queues");
     return response.data.data;

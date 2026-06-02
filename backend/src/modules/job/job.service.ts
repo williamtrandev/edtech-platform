@@ -1,5 +1,6 @@
 import type { Job, Queue } from "bullmq";
 import { USER_ROLE } from "../../common/constants/business";
+import { getEmailDeliveryStatus } from "../../common/email/email-delivery-status";
 import { JOB_MONITORING } from "../../common/constants/job";
 import { AppError } from "../../common/errors/app-error";
 import { createQueue } from "../../jobs/base.queue";
@@ -38,6 +39,11 @@ export class JobService {
     ...queue,
     client: createQueue(queue.name)
   }));
+
+  getEmailDelivery(user: Express.UserClaims | undefined) {
+    this.assertAdmin(user);
+    return getEmailDeliveryStatus();
+  }
 
   async listQueues(user: Express.UserClaims | undefined, includeSamples: boolean) {
     this.assertAdmin(user);

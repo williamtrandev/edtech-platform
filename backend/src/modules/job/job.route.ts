@@ -17,6 +17,7 @@ const jobController = new JobController(jobService);
 export const jobRouter = Router();
 
 jobRouter.use(authMiddleware);
+jobRouter.get("/email-delivery", asyncHandler(jobController.getEmailDelivery));
 jobRouter.get("/queues", validateRequest(listJobQueuesSchema), asyncHandler(jobController.listQueues));
 jobRouter.get(
   "/queues/:queueName/failed-jobs",

@@ -1,6 +1,7 @@
-import { EMAIL_PROVIDER, type EmailProvider } from "../constants/email";
+import { EMAIL_PROVIDER } from "../constants/email";
 import { createLogger } from "../../config/logger";
 import { env } from "../../config/env";
+import { resolveEmailProvider } from "./email-delivery-status";
 import { sendViaSmtp } from "./email-smtp";
 import { buildNotificationEmailTemplate, type NotificationEmailTemplateInput } from "./notification-email.template";
 
@@ -14,18 +15,6 @@ type ResendEmailResponse = {
   id?: string;
   message?: string;
 };
-
-function resolveProvider(): EmailProvider {
-  if (env.EMAIL_PROVIDER === EMAIL_PROVIDER.smtp && env.SMTP_HOST) {
-    return EMAIL_PROVIDER.smtp;
-  }
-
-  if (env.EMAIL_PROVIDER === EMAIL_PROVIDER.resend && env.RESEND_API_KEY) {
-    return EMAIL_PROVIDER.resend;
-  }
-
-  return EMAIL_PROVIDER.log;
-}
 
 async function sendViaResend(input: SendNotificationEmailInput, template: ReturnType<typeof buildNotificationEmailTemplate>) {
   const response = await fetch("https://api.resend.com/emails", {
@@ -53,7 +42,7 @@ async function sendViaResend(input: SendNotificationEmailInput, template: Return
 
 export async function sendNotificationEmail(input: SendNotificationEmailInput) {
   const template = buildNotificationEmailTemplate(input);
-  const provider = resolveProvider();
+  const provider = resolveEmailProvider();
 
   if (provider === EMAIL_PROVIDER.smtp) {
     const messageId = await sendViaSmtp({

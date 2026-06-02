@@ -9,6 +9,14 @@ export function useJobQueues() {
   });
 }
 
+export function useEmailDelivery() {
+  return useQuery({
+    queryKey: ["jobs", "email-delivery"],
+    queryFn: () => jobService.getEmailDelivery(),
+    staleTime: 60_000
+  });
+}
+
 export function useFailedJobs(queueName: string, page: number, enabled: boolean) {
   return useQuery({
     queryKey: ["jobs", "failed", queueName, page],

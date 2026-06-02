@@ -4,6 +4,11 @@ import { JobService } from "./job.service";
 export class JobController {
   constructor(private readonly jobService: JobService) {}
 
+  getEmailDelivery = async (req: Request, res: Response): Promise<void> => {
+    const data = this.jobService.getEmailDelivery(req.user);
+    res.status(200).json({ success: true, data });
+  };
+
   listQueues = async (req: Request, res: Response): Promise<void> => {
     const includeSamples = req.query.includeSamples !== "false";
     const queues = await this.jobService.listQueues(req.user, includeSamples);
