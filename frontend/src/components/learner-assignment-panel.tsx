@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS } from "../constants/business";
 import { useCourseAssignments, useSubmitAssignment } from "../hooks/use-assignments";
 import { useI18n, type I18nKey } from "../i18n";
@@ -151,19 +150,19 @@ export function LearnerAssignmentPanel({ courseId, enabled = true, onSubmitted }
   }
 
   return (
-    <Card className="mt-8 border-border/70 shadow-sm">
-      <CardHeader className="pb-3">
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+      <div className="border-b border-border/60 bg-muted/20 px-5 py-4 sm:px-6">
         <div className="flex items-start gap-3">
-          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <ClipboardList className="size-4" aria-hidden />
           </span>
           <div className="min-w-0 space-y-1">
-            <CardTitle className="text-base">{t("courseLearn.assignmentsTitle")}</CardTitle>
-            <CardDescription>{t("courseLearn.assignmentsDescription")}</CardDescription>
+            <h2 className="text-base font-semibold tracking-tight text-foreground">{t("courseLearn.assignmentsTitle")}</h2>
+            <p className="text-sm text-muted-foreground">{t("courseLearn.assignmentsDescription")}</p>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+      </div>
+      <div className="grid gap-5 px-5 py-5 sm:px-6">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("courseLearn.assignmentsTitle")}>
           {publishedAssignments.map((assignment) => {
             const isSelected = assignment.id === selectedAssignmentId;
@@ -263,8 +262,8 @@ export function LearnerAssignmentPanel({ courseId, enabled = true, onSubmitted }
               {selectedAssignment.mySubmission?.status === ASSIGNMENT_SUBMISSION_STATUS.graded ? (
                 <div className="rounded-xl bg-muted/30 px-3 py-3 text-sm ring-1 ring-foreground/10">
                   <p className="font-medium">
-                    {t("courseDetail.assignmentScore")}: {selectedAssignment.mySubmission.score ?? "—"} /{" "}
-                    {selectedAssignment.maxScore ?? "—"}
+                    {t("courseDetail.assignmentScore")}: {selectedAssignment.mySubmission.score ?? "-"} /{" "}
+                    {selectedAssignment.maxScore ?? "-"}
                   </p>
                   {selectedAssignment.mySubmission.rubricScores?.length ? (
                     <AssignmentRubricBreakdown scores={selectedAssignment.mySubmission.rubricScores} className="mt-4" />
@@ -293,7 +292,7 @@ export function LearnerAssignmentPanel({ courseId, enabled = true, onSubmitted }
             </form>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

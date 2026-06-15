@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { EXAM_ATTEMPT_EVENT_TYPE, EXAM_SUBMIT_REASON } from "../../common/constants/exam-integrity";
 
-const answerSchema = z.union([z.string().trim().max(4000), z.array(z.string().trim().min(1).max(80)).max(20)]);
+// String covers FREE_TEXT prose and CODE submissions (raw source), hence the large cap.
+const answerSchema = z.union([z.string().max(20000), z.array(z.string().trim().min(1).max(80)).max(20)]);
 const examAttemptStatusSchema = z.enum(["IN_PROGRESS", "SUBMITTED", "GRADED"]);
 const examAttemptEventTypeSchema = z.enum([
   EXAM_ATTEMPT_EVENT_TYPE.tabHidden,

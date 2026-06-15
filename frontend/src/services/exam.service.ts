@@ -1,7 +1,9 @@
 import type {
+  CodeQuestionLanguage,
   ExamAttemptEventType,
   ExamAttemptStatus,
   ExamQuestionType,
+  ExamScope,
   ExamStatus,
   ExamSubmitReason
 } from "../constants/business";
@@ -21,9 +23,17 @@ type PaginatedResponse<T> = {
   };
 };
 
+export type ExamLessonSummary = {
+  id: string;
+  title: string;
+  sortOrder: number;
+};
+
 export type Exam = {
   id: string;
   courseId: string;
+  lessonId?: string | null;
+  scope: ExamScope;
   title: string;
   description?: string | null;
   status: ExamStatus;
@@ -33,11 +43,47 @@ export type Exam = {
   createdAt: string;
   updatedAt: string;
   questionCount?: number;
+  lesson?: ExamLessonSummary | null;
+};
+
+export type ListCourseExamsParams = {
+  scope?: ExamScope;
+  lessonId?: string;
 };
 
 export type ExamQuestionOption = {
   id: string;
   text: string;
+};
+
+export type CodeQuestionTest = {
+  name: string;
+  input: string;
+  expectedOutput: string;
+  hidden: boolean;
+};
+
+/** Full CODE payload used when authoring (includes solution + hidden tests). */
+export type CodeQuestionPayload = {
+  language: CodeQuestionLanguage;
+  starterCode: string;
+  solutionCode: string;
+  instructions?: string | null;
+  tests: CodeQuestionTest[];
+};
+
+/** Public, learner-visible CODE config (no solution, no hidden tests). */
+export type CodeQuestionConfig = {
+  language: CodeQuestionLanguage;
+  starterCode: string;
+  instructions?: string | null;
+  sampleTests: Array<Pick<CodeQuestionTest, "name" | "input" | "expectedOutput">>;
+};
+
+/** Secret slice the author API returns in `correctAnswers` for CODE questions. */
+export type CodeQuestionSecret = {
+  solutionCode: string;
+  tests: CodeQuestionTest[];
 };
 
 export type ExamQuestion = {
@@ -46,7 +92,8 @@ export type ExamQuestion = {
   type: ExamQuestionType;
   prompt: string;
   options?: ExamQuestionOption[] | null;
-  correctAnswers?: string[] | null;
+  correctAnswers?: string[] | CodeQuestionSecret | null;
+  codeConfig?: CodeQuestionConfig | null;
   explanation?: string | null;
   points: number;
   sortOrder: number;
@@ -56,10 +103,18 @@ export type ExamQuestion = {
 
 export type PublicExamQuestion = Omit<ExamQuestion, "correctAnswers" | "explanation" | "createdAt" | "updatedAt">;
 
+export type CodeGradingResult = {
+  total: number;
+  passed: number;
+  allPassed: boolean;
+  results: Array<{ name: string; passed: boolean; hidden: boolean }>;
+};
+
 export type ExamAttemptAnswer = {
   id: string;
   questionId: string;
   answer?: string | string[] | null;
+  gradingResult?: CodeGradingResult | null;
   updatedAt: string;
 };
 
@@ -135,6 +190,8 @@ export type CreateExamPayload = {
   status: ExamStatus;
   durationMinutes?: number | null;
   passingScore?: number | null;
+  scope?: ExamScope;
+  lessonId?: string | null;
 };
 
 export type UpdateExamPayload = Partial<CreateExamPayload>;
@@ -144,6 +201,7 @@ export type CreateExamQuestionPayload = {
   prompt: string;
   options: ExamQuestionOption[];
   correctAnswers: string[];
+  code?: CodeQuestionPayload | null;
   explanation?: string | null;
   points: number;
   sortOrder: number;
@@ -170,8 +228,8 @@ export type GradeExamAttemptPayload = {
 };
 
 export const examService = {
-  async getCourseExams(courseId: string): Promise<Exam[]> {
-    const response = await httpClient.get<ApiResponse<Exam[]>>(`/courses/${courseId}/exams`);
+  async getCourseExams(courseId: string, params?: ListCourseExamsParams): Promise<Exam[]> {
+    const response = await httpClient.get<ApiResponse<Exam[]>>(`/courses/${courseId}/exams`, { params });
     return response.data.data;
   },
   async createCourseExam(courseId: string, payload: CreateExamPayload): Promise<Exam> {

@@ -16,7 +16,24 @@ const LESSON_PLUGINS = [
   "insertdatetime",
   "media",
   "table",
-  "wordcount"
+  "wordcount",
+  "codesample"
+];
+
+/** Programming languages offered in the lesson code-block inserter. */
+const LESSON_CODE_LANGUAGES = [
+  { text: "Python", value: "python" },
+  { text: "JavaScript", value: "javascript" },
+  { text: "TypeScript", value: "typescript" },
+  { text: "Go", value: "go" },
+  { text: "Rust", value: "rust" },
+  { text: "Java", value: "java" },
+  { text: "C++", value: "cpp" },
+  { text: "SQL", value: "sql" },
+  { text: "Bash", value: "bash" },
+  { text: "JSON", value: "json" },
+  { text: "HTML", value: "markup" },
+  { text: "CSS", value: "css" }
 ];
 
 /**
@@ -24,7 +41,7 @@ const LESSON_PLUGINS = [
  * undo/redo | blocks | styles | alignment | lists | insert | removeformat
  */
 const LESSON_TOOLBAR =
-  "undo redo | blocks fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist checklist | outdent indent | link image table blockquote | removeformat";
+  "undo redo | blocks fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist checklist | outdent indent | link image table blockquote codesample | removeformat";
 
 const CONTENT_STYLE_LIGHT =
   'html { background: #ffffff; } body { background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #171717; margin: 16px; } body[data-mce-placeholder]:not(.mce-visualblocks)::before { color: #737373 !important; opacity: 1 !important; } a { color: #171717; text-decoration: underline; } img { max-width: 100%; height: auto; }';
@@ -44,6 +61,7 @@ export function createLessonTinyMceInit(placeholder: string, isDark: boolean): L
     promotion: false,
     plugins: LESSON_PLUGINS.join(" "),
     toolbar: LESSON_TOOLBAR,
+    codesample_languages: LESSON_CODE_LANGUAGES,
     toolbar_mode: "wrap",
     toolbar_sticky: false,
     block_formats: "Paragraph=p; Heading 1=h1; Heading 2=h2; Heading 3=h3; Heading 4=h4",

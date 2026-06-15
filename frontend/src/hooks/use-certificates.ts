@@ -10,11 +10,11 @@ export function useMyCertificates(enabled = true) {
   });
 }
 
-export function useVerifyCertificate(verificationCode: string | undefined) {
+export function useCertificateSearchSuggestions(query: string, enabled = true) {
   return useQuery({
-    queryKey: ["certificates", "verify", verificationCode],
-    queryFn: () => certificateService.verifyCertificate(verificationCode!),
-    enabled: Boolean(verificationCode)
+    queryKey: ["certificates", "search-suggestions", query],
+    queryFn: () => certificateService.getCertificateSearchSuggestions(query),
+    enabled: enabled && query.trim().length > 0
   });
 }
 
@@ -33,9 +33,8 @@ export function useRevokeCertificate(courseId: string, page: number, status: Cer
 
   return useMutation({
     mutationFn: (certificateId: string) => certificateService.revokeCertificate(certificateId),
-    onSuccess: async (certificate) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "certificates", page, status] });
-      await queryClient.invalidateQueries({ queryKey: ["certificates", "verify", certificate.verificationCode] });
       await queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }
   });
@@ -46,9 +45,8 @@ export function useRestoreCertificate(courseId: string, page: number, status: Ce
 
   return useMutation({
     mutationFn: (certificateId: string) => certificateService.restoreCertificate(certificateId),
-    onSuccess: async (certificate) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["courses", courseId, "certificates", page, status] });
-      await queryClient.invalidateQueries({ queryKey: ["certificates", "verify", certificate.verificationCode] });
       await queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }
   });

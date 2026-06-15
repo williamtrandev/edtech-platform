@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LESSON_CONTENT_TYPE } from "../constants/business";
 import { useI18n } from "../i18n";
 import { parseLessonContent } from "../lib/lesson-content";
+import { highlightLessonHtml } from "../lib/lesson-highlight";
 import { toMediaUrl } from "../lib/media-url";
 import type { Lesson } from "../services/course.service";
 import { LearnerLiveSessionLesson } from "./learner-live-session-lesson";
@@ -18,6 +19,33 @@ type LearnerLessonContentProps = {
   onAutoComplete?: () => void;
   resumeVideoLabel: string;
 };
+
+const LESSON_PROSE_CLASS =
+  "lesson-prose prose prose-neutral dark:prose-invert max-w-none prose-base lg:prose-lg xl:prose-xl prose-headings:tracking-tight prose-p:leading-8 prose-li:leading-8 prose-pre:overflow-x-auto prose-img:rounded-xl";
+
+/** Renders lesson HTML, swapping in Shiki-highlighted code blocks once ready. */
+function LessonHtmlArticle({ html }: { html: string }) {
+  const [rendered, setRendered] = useState(html);
+
+  useEffect(() => {
+    let active = true;
+    setRendered(html);
+    highlightLessonHtml(html)
+      .then((next) => {
+        if (active) {
+          setRendered(next);
+        }
+      })
+      .catch(() => {
+        // Highlighting is progressive enhancement; keep the raw HTML on failure.
+      });
+    return () => {
+      active = false;
+    };
+  }, [html]);
+
+  return <article className={LESSON_PROSE_CLASS} dangerouslySetInnerHTML={{ __html: rendered }} />;
+}
 
 function LessonVideoPlayer({
   src,
@@ -191,12 +219,7 @@ export function LearnerLessonContent({
   }
 
   if (parsed.kind === LESSON_CONTENT_TYPE.text && parsed.body) {
-    return (
-      <article
-        className="prose prose-neutral dark:prose-invert max-w-none prose-base lg:prose-lg xl:prose-xl prose-headings:tracking-tight prose-p:leading-8 prose-li:leading-8 prose-pre:overflow-x-auto prose-img:rounded-xl"
-        dangerouslySetInnerHTML={{ __html: parsed.body }}
-      />
-    );
+    return <LessonHtmlArticle html={parsed.body} />;
   }
 
   if (parsed.kind === LESSON_CONTENT_TYPE.video && parsed.url) {

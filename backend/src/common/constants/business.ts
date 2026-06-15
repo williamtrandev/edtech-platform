@@ -22,11 +22,22 @@ export const EXAM_STATUS = {
   archived: "ARCHIVED"
 } as const;
 
+export const EXAM_SCOPE = {
+  lesson: "LESSON",
+  course: "COURSE"
+} as const;
+
 export const EXAM_QUESTION_TYPE = {
   singleChoice: "SINGLE_CHOICE",
   multipleChoice: "MULTIPLE_CHOICE",
-  freeText: "FREE_TEXT"
+  freeText: "FREE_TEXT",
+  code: "CODE"
 } as const;
+
+/** Languages a CODE question may target (frontend Monaco + Phase 3 runner). */
+export const CODE_QUESTION_LANGUAGES = ["python", "javascript", "typescript", "go", "rust", "java", "cpp", "sql", "bash"] as const;
+
+export type CodeQuestionLanguage = (typeof CODE_QUESTION_LANGUAGES)[number];
 
 export const EXAM_ATTEMPT_STATUS = {
   inProgress: "IN_PROGRESS",

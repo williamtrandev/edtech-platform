@@ -78,6 +78,11 @@ export type CourseFacets = {
   }>;
 };
 
+export type CourseSearchSuggestion = {
+  term: string;
+  score: number;
+};
+
 export type LearnerInsightStatus = "INACTIVE" | "STALLED" | "LOW_PROGRESS";
 
 export type CourseLearnerInsight = {
@@ -376,5 +381,19 @@ export const courseService = {
   async restoreLesson(lessonId: string): Promise<Lesson> {
     const response = await httpClient.post<ApiResponse<Lesson>>(`/lessons/${lessonId}/restore`);
     return response.data.data;
+  },
+  async getCourseSearchSuggestions(query: string, limit = 8): Promise<CourseSearchSuggestion[]> {
+    const response = await httpClient.get<ApiResponse<CourseSearchSuggestion[]>>("/courses/search-suggestions", {
+      params: {
+        q: query,
+        limit
+      }
+    });
+    return response.data.data;
+  },
+  async trackCourseSearch(term: string): Promise<void> {
+    await httpClient.post("/courses/search-events", {
+      term
+    });
   }
 };

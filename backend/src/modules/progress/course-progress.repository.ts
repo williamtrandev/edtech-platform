@@ -1,4 +1,4 @@
-import { AssignmentStatus, ExamAttemptStatus, ExamStatus } from "@prisma/client";
+import { AssignmentStatus, ExamAttemptStatus, ExamScope, ExamStatus } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 
 export class CourseProgressRepository {
@@ -7,6 +7,16 @@ export class CourseProgressRepository {
       where: {
         courseId,
         status: ExamStatus.PUBLISHED
+      }
+    });
+  }
+
+  async countPublishedCourseScopedExams(courseId: string) {
+    return prisma.exam.count({
+      where: {
+        courseId,
+        status: ExamStatus.PUBLISHED,
+        scope: ExamScope.COURSE
       }
     });
   }
@@ -20,11 +30,12 @@ export class CourseProgressRepository {
     });
   }
 
-  async countPassedExamsForUser(userId: string, courseId: string) {
+  async countPassedExamsForUser(userId: string, courseId: string, scope?: ExamScope) {
     const exams = await prisma.exam.findMany({
       where: {
         courseId,
-        status: ExamStatus.PUBLISHED
+        status: ExamStatus.PUBLISHED,
+        ...(scope ? { scope } : {})
       },
       select: {
         id: true,

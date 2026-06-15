@@ -51,7 +51,7 @@ export const HEADER_PAGE_INNER =
 export const HEADER_BRAND =
   "group flex shrink-0 cursor-pointer items-center gap-2.5 rounded-xl py-1 pr-2 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 export const HEADER_BRAND_MARK =
-  "flex size-8 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-sm ring-1 ring-primary/20 transition-transform group-hover:scale-[1.02]";
+  "flex size-8 items-center justify-center rounded-lg bg-primary font-mono text-xs font-bold text-primary-foreground shadow-sm ring-1 ring-primary/20 transition-transform group-hover:scale-[1.02]";
 export const HEADER_TOOLBAR =
   "flex shrink-0 items-center gap-0.5 rounded-full bg-muted/45 p-0.5 ring-1 ring-foreground/10 sm:gap-1 sm:p-1";
 export const HEADER_ICON_BUTTON =

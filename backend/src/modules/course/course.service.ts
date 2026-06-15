@@ -2,6 +2,8 @@ import { CourseStatus } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { COURSE_STATUS, USER_ROLE, USER_STATUS } from "../../common/constants/business";
+import { COURSE_SEARCH } from "../../common/constants/course-search";
+import { redisConnection } from "../../config/redis";
 import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseListFilters, CourseRepository } from "./course.repository";
@@ -37,6 +39,11 @@ type PublishableCourse = {
 function hasText(value: string | null | undefined) {
   return Boolean(value?.trim());
 }
+
+type CourseSearchSuggestion = {
+  term: string;
+  score: number;
+};
 
 export class CourseService {
   constructor(
@@ -503,5 +510,109 @@ export class CourseService {
     }
 
     return this.courseRepository.getAnalytics(courseId);
+  }
+
+  async getSearchSuggestions(query: string, limit: number): Promise<CourseSearchSuggestion[]> {
+    const clampedLimit = Math.min(Math.max(limit, 1), COURSE_SEARCH.maxLimit);
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return this.getPopularSearchSuggestions(clampedLimit);
+    }
+
+    const rankedTerms = await redisConnection.zrevrange(COURSE_SEARCH.redisKey, 0, 500, "WITHSCORES");
+    const suggestionsFromSearch = this.filterRankedTerms(rankedTerms, normalizedQuery, clampedLimit);
+
+    if (suggestionsFromSearch.length >= clampedLimit) {
+      return suggestionsFromSearch;
+    }
+
+    const fallbackTitles = await this.courseRepository.findPublishedCourseTitleSuggestions(normalizedQuery, clampedLimit);
+    const seen = new Set(suggestionsFromSearch.map((item) => item.term.toLowerCase()));
+    for (const title of fallbackTitles) {
+      const normalizedTitle = title.toLowerCase();
+      if (seen.has(normalizedTitle)) {
+        continue;
+      }
+      suggestionsFromSearch.push({
+        term: title,
+        score: 0
+      });
+      seen.add(normalizedTitle);
+      if (suggestionsFromSearch.length >= clampedLimit) {
+        break;
+      }
+    }
+
+    return suggestionsFromSearch;
+  }
+
+  async trackSearchTerm(term: string): Promise<void> {
+    const normalizedTerm = term.trim().toLowerCase();
+    if (normalizedTerm.length < COURSE_SEARCH.minQueryLength) {
+      return;
+    }
+
+    await redisConnection.zincrby(COURSE_SEARCH.redisKey, 1, normalizedTerm);
+    await redisConnection.zremrangebyrank(COURSE_SEARCH.redisKey, 0, -COURSE_SEARCH.maxTrackedTerms - 1);
+  }
+
+  private async getPopularSearchSuggestions(limit: number): Promise<CourseSearchSuggestion[]> {
+    const rankedTerms = await redisConnection.zrevrange(COURSE_SEARCH.redisKey, 0, limit - 1, "WITHSCORES");
+    const suggestions: CourseSearchSuggestion[] = [];
+
+    for (let index = 0; index < rankedTerms.length; index += 2) {
+      const term = rankedTerms[index];
+      const rawScore = rankedTerms[index + 1];
+      if (!term || !rawScore) {
+        continue;
+      }
+
+      suggestions.push({
+        term,
+        score: Number(rawScore)
+      });
+    }
+
+    if (suggestions.length >= limit) {
+      return suggestions;
+    }
+
+    const fallback = await this.courseRepository.findPopularPublishedCourseTitles(limit);
+    const seen = new Set(suggestions.map((item) => item.term.toLowerCase()));
+    for (const item of fallback) {
+      const normalized = item.term.toLowerCase();
+      if (seen.has(normalized)) {
+        continue;
+      }
+      suggestions.push(item);
+      seen.add(normalized);
+      if (suggestions.length >= limit) {
+        break;
+      }
+    }
+
+    return suggestions;
+  }
+
+  private filterRankedTerms(rawEntries: string[], normalizedQuery: string, limit: number): CourseSearchSuggestion[] {
+    const suggestions: CourseSearchSuggestion[] = [];
+    for (let index = 0; index < rawEntries.length; index += 2) {
+      const term = rawEntries[index];
+      const rawScore = rawEntries[index + 1];
+      if (!term || !rawScore || !term.includes(normalizedQuery)) {
+        continue;
+      }
+
+      suggestions.push({
+        term,
+        score: Number(rawScore)
+      });
+      if (suggestions.length >= limit) {
+        break;
+      }
+    }
+
+    return suggestions;
   }
 }

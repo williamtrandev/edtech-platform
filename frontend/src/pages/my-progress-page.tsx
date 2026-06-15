@@ -48,6 +48,11 @@ export function MyProgressPage() {
             <h2 className="text-base font-semibold tracking-tight text-foreground">{t("progress.certificates")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{t("progress.certificatesDescription")}</p>
           </div>
+          <div className="flex justify-end">
+            <Button asChild variant="outline" size="sm" className="h-9 rounded-md shadow-none">
+              <Link to="/my-certificates">{t("progress.openCertificatesPage")}</Link>
+            </Button>
+          </div>
           {certificatesQuery.isLoading ? <EnrollmentListSkeleton rows={2} /> : null}
           {certificatesQuery.isError ? (
             <div className="rounded-xl bg-destructive/5 px-4 py-3 text-sm text-destructive ring-1 ring-destructive/20">
@@ -72,9 +77,6 @@ export function MyProgressPage() {
                     </div>
                     <p className="break-all font-mono text-[11px] text-muted-foreground">{certificate.verificationCode}</p>
                     <div className="flex flex-wrap gap-2">
-                      <Button asChild size="sm" variant="outline" className="h-9 rounded-md shadow-none">
-                        <Link to={`/certificates/verify/${certificate.verificationCode}`}>{t("progress.verify")}</Link>
-                      </Button>
                       <Button
                         type="button"
                         size="sm"

@@ -40,6 +40,11 @@ export type Certificate = {
   };
 };
 
+export type CertificateSearchSuggestion = {
+  term: string;
+  score: number;
+};
+
 function getFilenameFromDisposition(disposition: unknown) {
   if (typeof disposition !== "string") {
     return "certificate.pdf";
@@ -61,10 +66,6 @@ export const certificateService = {
         ...(status ? { status } : {})
       }
     });
-    return response.data.data;
-  },
-  async verifyCertificate(verificationCode: string): Promise<Certificate> {
-    const response = await httpClient.get<ApiResponse<Certificate>>(`/certificates/verify/${verificationCode}`);
     return response.data.data;
   },
   async revokeCertificate(certificateId: string): Promise<Certificate> {
@@ -104,5 +105,20 @@ export const certificateService = {
     }
 
     throw new ApiError("Certificate PDF is still generating", "CERTIFICATE_PDF_PROCESSING", 503);
+  }
+  ,
+  async getCertificateSearchSuggestions(query: string, limit = 8): Promise<CertificateSearchSuggestion[]> {
+    const response = await httpClient.get<ApiResponse<CertificateSearchSuggestion[]>>("/certificates/search-suggestions", {
+      params: {
+        q: query,
+        limit
+      }
+    });
+    return response.data.data;
+  },
+  async trackCertificateSearch(term: string): Promise<void> {
+    await httpClient.post("/certificates/search-events", {
+      term
+    });
   }
 };

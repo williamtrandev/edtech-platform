@@ -11,6 +11,7 @@ import { formatExamRemainingTime } from "../lib/exam-remaining-time";
 import { cn } from "@/lib/utils";
 import type { Exam } from "../services/exam.service";
 import type { ExamAttemptSession } from "../services/exam.service";
+import { CodeExercise } from "./code-exercise";
 import { TextareaField } from "./textarea-field";
 
 type LearnerExamAttemptPanelProps = {
@@ -186,6 +187,12 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
         }
         return acc;
       }, {});
+      // Seed CODE questions with their starter code so the editor opens ready to edit.
+      for (const question of session.exam.questions) {
+        if (question.type === EXAM_QUESTION_TYPE.code && nextAnswers[question.id] === undefined) {
+          nextAnswers[question.id] = question.codeConfig?.starterCode ?? "";
+        }
+      }
       setAttemptAnswers(nextAnswers);
     } catch (error) {
       toast.error(formatError(error, "courseDetail.examStartFailed"));
@@ -257,20 +264,20 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-foreground/10">
-            <p className="text-xs text-muted-foreground">{t("courseDetail.examDuration")}</p>
+          <div className="rounded-lg border border-border bg-card px-3 py-3">
+            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examDuration")}</p>
             <p className="mt-1 text-sm font-semibold tabular-nums">
               {exam.durationMinutes ? `${exam.durationMinutes} ${t("courseDetail.examMinutes")}` : "—"}
             </p>
           </div>
-          <div className="rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-foreground/10">
-            <p className="text-xs text-muted-foreground">{t("courseDetail.examPassingScore")}</p>
+          <div className="rounded-lg border border-border bg-card px-3 py-3">
+            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examPassingScore")}</p>
             <p className="mt-1 text-sm font-semibold tabular-nums">
               {exam.passingScore !== null && exam.passingScore !== undefined ? `${exam.passingScore}%` : "—"}
             </p>
           </div>
-          <div className="rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-foreground/10">
-            <p className="text-xs text-muted-foreground">{t("courseDetail.questions")}</p>
+          <div className="rounded-lg border border-border bg-card px-3 py-3">
+            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.questions")}</p>
             <p className="mt-1 text-sm font-semibold tabular-nums">{exam.questionCount ?? 0}</p>
           </div>
         </CardContent>
@@ -322,16 +329,16 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
             activeExamSession.attempt.score !== null &&
             activeExamSession.attempt.score !== undefined ? (
               <div className="grid gap-2 sm:grid-cols-3">
-                <div className="rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-foreground/10">
-                  <p className="text-xs text-muted-foreground">{t("courseDetail.examScore")}</p>
+                <div className="rounded-lg border border-border bg-card px-3 py-3">
+                  <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examScore")}</p>
                   <p className="mt-1 text-lg font-semibold">{activeExamSession.attempt.score}%</p>
                 </div>
-                <div className="rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-foreground/10">
-                  <p className="text-xs text-muted-foreground">{t("courseDetail.examPassingScore")}</p>
+                <div className="rounded-lg border border-border bg-card px-3 py-3">
+                  <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examPassingScore")}</p>
                   <p className="mt-1 text-lg font-semibold">{activeExamSession.exam.passingScore ?? "—"}%</p>
                 </div>
-                <div className="rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-foreground/10">
-                  <p className="text-xs text-muted-foreground">{t("courseDetail.examAttempt")}</p>
+                <div className="rounded-lg border border-border bg-card px-3 py-3">
+                  <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examAttempt")}</p>
                   <p className="mt-1 text-lg font-semibold">
                     {activeExamSession.exam.passingScore !== null &&
                     activeExamSession.exam.passingScore !== undefined &&
@@ -344,14 +351,14 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
             ) : null}
 
             {activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.submitted ? (
-              <p className="rounded-xl bg-muted/30 px-3 py-3 text-sm text-muted-foreground ring-1 ring-foreground/10">
+              <p className="rounded-lg border border-border bg-card px-3 py-3 text-sm text-muted-foreground">
                 {t("courseDetail.examAwaitingManualGrade")}
               </p>
             ) : null}
 
             {activeExamSession.attempt.status === EXAM_ATTEMPT_STATUS.inProgress ? (
-              <div className="rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-foreground/10">
-                <p className="text-xs text-muted-foreground">{t("courseDetail.examTimeRemaining")}</p>
+              <div className="rounded-lg border border-border bg-card px-3 py-3">
+                <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examTimeRemaining")}</p>
                 <p
                   className={cn(
                     "mt-1 text-lg font-semibold tabular-nums",
@@ -363,13 +370,19 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
               </div>
             ) : null}
 
+            <span className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
+              <span className="text-primary" aria-hidden>
+                {">_"}
+              </span>{" "}
+              questions
+            </span>
             <div className="grid gap-3">
               {activeExamSession.exam.questions.map((question, index) => {
                 const answer = attemptAnswers[question.id];
                 const submitted = activeExamSession.attempt.status !== EXAM_ATTEMPT_STATUS.inProgress;
 
                 return (
-                  <article key={question.id} className="rounded-xl bg-muted/30 px-4 py-4 ring-1 ring-foreground/10">
+                  <article key={question.id} className="rounded-xl border border-border bg-card px-4 py-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">#{index + 1}</span>
                       <Badge variant="outline" className="rounded-md">
@@ -380,7 +393,18 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
                       </span>
                     </div>
                     <h3 className="mt-3 text-sm font-semibold leading-6">{question.prompt}</h3>
-                    {question.type === EXAM_QUESTION_TYPE.freeText ? (
+                    {question.type === EXAM_QUESTION_TYPE.code ? (
+                      <CodeExercise
+                        className="mt-3"
+                        language={question.codeConfig?.language ?? "python"}
+                        value={typeof answer === "string" ? answer : question.codeConfig?.starterCode ?? ""}
+                        onChange={(value) => onChangeAttemptAnswer(question.id, value)}
+                        readOnly={submitted}
+                        instructions={question.codeConfig?.instructions}
+                        sampleTests={question.codeConfig?.sampleTests ?? []}
+                        result={activeExamSession.attempt.answers.find((item) => item.questionId === question.id)?.gradingResult ?? null}
+                      />
+                    ) : question.type === EXAM_QUESTION_TYPE.freeText ? (
                       <TextareaField
                         className="mt-3"
                         rows={5}

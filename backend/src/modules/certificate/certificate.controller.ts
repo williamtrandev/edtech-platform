@@ -10,9 +10,18 @@ export class CertificateController {
     res.status(200).json({ success: true, data: certificates });
   };
 
-  verifyCertificate = async (req: Request, res: Response): Promise<void> => {
-    const certificate = await this.certificateService.verifyCertificate(req.params.verificationCode);
-    res.status(200).json({ success: true, data: certificate });
+  getSearchSuggestions = async (req: Request, res: Response): Promise<void> => {
+    const suggestions = await this.certificateService.getSearchSuggestions(
+      req.user,
+      String(req.query.q ?? ""),
+      Number(req.query.limit ?? 8)
+    );
+    res.status(200).json({ success: true, data: suggestions });
+  };
+
+  trackSearchTerm = async (req: Request, res: Response): Promise<void> => {
+    await this.certificateService.trackSearchTerm(req.user, String(req.body.term ?? ""));
+    res.status(204).send();
   };
 
   listCourseCertificates = async (req: Request, res: Response): Promise<void> => {

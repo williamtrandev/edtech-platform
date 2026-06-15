@@ -28,7 +28,7 @@ export function AuthShell({ eyebrow, title, description, children, footer }: Aut
       <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-3">
           <Link to="/login" className={HEADER_BRAND}>
-            <span className={HEADER_BRAND_MARK}>E</span>
+            <span className={HEADER_BRAND_MARK}>{">_"}</span>
             <span className="hidden max-w-[9rem] truncate text-sm font-semibold tracking-tight text-foreground sm:inline">
               {t("app.name")}
             </span>

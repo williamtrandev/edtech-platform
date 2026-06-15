@@ -1,4 +1,4 @@
-import { Activity, BarChart3, BellRing, BookMarked, ClipboardList, Compass, GraduationCap, Layers3, Library, LogIn, Users } from "lucide-react";
+import { Activity, Award, BarChart3, BellRing, BookMarked, ClipboardList, Compass, GraduationCap, Library, LogIn, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -25,9 +25,9 @@ import {
 import { useI18n } from "../i18n";
 
 const EXPLORE_NAV: HeaderNavItem = { to: "/explore", labelKey: "nav.explore", icon: Compass };
-const LEARNING_PATHS_NAV: HeaderNavItem = { to: "/learning-paths", labelKey: "nav.learningPaths", icon: Layers3 };
 const MY_LEARNING_NAV: HeaderNavItem = { to: "/dashboard", labelKey: "nav.myLearning", icon: Library };
 const PROGRESS_NAV: HeaderNavItem = { to: "/my-progress", labelKey: "nav.progress", icon: GraduationCap };
+const CERTIFICATES_NAV: HeaderNavItem = { to: "/my-certificates", labelKey: "nav.certificates", icon: Award };
 const COURSE_STUDIO_NAV: HeaderNavItem = { to: "/courses", labelKey: "nav.courseStudio", icon: BookMarked, activePath: "/courses" };
 const USERS_NAV: HeaderNavItem = { to: "/users", labelKey: "nav.users", icon: Users };
 const ANALYTICS_NAV: HeaderNavItem = { to: "/analytics", labelKey: "nav.analytics", icon: BarChart3 };
@@ -36,12 +36,12 @@ const JOBS_NAV: HeaderNavItem = { to: "/jobs", labelKey: "nav.jobs", icon: Activ
 const NOTIFICATION_RECORDS_NAV: HeaderNavItem = { to: "/notifications", labelKey: "nav.notificationRecords", icon: BellRing };
 
 const NAV_BY_ROLE: Record<UserRole, HeaderNavItem[]> = {
-  [USER_ROLE.user]: [EXPLORE_NAV, LEARNING_PATHS_NAV, MY_LEARNING_NAV, PROGRESS_NAV],
-  [USER_ROLE.instructor]: [EXPLORE_NAV, COURSE_STUDIO_NAV],
+  [USER_ROLE.user]: [EXPLORE_NAV, MY_LEARNING_NAV, PROGRESS_NAV, CERTIFICATES_NAV],
+  [USER_ROLE.instructor]: [EXPLORE_NAV, COURSE_STUDIO_NAV, CERTIFICATES_NAV],
   [USER_ROLE.admin]: [COURSE_STUDIO_NAV, USERS_NAV, ANALYTICS_NAV, AUDIT_NAV, JOBS_NAV, NOTIFICATION_RECORDS_NAV]
 };
 
-const GUEST_NAV: HeaderNavItem[] = [EXPLORE_NAV, LEARNING_PATHS_NAV];
+const GUEST_NAV: HeaderNavItem[] = [EXPLORE_NAV];
 
 function getNavItemsForRole(role: UserRole | undefined, isAuthenticated: boolean): HeaderNavItem[] {
   if (!isAuthenticated || !role) {
@@ -84,7 +84,7 @@ export function DashboardLayout({ title, subtitle, actions, children, immersive 
             to={isAuthenticated ? (visibleNav[0]?.to ?? "/explore") : "/explore"}
             className={HEADER_BRAND}
           >
-            <span className={HEADER_BRAND_MARK}>E</span>
+            <span className={HEADER_BRAND_MARK}>{">_"}</span>
             <span className="hidden max-w-[9rem] truncate text-sm font-semibold tracking-tight text-foreground sm:inline lg:max-w-none">
               {t("app.name")}
             </span>

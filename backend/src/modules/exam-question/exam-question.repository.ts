@@ -9,6 +9,7 @@ export class ExamQuestionRepository {
     prompt: true,
     options: true,
     correctAnswers: true,
+    codeConfig: true,
     explanation: true,
     points: true,
     sortOrder: true,

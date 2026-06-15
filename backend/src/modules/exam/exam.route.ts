@@ -16,6 +16,7 @@ import { createExamQuestionSchema, examQuestionsParamSchema } from "../exam-ques
 import { ExamQuestionService } from "../exam-question/exam-question.service";
 import { NotificationRepository } from "../notification/notification.repository";
 import { NotificationService } from "../notification/notification.service";
+import { LessonRepository } from "../lesson/lesson.repository";
 import { ExamController } from "./exam.controller";
 import { ExamRepository } from "./exam.repository";
 import { ExamService } from "./exam.service";
@@ -23,9 +24,10 @@ import { examIdParamSchema, updateExamSchema } from "./exam.schema";
 
 const examRepository = new ExamRepository();
 const courseRepository = new CourseRepository();
+const lessonRepository = new LessonRepository();
 const enrollmentRepository = new EnrollmentRepository();
 const auditRepository = new AuditRepository();
-const examService = new ExamService(examRepository, courseRepository, auditRepository);
+const examService = new ExamService(examRepository, courseRepository, lessonRepository, auditRepository);
 const examController = new ExamController(examService);
 const examAttemptRepository = new ExamAttemptRepository();
 const examAttemptIntegrityRepository = new ExamAttemptIntegrityRepository();

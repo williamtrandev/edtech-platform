@@ -1,10 +1,10 @@
-import { ArrowUpRight, BookOpen, Clock, Star, Users } from "lucide-react";
+import { ArrowUpRight, Clock, Star, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { type Course } from "../services/course.service";
-import { toMediaUrl } from "../lib/media-url";
+import { CourseTerminalCover } from "./course-terminal-cover";
 
 type CourseCatalogCardProps = {
   course: Course;
@@ -19,30 +19,9 @@ type CourseCatalogCardProps = {
   className?: string;
 };
 
-function CourseCover({ course }: { course: Course }) {
-  return (
-    <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-      {course.coverImageUrl ? (
-        <img
-          src={toMediaUrl(course.coverImageUrl)}
-          alt=""
-          className="absolute inset-0 size-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(135deg,hsl(var(--muted)),hsl(var(--card)))] text-muted-foreground">
-          <BookOpen className="size-8" aria-hidden />
-        </div>
-      )}
-      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background/72 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-    </div>
-  );
-}
-
 function CourseMetaPill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex min-w-0 items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border/55">
+    <span className="inline-flex min-w-0 items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
       {children}
     </span>
   );
@@ -69,7 +48,7 @@ export function CourseCatalogCard({
         className
       )}
     >
-      <CourseCover course={course} />
+      <CourseTerminalCover title={course.title} label={course.category ?? course.language ?? "course"} imageUrl={course.coverImageUrl} />
 
       <div className="grid min-h-[15.5rem] grid-rows-[auto_1fr_auto] gap-4 p-4">
         <div className="space-y-3">
@@ -90,7 +69,7 @@ export function CourseCatalogCard({
           </div>
         </div>
 
-        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground">
+        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[11px] tabular-nums text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <Users className="size-3.5" aria-hidden />
             {course.enrollmentCount ?? 0} {enrolledLearnersLabel}

@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 type CourseProgressBarProps = {
   percentage: number;
   completedLessons: number;
@@ -7,6 +9,7 @@ type CourseProgressBarProps = {
   submittedAssignments?: number;
   totalAssignments?: number;
   showBreakdown?: boolean;
+  className?: string;
 };
 
 export function CourseProgressBar({
@@ -17,7 +20,8 @@ export function CourseProgressBar({
   totalExams = 0,
   submittedAssignments = 0,
   totalAssignments = 0,
-  showBreakdown = true
+  showBreakdown = true,
+  className
 }: CourseProgressBarProps) {
   const value = Math.min(100, Math.max(0, percentage));
   const hasExams = totalExams > 0;
@@ -25,7 +29,7 @@ export function CourseProgressBar({
   const breakdownLabel = `${completedLessons}/${totalLessons}${hasExams ? ` · ${passedExams}/${totalExams}` : ""}${hasAssignments ? ` · ${submittedAssignments}/${totalAssignments}` : ""}`;
 
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       {showBreakdown ? (
         <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
           <span className="tabular-nums">{value}%</span>

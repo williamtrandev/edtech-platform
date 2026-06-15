@@ -56,6 +56,11 @@ import { CourseArchiveImpactSummary } from "../components/course-archive-impact-
 import { CourseAnalyticsInsights } from "../components/course-analytics-insights";
 import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { CourseCoverFrame } from "../components/course-cover-frame";
+import { CourseDetailLearnerHero } from "../components/course-detail-learner-hero";
+import { CourseDetailLearnerTabs } from "../components/course-detail-learner-tabs";
+import { CourseLessonPreviewPanel } from "../components/course-lesson-preview-panel";
+import { CourseStudioCoverHero } from "../components/course-studio-cover-hero";
+import { LearnerLessonContent } from "../components/learner-lesson-content";
 import { CourseStatusBadge } from "../components/course-status-badge";
 import { CourseCoverUploader } from "../components/course-cover-uploader";
 import { EmptyState } from "../components/empty-state";
@@ -63,7 +68,8 @@ import { FormField } from "../components/form-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { TextareaField } from "../components/textarea-field";
-import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, EXAM_SUBMIT_REASON, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
+import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_SCOPE, EXAM_STATUS, EXAM_SUBMIT_REASON, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
+import { ExamScopeFields } from "../components/exam-scope-fields";
 import { ExamIntegrityEventsPanel } from "../components/exam-integrity-events-panel";
 import {
   useArchiveAssignment,
@@ -152,40 +158,21 @@ function formatQuestionOptions(options: ExamQuestionOption[] | null | undefined)
   return (options ?? []).map((option) => `${option.id}. ${option.text}`).join("\n");
 }
 
-function renderLearnerLessonContent(lesson: Lesson) {
+function hasRenderableLessonContent(lesson: Lesson) {
   const parsed = parseLessonContent(lesson.content, lesson.contentType);
-
-  if (parsed.kind === LESSON_CONTENT_TYPE.text && parsed.body) {
-    return <div className="prose prose-base max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: parsed.body }} />;
+  if (parsed.kind === LESSON_CONTENT_TYPE.text) {
+    return Boolean(parsed.body?.trim());
   }
-
-  if (parsed.kind === LESSON_CONTENT_TYPE.video && parsed.url) {
-    return <video controls className="w-full rounded-lg ring-1 ring-foreground/10 bg-black" src={parsed.url} />;
+  if (parsed.kind === LESSON_CONTENT_TYPE.video || parsed.kind === LESSON_CONTENT_TYPE.resource) {
+    return Boolean(parsed.url?.trim());
   }
-
-  if (parsed.kind === LESSON_CONTENT_TYPE.resource && parsed.url) {
-    return (
-      <a className="inline-flex h-10 items-center rounded-md ring-1 ring-foreground/10 px-4 text-sm font-medium hover:bg-muted/40" href={parsed.url} rel="noreferrer" target="_blank">
-        {parsed.fileName ?? parsed.url}
-      </a>
-    );
+  if (parsed.kind === LESSON_CONTENT_TYPE.quiz) {
+    return Boolean(parsed.examId?.trim());
   }
-
-  if (parsed.kind === LESSON_CONTENT_TYPE.quiz && parsed.examId) {
-    return <p className="text-sm text-muted-foreground">{parsed.examId}</p>;
-  }
-
   if (parsed.kind === LESSON_CONTENT_TYPE.liveSession) {
-    return (
-      <div className="grid gap-2 text-sm text-muted-foreground">
-        {parsed.startsAt ? <p>{parsed.startsAt}</p> : null}
-        {parsed.meetingUrl ? <p>{parsed.meetingUrl}</p> : null}
-        {parsed.instructions ? <p className="whitespace-pre-wrap">{parsed.instructions}</p> : null}
-      </div>
-    );
+    return Boolean(parsed.meetingUrl?.trim() || parsed.startsAt?.trim() || parsed.instructions?.trim());
   }
-
-  return null;
+  return false;
 }
 
 function parseCorrectAnswers(value: string | undefined) {
@@ -476,6 +463,8 @@ export function CourseDetailPage() {
       title: "",
       description: "",
       status: EXAM_STATUS.draft,
+      scope: EXAM_SCOPE.course,
+      lessonId: "",
       durationMinutes: "",
       passingScore: ""
     }
@@ -578,29 +567,6 @@ export function CourseDetailPage() {
 
     setSelectedLessonId(lessons[0]?.id ?? null);
   }, [canManageCourse, canReadLessons, lessons, selectedLessonId]);
-
-  useEffect(() => {
-    if (
-      activeTab !== "curriculum" ||
-      !isEnrolledStudent ||
-      canAccessCourseWorkspace ||
-      lessonQuery.isLoading ||
-      !lessons.length
-    ) {
-      return;
-    }
-
-    navigate(getCourseLearnPath(courseId, selectedLessonId ?? lessons[0]?.id), { replace: true });
-  }, [
-    activeTab,
-    canAccessCourseWorkspace,
-    courseId,
-    isEnrolledStudent,
-    lessonQuery.isLoading,
-    lessons,
-    navigate,
-    selectedLessonId
-  ]);
 
   useEffect(() => {
     if (!examAttemptQuery.data) {
@@ -716,6 +682,8 @@ export function CourseDetailPage() {
         title: "",
         description: "",
         status: EXAM_STATUS.draft,
+        scope: EXAM_SCOPE.course,
+        lessonId: "",
         durationMinutes: "",
         passingScore: ""
       });
@@ -928,6 +896,8 @@ export function CourseDetailPage() {
       title: values.title,
       description: values.description || null,
       status: values.status,
+      scope: values.scope,
+      lessonId: values.scope === EXAM_SCOPE.lesson ? values.lessonId?.trim() || null : null,
       durationMinutes: values.durationMinutes === "" ? null : Number(values.durationMinutes),
       passingScore: values.passingScore === "" ? null : Number(values.passingScore)
     };
@@ -943,6 +913,8 @@ export function CourseDetailPage() {
           title: "",
           description: "",
           status: EXAM_STATUS.draft,
+          scope: EXAM_SCOPE.course,
+          lessonId: "",
           durationMinutes: "",
           passingScore: ""
         });
@@ -961,6 +933,8 @@ export function CourseDetailPage() {
       title: exam.title,
       description: exam.description ?? "",
       status: exam.status,
+      scope: exam.scope ?? EXAM_SCOPE.course,
+      lessonId: exam.lessonId ?? "",
       durationMinutes: exam.durationMinutes ?? "",
       passingScore: exam.passingScore ?? ""
     });
@@ -984,6 +958,8 @@ export function CourseDetailPage() {
       title: "",
       description: "",
       status: EXAM_STATUS.draft,
+      scope: EXAM_SCOPE.course,
+      lessonId: "",
       durationMinutes: "",
       passingScore: ""
     });
@@ -1005,7 +981,7 @@ export function CourseDetailPage() {
       type: question.type,
       prompt: question.prompt,
       optionsText: formatQuestionOptions(question.options),
-      correctAnswersText: (question.correctAnswers ?? []).join(", "),
+      correctAnswersText: Array.isArray(question.correctAnswers) ? question.correctAnswers.join(", ") : "",
       explanation: question.explanation ?? "",
       points: question.points,
       sortOrder: question.sortOrder
@@ -1728,29 +1704,34 @@ export function CourseDetailPage() {
       ].filter((item) => Boolean(item.value))
     : [];
   const hasLongMetadata = Boolean(courseQuery.data?.requirements || courseQuery.data?.outcomes);
+  const isLearnerCatalogView = !canAccessCourseWorkspace;
+  const learnerCount = isLearnerCatalogView
+    ? (courseQuery.data?.enrollmentCount ?? 0)
+    : enrollmentsTotal;
+  const learnerCompletionValue = canReadLessons
+    ? `${progressQuery.data?.percentage ?? 0}%`
+    : isAuthenticated
+      ? "—"
+      : t("courseDetail.signIn");
+  const learnerLessonCount = canReadLessons ? lessons.length : "—";
 
   return (
     <AppShell
       title={courseQuery.data?.title ?? t("courseDetail.title")}
-      subtitle={t("courseDetail.subtitle")}
+      subtitle={isLearnerCatalogView ? t("courseDetail.learnerSubtitle") : t("courseDetail.subtitle")}
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          {!isAuthenticated && isCoursePublished ? (
+          {!isLearnerCatalogView && !isAuthenticated && isCoursePublished ? (
             <Button asChild size="sm" className="rounded-lg shadow-none">
               <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
             </Button>
           ) : null}
-          {isAuthenticated && isEnrolledStudent && isCoursePublished ? (
+          {!isLearnerCatalogView && isAuthenticated && isEnrolledStudent && isCoursePublished ? (
             <Button asChild size="sm" className="rounded-lg shadow-none">
               <Link to={getCourseLearnPath(courseId)}>{t("courseDetail.continueLearning")}</Link>
             </Button>
           ) : null}
-          {canAccessCourseWorkspace && lessons.length > 0 ? (
-            <Button asChild size="sm" variant="outline" className="rounded-lg shadow-none">
-              <Link to={getCoursePreviewPath(courseId)}>{t("courseDetail.previewAsLearner")}</Link>
-            </Button>
-          ) : null}
-          {canSelfEnroll ? (
+          {!isLearnerCatalogView && canSelfEnroll ? (
             <CourseEnrollButton
               courseId={courseId}
               priceCents={courseQuery.data?.priceCents}
@@ -1759,8 +1740,13 @@ export function CourseDetailPage() {
               onEnrolled={() => setActiveTab("curriculum")}
             />
           ) : null}
-          {showOwnerCannotEnrollHint ? (
+          {!isLearnerCatalogView && showOwnerCannotEnrollHint ? (
             <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">{t("courseDetail.enrollmentOwnerCannotEnroll")}</p>
+          ) : null}
+          {canAccessCourseWorkspace && lessons.length > 0 ? (
+            <Button asChild size="sm" variant="outline" className="rounded-lg shadow-none">
+              <Link to={getCoursePreviewPath(courseId)}>{t("courseDetail.previewAsLearner")}</Link>
+            </Button>
           ) : null}
           {canManageCourse && courseQuery.data?.status !== COURSE_STATUS.archived && !isCourseLocked ? (
             <Button
@@ -1834,7 +1820,7 @@ export function CourseDetailPage() {
         </div>
       }
     >
-      <div className="space-y-5">
+      <div className={cn(isLearnerCatalogView ? "overflow-x-hidden space-y-8" : "space-y-5")}>
         {isCourseLocked ? (
           <section className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30" role="status">
             <div className="flex items-start gap-3">
@@ -1864,36 +1850,73 @@ export function CourseDetailPage() {
             </div>
           </section>
         ) : null}
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-          <CourseCoverFrame src={courseQuery.data?.coverImageUrl} className="min-h-0 max-h-[22rem]" emptyLabel={t("courseDetail.coverEmptyTitle")} />
-          <div className="grid gap-3 self-start">
-            <div className="rounded-xl bg-card ring-1 ring-foreground/10 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.status")}</span>
-                {courseQuery.data ? (
-                  <CourseStatusBadge status={courseQuery.data.status} label={t(`courseStatus.${courseQuery.data.status}` as I18nKey)} />
-                ) : null}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { icon: ListOrdered, label: t("courseDetail.metricLessons"), value: canReadLessons ? lessons.length : "—" },
-                { icon: CheckCircle2, label: t("courseDetail.metricCompletion"), value: canReadLessons ? `${progressQuery.data?.percentage ?? 0}%` : isAuthenticated ? "—" : t("courseDetail.signIn") },
-                { icon: Users, label: t("courseDetail.metricLearners"), value: enrollmentsTotal },
-                { icon: Star, label: t("courseDetail.metricRating"), value: courseQuery.data?.ratingCount ? courseQuery.data.ratingAverage.toFixed(1) : "—" }
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="min-h-24 rounded-xl bg-card ring-1 ring-foreground/10 p-3">
-                    <Icon className="mb-2 size-4 text-muted-foreground" aria-hidden />
-                    <p className="truncate text-xl font-semibold tabular-nums">{loadingMetrics ? "..." : item.value}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">{item.label}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
+        {isLearnerCatalogView && courseQuery.data ? (
+          <CourseDetailLearnerHero
+            courseId={courseId}
+            title={courseQuery.data.title}
+            description={courseQuery.data.description}
+            coverImageUrl={courseQuery.data.coverImageUrl}
+            category={courseQuery.data.category}
+            level={courseQuery.data.level}
+            language={courseQuery.data.language}
+            durationMinutes={courseQuery.data.durationMinutes}
+            instructorEmail={courseQuery.data.instructor?.email}
+            priceCents={courseQuery.data.priceCents}
+            currency={courseQuery.data.currency}
+            lessonCount={learnerLessonCount}
+            completionPercent={learnerCompletionValue}
+            learnerCount={learnerCount}
+            ratingAverage={courseQuery.data.ratingCount ? courseQuery.data.ratingAverage : null}
+            ratingCount={courseQuery.data.ratingCount}
+            loadingMetrics={loadingMetrics}
+            isAuthenticated={isAuthenticated}
+            isCoursePublished={isCoursePublished}
+            isEnrolledStudent={isEnrolledStudent}
+            canSelfEnroll={canSelfEnroll}
+            showOwnerCannotEnrollHint={showOwnerCannotEnrollHint}
+            loginRedirectTo={loginRedirectTo}
+            coverEmptyLabel={t("courseDetail.coverEmptyTitle")}
+            taughtByLabel={t("courseDetail.taughtBy")}
+            freeCourseLabel={t("courseDetail.freeCourse")}
+            noDescriptionLabel={t("courseDetail.noDescription")}
+            metricLessonsLabel={t("courseDetail.metricLessons")}
+            metricCompletionLabel={t("courseDetail.metricCompletion")}
+            metricLearnersLabel={t("courseDetail.metricLearners")}
+            metricRatingLabel={t("courseDetail.metricRating")}
+            signInToEnrollLabel={t("courseDetail.signInToEnroll")}
+            continueLearningLabel={t("courseDetail.continueLearning")}
+            ownerCannotEnrollLabel={t("courseDetail.enrollmentOwnerCannotEnroll")}
+            categoryLabel={t("courseDetail.courseCategory")}
+            levelLabel={t("courseDetail.courseLevel")}
+            languageLabel={t("courseDetail.courseLanguage")}
+            durationLabel={t("courseDetail.courseDuration")}
+            durationUnitLabel={t("courseDetail.courseDurationUnit")}
+            onEnrolled={() => setActiveTab("curriculum")}
+          />
+        ) : courseQuery.data ? (
+          <CourseStudioCoverHero
+            title={courseQuery.data.title}
+            coverImageUrl={courseQuery.data.coverImageUrl}
+            coverEmptyLabel={t("courseDetail.coverEmptyTitle")}
+            status={courseQuery.data.status}
+            statusLabel={t(`courseStatus.${courseQuery.data.status}` as I18nKey)}
+            stats={[
+              { icon: ListOrdered, label: t("courseDetail.metricLessons"), value: canReadLessons ? lessons.length : "—" },
+              { icon: CheckCircle2, label: t("courseDetail.metricCompletion"), value: canReadLessons ? `${progressQuery.data?.percentage ?? 0}%` : isAuthenticated ? "—" : t("courseDetail.signIn") },
+              { icon: Users, label: t("courseDetail.metricLearners"), value: enrollmentsTotal },
+              { icon: Star, label: t("courseDetail.metricRating"), value: courseQuery.data.ratingCount ? courseQuery.data.ratingAverage.toFixed(1) : "—" }
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="min-h-24 rounded-xl bg-background/80 px-3 py-3 ring-1 ring-foreground/10">
+                  <Icon className="mb-2 size-4 text-muted-foreground" aria-hidden />
+                  <p className="truncate text-xl font-semibold tabular-nums">{loadingMetrics ? "..." : item.value}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{item.label}</p>
+                </div>
+              );
+            })}
+          />
+        ) : null}
 
         {canAccessCourseWorkspace ? (
           <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -1971,17 +1994,30 @@ export function CourseDetailPage() {
         ) : null}
 
         {courseMetadata.length || hasLongMetadata ? (
-          <section className="grid gap-3 rounded-xl bg-card ring-1 ring-foreground/10 p-4">
+          <section
+            className={cn(
+              "grid gap-4",
+              isLearnerCatalogView ? "rounded-2xl bg-muted/20 p-5 ring-1 ring-foreground/10 sm:p-6" : "gap-3 rounded-xl bg-card ring-1 ring-foreground/10 p-4"
+            )}
+          >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold">{t("courseDetail.courseMetadata")}</h2>
+              <h2 className={cn("font-semibold", isLearnerCatalogView ? "text-lg tracking-tight" : "text-sm")}>
+                {t("courseDetail.courseMetadata")}
+              </h2>
               {courseQuery.data?.category ? <Badge variant="secondary">{courseQuery.data.category}</Badge> : null}
             </div>
             {courseMetadata.length ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className={cn("grid gap-3", isLearnerCatalogView ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-4")}>
                 {courseMetadata.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.label} className="min-w-0 rounded-xl bg-muted/40 ring-1 ring-foreground/10 px-3 py-3">
+                    <div
+                      key={item.label}
+                      className={cn(
+                        "min-w-0 ring-1 ring-foreground/10",
+                        isLearnerCatalogView ? "rounded-xl bg-background px-4 py-3.5" : "rounded-xl bg-muted/40 px-3 py-3"
+                      )}
+                    >
                       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                         <Icon className="size-4 shrink-0" aria-hidden />
                         <span className="truncate">{item.label}</span>
@@ -1993,15 +2029,15 @@ export function CourseDetailPage() {
               </div>
             ) : null}
             {hasLongMetadata ? (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {courseQuery.data?.requirements ? (
-                  <div className="rounded-xl bg-background ring-1 ring-foreground/10 px-3 py-3">
+                  <div className={cn("ring-1 ring-foreground/10", isLearnerCatalogView ? "rounded-xl bg-background px-4 py-4" : "rounded-xl bg-background px-3 py-3")}>
                     <h3 className="text-sm font-semibold">{t("courseDetail.courseRequirements")}</h3>
                     <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">{courseQuery.data.requirements}</p>
                   </div>
                 ) : null}
                 {courseQuery.data?.outcomes ? (
-                  <div className="rounded-xl bg-background ring-1 ring-foreground/10 px-3 py-3">
+                  <div className={cn("ring-1 ring-foreground/10", isLearnerCatalogView ? "rounded-xl bg-background px-4 py-4" : "rounded-xl bg-background px-3 py-3")}>
                     <h3 className="text-sm font-semibold">{t("courseDetail.courseOutcomes")}</h3>
                     <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">{courseQuery.data.outcomes}</p>
                   </div>
@@ -2011,21 +2047,33 @@ export function CourseDetailPage() {
           </section>
         ) : null}
 
-        <div className={STUDIO_TAB_BAR}>
-          {visibleTabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cn(STUDIO_TAB, activeTab === item.id ? STUDIO_TAB_ACTIVE : STUDIO_TAB_IDLE)}
-              onClick={() => setActiveTab(item.id)}
-            >
-              {t(item.label)}
-              {typeof item.count === "number" ? (
-                <span className={cn(activeTab === item.id ? STUDIO_TAB_COUNT_ACTIVE : STUDIO_TAB_COUNT_IDLE)}>{item.count}</span>
-              ) : null}
-            </button>
-          ))}
-        </div>
+        {isLearnerCatalogView ? (
+          <CourseDetailLearnerTabs
+            items={visibleTabs.map((item) => ({
+              id: item.id,
+              label: t(item.label),
+              count: item.count
+            }))}
+            activeId={activeTab}
+            onChange={(tabId) => setActiveTab(tabId as CourseDetailTab)}
+          />
+        ) : (
+          <div className={STUDIO_TAB_BAR}>
+            {visibleTabs.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={cn(STUDIO_TAB, activeTab === item.id ? STUDIO_TAB_ACTIVE : STUDIO_TAB_IDLE)}
+                onClick={() => setActiveTab(item.id)}
+              >
+                {t(item.label)}
+                {typeof item.count === "number" ? (
+                  <span className={cn(activeTab === item.id ? STUDIO_TAB_COUNT_ACTIVE : STUDIO_TAB_COUNT_IDLE)}>{item.count}</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        )}
 
         {activeTab === "curriculum" ? (
           <section
@@ -2198,7 +2246,7 @@ export function CourseDetailPage() {
             </Card>
 
             {!canManageCourse && canReadLessons ? (
-              <Card className={STUDIO_EDITOR_PANEL}>
+              <Card className={cn(STUDIO_EDITOR_PANEL, isLearnerCatalogView && "rounded-2xl border-0 shadow-none ring-1 ring-foreground/10")}>
                 <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
                   <div className="min-w-0 flex-1">
                     <CardTitle className="text-lg font-semibold tracking-tight">
@@ -2220,7 +2268,28 @@ export function CourseDetailPage() {
                 <CardContent className="grid gap-4 pt-6">
                   {selectedLesson ? (
                     <>
-                      <div className="min-h-[min(70vh,40rem)] w-full">{renderLearnerLessonContent(selectedLesson)}</div>
+                      <div className="min-h-[min(70vh,40rem)] w-full rounded-xl bg-muted/15 p-4 ring-1 ring-foreground/10 sm:p-6">
+                        {hasRenderableLessonContent(selectedLesson) ? (
+                          <LearnerLessonContent
+                            lesson={selectedLesson}
+                            courseId={courseId}
+                            canAttemptQuiz={isEnrolledStudent && isCoursePublished}
+                            canAutoComplete={false}
+                            watchPositionSeconds={lessonProgressQuery.data?.items.find((item) => item.lessonId === selectedLesson.id)?.watchPositionSeconds ?? 0}
+                            resumeVideoLabel={t("courseLearn.resumeVideo")}
+                            onQuizGraded={() => {
+                              void lessonProgressQuery.refetch();
+                              void progressQuery.refetch();
+                            }}
+                          />
+                        ) : (
+                          <EmptyState
+                            icon={BookOpenText}
+                            title={t("courseDetail.lessonContentEmptyTitle")}
+                            description={t("courseDetail.lessonContentEmptyDescription")}
+                          />
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                         <div className="flex gap-2">
                           <Button
@@ -2256,17 +2325,24 @@ export function CourseDetailPage() {
                             <ChevronRight className="ml-1 size-4" aria-hidden />
                           </Button>
                         </div>
-                        {isAuthenticated && isEnrolledStudent && selectedLesson && !completedLessonIds.has(selectedLesson.id) ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-9 rounded-md shadow-none"
-                            disabled={completeLessonMutation.isPending}
-                            onClick={() => void completeLessonMutation.mutateAsync(selectedLesson.id)}
-                          >
-                            {completeLessonMutation.isPending ? t("courseLearn.savingProgress") : t("courseDetail.markComplete")}
-                          </Button>
-                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          {isAuthenticated && isEnrolledStudent && isCoursePublished ? (
+                            <Button asChild size="sm" className="h-9 rounded-md shadow-none">
+                              <Link to={getCourseLearnPath(courseId, selectedLesson.id)}>{t("courseDetail.openInLearnWorkspace")}</Link>
+                            </Button>
+                          ) : null}
+                          {isAuthenticated && isEnrolledStudent && selectedLesson && !completedLessonIds.has(selectedLesson.id) ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-9 rounded-md shadow-none"
+                              disabled={completeLessonMutation.isPending}
+                              onClick={() => void completeLessonMutation.mutateAsync(selectedLesson.id)}
+                            >
+                              {completeLessonMutation.isPending ? t("courseLearn.savingProgress") : t("courseDetail.markComplete")}
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
                     </>
                   ) : (
@@ -2277,7 +2353,8 @@ export function CourseDetailPage() {
             ) : null}
 
             {canManageCourse ? (
-              <Card className="min-w-0 w-full">
+              <div className="grid min-w-0 w-full gap-4">
+              <Card className="min-w-0 w-full rounded-2xl border-0 shadow-none ring-1 ring-foreground/10">
                 <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
                   <div>
                     <CardTitle className={STUDIO_EDITOR_TITLE}>{selectedLessonId ? t("courseDetail.editLesson") : t("courseDetail.addLesson")}</CardTitle>
@@ -2521,6 +2598,18 @@ export function CourseDetailPage() {
                   </form>
                 </CardContent>
               </Card>
+              <CourseLessonPreviewPanel
+                lesson={selectedLesson}
+                courseId={courseId}
+                title={t("courseDetail.lessonPreviewTitle")}
+                description={t("courseDetail.lessonPreviewDescription")}
+                emptyTitle={t("courseDetail.selectLesson")}
+                emptyDescription={t("courseDetail.lessonPreviewEmptyDescription")}
+                contentEmptyTitle={t("courseDetail.lessonContentEmptyTitle")}
+                contentEmptyDescription={t("courseDetail.lessonContentEmptyDescription")}
+                resumeVideoLabel={t("courseLearn.resumeVideo")}
+              />
+              </div>
             ) : null}
 
           </section>
@@ -2675,6 +2764,13 @@ export function CourseDetailPage() {
                     <FormField id="exam-description" label={t("courseDetail.examDescription")} hint={t("courseDetail.optional")} error={examForm.formState.errors.description?.message}>
                       <TextareaField id="exam-description" rows={6} placeholder={t("courseDetail.examDescriptionPlaceholder")} {...examForm.register("description")} />
                     </FormField>
+                    <ExamScopeFields
+                      control={examForm.control}
+                      setValue={examForm.setValue}
+                      watch={examForm.watch}
+                      errors={examForm.formState.errors}
+                      lessons={lessonQuery.data ?? []}
+                    />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <FormField id="exam-duration" label={t("courseDetail.examDuration")} hint={t("courseDetail.examMinutes")} error={examForm.formState.errors.durationMinutes?.message}>
                         <Input id="exam-duration" inputMode="numeric" min={1} type="number" placeholder="45" {...examForm.register("durationMinutes")} />
@@ -3136,7 +3232,7 @@ export function CourseDetailPage() {
                                   {question.options?.length ? (
                                     <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
                                       {question.options.map((option) => {
-                                        const isCorrect = question.correctAnswers?.includes(option.id);
+                                        const isCorrect = Array.isArray(question.correctAnswers) && question.correctAnswers.includes(option.id);
                                         return (
                                           <li
                                             key={option.id}
@@ -4123,9 +4219,6 @@ export function CourseDetailPage() {
                                 </span>
                               ) : null}
                               <div className="ml-auto flex flex-wrap gap-2">
-                                <Button asChild type="button" variant="outline" size="sm" className="h-8 rounded-md">
-                                  <Link to={`/certificates/verify/${certificate.verificationCode}`}>{t("progress.verify")}</Link>
-                                </Button>
                                 <Button
                                   type="button"
                                   variant="outline"

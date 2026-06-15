@@ -34,6 +34,19 @@ export const courseFacetsSchema = z.object({
   })
 });
 
+export const courseSearchSuggestionsSchema = z.object({
+  query: z.object({
+    q: z.string().trim().max(120).default(""),
+    limit: z.coerce.number().int().min(1).max(20).default(8)
+  })
+});
+
+export const courseSearchEventSchema = z.object({
+  body: z.object({
+    term: z.string().trim().min(1).max(120)
+  })
+});
+
 export const courseIdParamSchema = z.object({
   params: z.object({
     id: z.string().min(1)

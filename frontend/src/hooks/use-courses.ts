@@ -16,6 +16,14 @@ export function useCourseFacets(status?: CourseStatus) {
   });
 }
 
+export function useCourseSearchSuggestions(query: string, enabled = true) {
+  return useQuery({
+    queryKey: ["courses", "search-suggestions", query],
+    queryFn: () => courseService.getCourseSearchSuggestions(query),
+    enabled
+  });
+}
+
 export function useInfiniteCourses(status: CourseStatus | undefined, limit = 12, search = "", filters: Omit<CourseListParams, "status" | "page" | "limit" | "search"> = {}) {
   const normalizedSearch = search.trim();
   const normalizedFilters = {

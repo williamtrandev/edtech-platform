@@ -26,13 +26,26 @@ export const EXAM_STATUS = {
 
 export type ExamStatus = (typeof EXAM_STATUS)[keyof typeof EXAM_STATUS];
 
+export const EXAM_SCOPE = {
+  lesson: "LESSON",
+  course: "COURSE"
+} as const;
+
+export type ExamScope = (typeof EXAM_SCOPE)[keyof typeof EXAM_SCOPE];
+
 export const EXAM_QUESTION_TYPE = {
   singleChoice: "SINGLE_CHOICE",
   multipleChoice: "MULTIPLE_CHOICE",
-  freeText: "FREE_TEXT"
+  freeText: "FREE_TEXT",
+  code: "CODE"
 } as const;
 
 export type ExamQuestionType = (typeof EXAM_QUESTION_TYPE)[keyof typeof EXAM_QUESTION_TYPE];
+
+/** Languages a CODE question may target (mirror of backend CODE_QUESTION_LANGUAGES). */
+export const CODE_QUESTION_LANGUAGES = ["python", "javascript", "typescript", "go", "rust", "java", "cpp", "sql", "bash"] as const;
+
+export type CodeQuestionLanguage = (typeof CODE_QUESTION_LANGUAGES)[number];
 
 export const EXAM_ATTEMPT_STATUS = {
   inProgress: "IN_PROGRESS",

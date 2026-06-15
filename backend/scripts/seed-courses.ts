@@ -170,11 +170,21 @@ function buildOutcomes(index: number): string {
 }
 
 function buildLessonContent(courseIndex: number, lessonIndex: number): string {
-  return [
+  const blocks = [
     `<h2>Lesson ${lessonIndex}</h2>`,
     `<p>This seeded lesson belongs to course ${padded(courseIndex)}. It gives the editor and detail pages realistic text length for UI testing.</p>`,
     "<ul><li>Read the overview.</li><li>Review the example.</li><li>Mark progress when done.</li></ul>"
-  ].join("");
+  ];
+
+  // First lesson carries a real code block so Shiki highlighting has something to render.
+  if (lessonIndex === 1) {
+    blocks.push(
+      "<p>Example: read two integers and print their sum.</p>",
+      '<pre class="language-python"><code>def solve(line):\n    a, b = map(int, line.split())\n    return a + b\n\nprint(solve("2 3"))  # 5</code></pre>'
+    );
+  }
+
+  return blocks.join("");
 }
 
 function buildQuestionPrompt(courseIndex: number, questionIndex: number): string {
@@ -235,6 +245,79 @@ async function resetSeedData(): Promise<void> {
   ]);
 }
 
+type SeedCodeTest = { name: string; input: string; expectedOutput: string; hidden: boolean };
+type SeedCodeExercise = {
+  language: string;
+  prompt: string;
+  instructions: string;
+  starterCode: string;
+  solutionCode: string;
+  tests: SeedCodeTest[];
+};
+
+/** Multi-language CODE exercises cycled across seeded courses (stdin/stdout, except SQL which is self-contained). */
+const CODE_EXERCISES: SeedCodeExercise[] = [
+  {
+    language: "python",
+    prompt: "Backend (Python): read two space-separated integers and print their sum.",
+    instructions: "Read two space-separated integers from standard input and print their sum.",
+    starterCode: "import sys\n\nline = sys.stdin.readline()\na, b = map(int, line.split())\n# TODO: print their sum\nprint(0)\n",
+    solutionCode: "import sys\n\nline = sys.stdin.readline()\na, b = map(int, line.split())\nprint(a + b)\n",
+    tests: [
+      { name: "adds positives", input: "2 3", expectedOutput: "5", hidden: false },
+      { name: "adds negatives", input: "-4 -6", expectedOutput: "-10", hidden: false },
+      { name: "hidden large sum", input: "1000000 1", expectedOutput: "1000001", hidden: true }
+    ]
+  },
+  {
+    language: "javascript",
+    prompt: "Frontend (JavaScript): read a line and print it reversed.",
+    instructions: "Read one line from standard input and print the string reversed.",
+    starterCode: "const s = require('fs').readFileSync(0, 'utf8').trim();\n// TODO: print the reversed string\nconsole.log(s);\n",
+    solutionCode: "const s = require('fs').readFileSync(0, 'utf8').trim();\nconsole.log(s.split('').reverse().join(''));\n",
+    tests: [
+      { name: "reverses abc", input: "abc", expectedOutput: "cba", hidden: false },
+      { name: "reverses hello", input: "hello", expectedOutput: "olleh", hidden: false },
+      { name: "hidden palindrome", input: "racecar", expectedOutput: "racecar", hidden: true }
+    ]
+  },
+  {
+    language: "bash",
+    prompt: "Shell (Bash): read a line and print it in upper case.",
+    instructions: "Read one line from standard input and print it converted to upper case.",
+    starterCode: "read line\n# TODO: print the line in upper case\necho \"$line\"\n",
+    solutionCode: "read line\necho \"${line^^}\"\n",
+    tests: [
+      { name: "uppercases hello", input: "hello", expectedOutput: "HELLO", hidden: false },
+      { name: "uppercases phrase", input: "go lang", expectedOutput: "GO LANG", hidden: false },
+      { name: "hidden alnum", input: "abc123", expectedOutput: "ABC123", hidden: true }
+    ]
+  },
+  {
+    language: "go",
+    prompt: "Backend (Go): read two integers and print their sum.",
+    instructions: "Read two whitespace-separated integers from standard input and print their sum.",
+    starterCode:
+      'package main\n\nimport "fmt"\n\nfunc main() {\n\tvar a, b int\n\tfmt.Scan(&a, &b)\n\t// TODO: print their sum\n\tfmt.Println(0)\n}\n',
+    solutionCode: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tvar a, b int\n\tfmt.Scan(&a, &b)\n\tfmt.Println(a + b)\n}\n',
+    tests: [
+      { name: "adds small", input: "2 3", expectedOutput: "5", hidden: false },
+      { name: "adds tens", input: "10 20", expectedOutput: "30", hidden: false },
+      { name: "hidden zero sum", input: "-5 5", expectedOutput: "0", hidden: true }
+    ]
+  },
+  {
+    language: "sql",
+    prompt: "Database (SQL): list the names of users older than 30, ordered by name.",
+    instructions: "Using the seeded `users` table in the starter, write a query returning the names of users older than 30, ordered by name.",
+    starterCode:
+      "CREATE TABLE users(name TEXT, age INTEGER);\nINSERT INTO users VALUES ('Alice', 34), ('Bob', 28), ('Carol', 41);\n-- TODO: select names of users older than 30, ordered by name\n",
+    solutionCode:
+      "CREATE TABLE users(name TEXT, age INTEGER);\nINSERT INTO users VALUES ('Alice', 34), ('Bob', 28), ('Carol', 41);\nSELECT name FROM users WHERE age > 30 ORDER BY name;\n",
+    tests: [{ name: "older than 30", input: "", expectedOutput: "Alice\nCarol", hidden: false }]
+  }
+];
+
 async function upsertCourseExamData(courseIndex: number, questionsPerExam: number): Promise<void> {
   await prisma.exam.upsert({
     where: { id: examId(courseIndex) },
@@ -283,6 +366,40 @@ async function upsertCourseExamData(courseIndex: number, questionsPerExam: numbe
       }
     });
   }
+
+  // CODE question: public config in `codeConfig`, secret (solution + hidden tests) in `correctAnswers`.
+  // Each course gets one exercise cycled from the multi-language library.
+  const codeQuestionIndex = questionsPerExam + 1;
+  const exercise = CODE_EXERCISES[(courseIndex - 1) % CODE_EXERCISES.length];
+  const codeConfig: Prisma.InputJsonValue = {
+    language: exercise.language,
+    starterCode: exercise.starterCode,
+    instructions: exercise.instructions,
+    sampleTests: exercise.tests.filter((test) => !test.hidden).map(({ name, input, expectedOutput }) => ({ name, input, expectedOutput }))
+  };
+  const codeSecret: Prisma.InputJsonValue = {
+    solutionCode: exercise.solutionCode,
+    tests: exercise.tests
+  };
+  const codeQuestionFields = {
+    type: ExamQuestionType.CODE,
+    prompt: exercise.prompt,
+    options: [] as Prisma.InputJsonValue,
+    correctAnswers: codeSecret,
+    codeConfig,
+    explanation: "Auto-graded by running your code against the test cases.",
+    points: 5,
+    sortOrder: codeQuestionIndex
+  };
+  await prisma.examQuestion.upsert({
+    where: { id: questionId(courseIndex, codeQuestionIndex) },
+    create: {
+      id: questionId(courseIndex, codeQuestionIndex),
+      examId: examId(courseIndex),
+      ...codeQuestionFields
+    },
+    update: codeQuestionFields
+  });
 }
 
 async function upsertCourseAssignmentData(courseIndex: number, assignmentsPerCourse: number): Promise<void> {

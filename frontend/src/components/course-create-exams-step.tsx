@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ClipboardCheck, Trash2 } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -24,7 +24,10 @@ import { EmptyState } from "./empty-state";
 import { FormField } from "./form-field";
 import { CourseListSkeleton } from "./skeleton";
 import { TextareaField } from "./textarea-field";
-import { EXAM_QUESTION_TYPE, EXAM_STATUS } from "../constants/business";
+import { CODE_QUESTION_LANGUAGES, EXAM_QUESTION_TYPE, EXAM_SCOPE, EXAM_STATUS } from "../constants/business";
+import { CodeEditor } from "./code-editor";
+import { useCourseLessons } from "../hooks/use-courses";
+import { ExamScopeFields } from "./exam-scope-fields";
 import {
   useCourseExams,
   useCreateExam,
@@ -36,13 +39,30 @@ import {
 } from "../hooks/use-exams";
 import { formatQuestionOptions, parseCorrectAnswers, parseQuestionOptions } from "../lib/exam-question-form";
 import { createExamFormSchema, createExamQuestionFormSchema, type ExamFormValues, type ExamQuestionFormValues } from "../schemas/course.schema";
-import type { CreateExamPayload, Exam, ExamQuestion } from "../services/exam.service";
+import type { CodeQuestionSecret, CreateExamPayload, CreateExamQuestionPayload, Exam, ExamQuestion } from "../services/exam.service";
 import { type I18nKey, useI18n } from "../i18n";
 
 export type PendingExam = {
   id: string;
   payload: CreateExamPayload;
 };
+
+function buildQuestionDefaults(sortOrder: number): ExamQuestionFormValues {
+  return {
+    type: EXAM_QUESTION_TYPE.singleChoice,
+    prompt: "",
+    optionsText: "",
+    correctAnswersText: "",
+    explanation: "",
+    codeLanguage: "python",
+    codeStarter: "",
+    codeSolution: "",
+    codeInstructions: "",
+    codeTests: [],
+    points: 1,
+    sortOrder
+  };
+}
 
 type CourseCreateExamsStepProps = {
   courseId: string | null;
@@ -58,6 +78,8 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
   const [questionPendingDelete, setQuestionPendingDelete] = useState<ExamQuestion | null>(null);
 
   const examsQuery = useCourseExams(courseId ?? "", Boolean(courseId));
+  const lessonsQuery = useCourseLessons(courseId ?? "", Boolean(courseId));
+  const lessons = lessonsQuery.data ?? [];
   const createExamMutation = useCreateExam(courseId ?? "");
   const updateExamMutation = useUpdateExam(courseId ?? "");
   const examQuestionsQuery = useExamQuestions(courseId ?? "", selectedSavedExamId, Boolean(courseId && selectedSavedExamId));
@@ -71,6 +93,8 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
       title: "",
       description: "",
       status: EXAM_STATUS.draft,
+      scope: EXAM_SCOPE.course,
+      lessonId: "",
       durationMinutes: "",
       passingScore: ""
     }
@@ -78,18 +102,12 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
 
   const questionForm = useForm<ExamQuestionFormValues>({
     resolver: zodResolver(createExamQuestionFormSchema(t)),
-    defaultValues: {
-      type: EXAM_QUESTION_TYPE.singleChoice,
-      prompt: "",
-      optionsText: "",
-      correctAnswersText: "",
-      explanation: "",
-      points: 1,
-      sortOrder: 1
-    }
+    defaultValues: buildQuestionDefaults(1)
   });
 
+  const codeTestsField = useFieldArray({ control: questionForm.control, name: "codeTests" });
   const questionType = questionForm.watch("type");
+  const codeLanguage = questionForm.watch("codeLanguage");
   const savedExams = examsQuery.data ?? [];
   const examQuestions = examQuestionsQuery.data ?? [];
   const selectedPending = pendingExams.find((exam) => exam.id === selectedPendingId);
@@ -113,18 +131,12 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
       title: "",
       description: "",
       status: EXAM_STATUS.draft,
+      scope: EXAM_SCOPE.course,
+      lessonId: "",
       durationMinutes: "",
       passingScore: ""
     });
-    questionForm.reset({
-      type: EXAM_QUESTION_TYPE.singleChoice,
-      prompt: "",
-      optionsText: "",
-      correctAnswersText: "",
-      explanation: "",
-      points: 1,
-      sortOrder: 1
-    });
+    questionForm.reset(buildQuestionDefaults(1));
   };
 
   const onNewExam = () => {
@@ -139,18 +151,12 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
       title: exam.title,
       description: exam.description ?? "",
       status: exam.status,
+      scope: exam.scope ?? EXAM_SCOPE.course,
+      lessonId: exam.lessonId ?? "",
       durationMinutes: exam.durationMinutes ?? "",
       passingScore: exam.passingScore ?? ""
     });
-    questionForm.reset({
-      type: EXAM_QUESTION_TYPE.singleChoice,
-      prompt: "",
-      optionsText: "",
-      correctAnswersText: "",
-      explanation: "",
-      points: 1,
-      sortOrder: (exam.questionCount ?? 0) + 1
-    });
+    questionForm.reset(buildQuestionDefaults((exam.questionCount ?? 0) + 1));
   };
 
   const onSelectPending = (exam: PendingExam) => {
@@ -161,6 +167,8 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
       title: exam.payload.title,
       description: exam.payload.description ?? "",
       status: exam.payload.status,
+      scope: exam.payload.scope ?? EXAM_SCOPE.course,
+      lessonId: exam.payload.lessonId ?? "",
       durationMinutes: exam.payload.durationMinutes ?? "",
       passingScore: exam.payload.passingScore ?? ""
     });
@@ -175,28 +183,35 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
 
   const onSelectQuestion = (question: ExamQuestion) => {
     setSelectedQuestionId(question.id);
+    const isCode = question.type === EXAM_QUESTION_TYPE.code;
+    const secret =
+      isCode && question.correctAnswers && !Array.isArray(question.correctAnswers)
+        ? (question.correctAnswers as CodeQuestionSecret)
+        : null;
     questionForm.reset({
+      ...buildQuestionDefaults(question.sortOrder),
       type: question.type,
       prompt: question.prompt,
       optionsText: formatQuestionOptions(question.options),
-      correctAnswersText: (question.correctAnswers ?? []).join(", "),
+      correctAnswersText: Array.isArray(question.correctAnswers) ? question.correctAnswers.join(", ") : "",
       explanation: question.explanation ?? "",
       points: question.points,
-      sortOrder: question.sortOrder
+      sortOrder: question.sortOrder,
+      ...(isCode
+        ? {
+            codeLanguage: question.codeConfig?.language ?? "python",
+            codeStarter: question.codeConfig?.starterCode ?? "",
+            codeSolution: secret?.solutionCode ?? "",
+            codeInstructions: question.codeConfig?.instructions ?? "",
+            codeTests: secret?.tests ?? []
+          }
+        : {})
     });
   };
 
   const onNewQuestion = () => {
     setSelectedQuestionId(null);
-    questionForm.reset({
-      type: EXAM_QUESTION_TYPE.singleChoice,
-      prompt: "",
-      optionsText: "",
-      correctAnswersText: "",
-      explanation: "",
-      points: 1,
-      sortOrder: examQuestions.length + 1
-    });
+    questionForm.reset(buildQuestionDefaults(examQuestions.length + 1));
   };
 
   const onSubmitExam = async (values: ExamFormValues) => {
@@ -204,6 +219,8 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
       title: values.title.trim(),
       description: values.description?.trim() || null,
       status: values.status,
+      scope: values.scope,
+      lessonId: values.scope === EXAM_SCOPE.lesson ? values.lessonId?.trim() || null : null,
       durationMinutes: values.durationMinutes === "" ? null : Number(values.durationMinutes),
       passingScore: values.passingScore === "" ? null : Number(values.passingScore)
     };
@@ -239,28 +256,54 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
       return;
     }
 
-    const options = values.type === EXAM_QUESTION_TYPE.freeText ? [] : parseQuestionOptions(values.optionsText);
-    const correctAnswers = values.type === EXAM_QUESTION_TYPE.freeText ? [] : parseCorrectAnswers(values.correctAnswersText);
+    let payload: CreateExamQuestionPayload;
 
-    if (values.type !== EXAM_QUESTION_TYPE.freeText && options.length < 2) {
-      questionForm.setError("optionsText", { message: t("validation.examQuestionOptionsMin") });
-      return;
+    if (values.type === EXAM_QUESTION_TYPE.code) {
+      const tests = values.codeTests ?? [];
+      if (tests.length < 1) {
+        toast.error(t("validation.examQuestionCodeTestsRequired"));
+        return;
+      }
+      payload = {
+        type: values.type,
+        prompt: values.prompt,
+        options: [],
+        correctAnswers: [],
+        code: {
+          language: values.codeLanguage,
+          starterCode: values.codeStarter ?? "",
+          solutionCode: values.codeSolution ?? "",
+          instructions: values.codeInstructions?.trim() || null,
+          tests
+        },
+        explanation: values.explanation || null,
+        points: Number(values.points),
+        sortOrder: Number(values.sortOrder)
+      };
+    } else {
+      const options = values.type === EXAM_QUESTION_TYPE.freeText ? [] : parseQuestionOptions(values.optionsText);
+      const correctAnswers = values.type === EXAM_QUESTION_TYPE.freeText ? [] : parseCorrectAnswers(values.correctAnswersText);
+
+      if (values.type !== EXAM_QUESTION_TYPE.freeText && options.length < 2) {
+        questionForm.setError("optionsText", { message: t("validation.examQuestionOptionsMin") });
+        return;
+      }
+
+      if (values.type !== EXAM_QUESTION_TYPE.freeText && correctAnswers.length < 1) {
+        questionForm.setError("correctAnswersText", { message: t("validation.examQuestionAnswersRequired") });
+        return;
+      }
+
+      payload = {
+        type: values.type,
+        prompt: values.prompt,
+        options,
+        correctAnswers,
+        explanation: values.explanation || null,
+        points: Number(values.points),
+        sortOrder: Number(values.sortOrder)
+      };
     }
-
-    if (values.type !== EXAM_QUESTION_TYPE.freeText && correctAnswers.length < 1) {
-      questionForm.setError("correctAnswersText", { message: t("validation.examQuestionAnswersRequired") });
-      return;
-    }
-
-    const payload = {
-      type: values.type,
-      prompt: values.prompt,
-      options,
-      correctAnswers,
-      explanation: values.explanation || null,
-      points: Number(values.points),
-      sortOrder: Number(values.sortOrder)
-    };
 
     try {
       if (selectedQuestionId) {
@@ -333,6 +376,9 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
                                 <Badge variant="outline" className="h-5 rounded-md px-1.5 text-[10px]">
                                   {t(`examStatus.${exam.status}` as I18nKey)}
                                 </Badge>
+                                <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[10px]">
+                                  {t(`examScope.${exam.scope ?? EXAM_SCOPE.course}` as I18nKey)}
+                                </Badge>
                                 <span className="text-[11px] text-muted-foreground">
                                   {exam.questionCount ?? 0} {t("courseDetail.questions")}
                                 </span>
@@ -399,6 +445,14 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
                 <FormField id="wizard-exam-description" label={t("courseDetail.examDescription")} hint={t("courseDetail.optional")} error={examForm.formState.errors.description?.message}>
                   <TextareaField id="wizard-exam-description" rows={4} placeholder={t("courseDetail.examDescriptionPlaceholder")} {...examForm.register("description")} />
                 </FormField>
+                <ExamScopeFields
+                  idPrefix="wizard-exam"
+                  control={examForm.control}
+                  setValue={examForm.setValue}
+                  watch={examForm.watch}
+                  errors={examForm.formState.errors}
+                  lessons={lessons}
+                />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <FormField id="wizard-exam-duration" label={t("courseDetail.examDuration")} hint={t("courseDetail.examMinutes")} error={examForm.formState.errors.durationMinutes?.message}>
                     <Input id="wizard-exam-duration" inputMode="numeric" min={1} type="number" placeholder="45" {...examForm.register("durationMinutes")} />
@@ -542,7 +596,7 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
                             value={field.value}
                             onValueChange={(value) => {
                               field.onChange(value);
-                              if (value === EXAM_QUESTION_TYPE.freeText) {
+                              if (value === EXAM_QUESTION_TYPE.freeText || value === EXAM_QUESTION_TYPE.code) {
                                 questionForm.setValue("optionsText", "", { shouldDirty: true });
                                 questionForm.setValue("correctAnswersText", "", { shouldDirty: true });
                               }
@@ -555,6 +609,7 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
                               <SelectItem value={EXAM_QUESTION_TYPE.singleChoice}>{t("examQuestionType.SINGLE_CHOICE")}</SelectItem>
                               <SelectItem value={EXAM_QUESTION_TYPE.multipleChoice}>{t("examQuestionType.MULTIPLE_CHOICE")}</SelectItem>
                               <SelectItem value={EXAM_QUESTION_TYPE.freeText}>{t("examQuestionType.FREE_TEXT")}</SelectItem>
+                              <SelectItem value={EXAM_QUESTION_TYPE.code}>{t("examQuestionType.CODE")}</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -563,7 +618,7 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
                     <FormField id="wizard-question-prompt" label={t("courseDetail.questionPrompt")} error={questionForm.formState.errors.prompt?.message}>
                       <TextareaField id="wizard-question-prompt" rows={4} placeholder={t("courseDetail.questionPromptPlaceholder")} {...questionForm.register("prompt")} />
                     </FormField>
-                    {questionType !== EXAM_QUESTION_TYPE.freeText ? (
+                    {questionType !== EXAM_QUESTION_TYPE.freeText && questionType !== EXAM_QUESTION_TYPE.code ? (
                       <>
                         <FormField id="wizard-question-options" label={t("courseDetail.questionOptions")} hint={t("courseDetail.questionOptionsHint")} error={questionForm.formState.errors.optionsText?.message}>
                           <TextareaField id="wizard-question-options" rows={5} placeholder={t("courseDetail.questionOptionsPlaceholder")} {...questionForm.register("optionsText")} />
@@ -572,6 +627,114 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
                           <Input id="wizard-question-answers" placeholder="A, C" {...questionForm.register("correctAnswersText")} />
                         </FormField>
                       </>
+                    ) : null}
+                    {questionType === EXAM_QUESTION_TYPE.code ? (
+                      <div className="grid gap-4 rounded-lg border border-dashed border-border bg-background/40 p-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <FormField id="wizard-question-language" label={t("courseDetail.codeLanguage")} error={questionForm.formState.errors.codeLanguage?.message}>
+                            <Controller
+                              control={questionForm.control}
+                              name="codeLanguage"
+                              render={({ field }) => (
+                                <Select value={field.value} onValueChange={field.onChange}>
+                                  <SelectTrigger id="wizard-question-language" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {CODE_QUESTION_LANGUAGES.map((language) => (
+                                      <SelectItem key={language} value={language}>
+                                        {t(`codeLanguage.${language}` as I18nKey)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          </FormField>
+                        </div>
+                        <FormField id="wizard-question-code-instructions" label={t("courseDetail.codeInstructions")} hint={t("courseDetail.optional")} error={questionForm.formState.errors.codeInstructions?.message}>
+                          <TextareaField id="wizard-question-code-instructions" rows={3} placeholder={t("courseDetail.codeInstructionsPlaceholder")} {...questionForm.register("codeInstructions")} />
+                        </FormField>
+                        <div className="grid gap-1.5">
+                          <span className="text-sm font-medium">{t("courseDetail.codeStarter")}</span>
+                          <Controller
+                            control={questionForm.control}
+                            name="codeStarter"
+                            render={({ field }) => (
+                              <CodeEditor language={codeLanguage} value={field.value ?? ""} onChange={field.onChange} height={200} ariaLabel={t("courseDetail.codeStarter")} />
+                            )}
+                          />
+                        </div>
+                        <div className="grid gap-1.5">
+                          <span className="text-sm font-medium">{t("courseDetail.codeSolution")}</span>
+                          <p className="text-xs text-muted-foreground">{t("courseDetail.codeSolutionHint")}</p>
+                          <Controller
+                            control={questionForm.control}
+                            name="codeSolution"
+                            render={({ field }) => (
+                              <CodeEditor language={codeLanguage} value={field.value ?? ""} onChange={field.onChange} height={200} ariaLabel={t("courseDetail.codeSolution")} />
+                            )}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{t("courseDetail.codeTests")}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 rounded-md shadow-none"
+                              onClick={() => codeTestsField.append({ name: `test_${codeTestsField.fields.length + 1}`, input: "", expectedOutput: "", hidden: false })}
+                            >
+                              <Plus className="size-4" aria-hidden />
+                              {t("courseDetail.codeAddTest")}
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{t("courseDetail.codeTestsHint")}</p>
+                          {codeTestsField.fields.length === 0 ? (
+                            <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground ring-1 ring-foreground/10">{t("courseDetail.codeNoTests")}</p>
+                          ) : null}
+                          {codeTestsField.fields.map((testField, index) => (
+                            <div key={testField.id} className="grid gap-2 rounded-md border border-border bg-background/60 p-3">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  className="h-9 flex-1"
+                                  placeholder={t("courseDetail.codeTestName")}
+                                  {...questionForm.register(`codeTests.${index}.name` as const)}
+                                />
+                                <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                  <input type="checkbox" className="size-3.5 accent-[var(--primary)]" {...questionForm.register(`codeTests.${index}.hidden` as const)} />
+                                  {t("courseDetail.codeTestHidden")}
+                                </label>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="size-9 shrink-0 rounded-md p-0 text-muted-foreground hover:text-destructive"
+                                  aria-label={t("courseDetail.codeRemoveTest")}
+                                  onClick={() => codeTestsField.remove(index)}
+                                >
+                                  <Trash2 className="size-4" aria-hidden />
+                                </Button>
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <TextareaField
+                                  rows={2}
+                                  className="font-mono text-xs"
+                                  placeholder={t("courseDetail.codeTestInput")}
+                                  {...questionForm.register(`codeTests.${index}.input` as const)}
+                                />
+                                <TextareaField
+                                  rows={2}
+                                  className="font-mono text-xs"
+                                  placeholder={t("courseDetail.codeTestExpected")}
+                                  {...questionForm.register(`codeTests.${index}.expectedOutput` as const)}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     ) : null}
                     <div className="grid gap-3 sm:grid-cols-2">
                       <FormField id="wizard-question-points" label={t("courseDetail.points")} error={questionForm.formState.errors.points?.message}>

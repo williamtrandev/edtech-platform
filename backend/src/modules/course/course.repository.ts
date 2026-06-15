@@ -115,6 +115,68 @@ export class CourseRepository {
     return { items: items.map((course) => this.mapCourse(course)), total };
   }
 
+  async findPublishedCourseTitleSuggestions(query: string, limit: number) {
+    const items = await prisma.course.findMany({
+      where: {
+        status: CourseStatus.PUBLISHED,
+        title: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      select: {
+        title: true
+      },
+      orderBy: {
+        enrollments: {
+          _count: "desc"
+        }
+      },
+      take: limit
+    });
+
+    const seen = new Set<string>();
+    const titles: string[] = [];
+    for (const item of items) {
+      const title = item.title.trim();
+      const normalized = title.toLowerCase();
+      if (!title || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      titles.push(title);
+    }
+
+    return titles;
+  }
+
+  async findPopularPublishedCourseTitles(limit: number) {
+    const items = await prisma.course.findMany({
+      where: {
+        status: CourseStatus.PUBLISHED
+      },
+      select: {
+        title: true,
+        _count: {
+          select: {
+            enrollments: true
+          }
+        }
+      },
+      orderBy: {
+        enrollments: {
+          _count: "desc"
+        }
+      },
+      take: limit
+    });
+
+    return items.map((item) => ({
+      term: item.title.trim(),
+      score: item._count.enrollments
+    })).filter((item) => item.term.length > 0);
+  }
+
   async findById(id: string) {
     const course = await prisma.course.findUnique({
       where: { id },

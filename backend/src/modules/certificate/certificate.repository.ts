@@ -52,13 +52,6 @@ export class CertificateRepository {
     });
   }
 
-  async findByVerificationCode(verificationCode: string) {
-    return prisma.certificate.findUnique({
-      where: { verificationCode },
-      select: this.certificateSelect
-    });
-  }
-
   async findById(id: string) {
     return prisma.certificate.findUnique({
       where: { id },
@@ -83,6 +76,35 @@ export class CertificateRepository {
     ]);
 
     return { items, total };
+  }
+
+  async findCertificateCourseTitleSuggestions(query: string, limit: number) {
+    const items = await prisma.certificate.findMany({
+      where: {
+        course: {
+          title: {
+            contains: query,
+            mode: "insensitive"
+          }
+        }
+      },
+      distinct: ["courseId"],
+      select: {
+        course: {
+          select: {
+            title: true
+          }
+        }
+      },
+      orderBy: {
+        issuedAt: "desc"
+      },
+      take: limit
+    });
+
+    return items
+      .map((item) => item.course.title.trim())
+      .filter((title) => title.length > 0);
   }
 
   async create(data: Prisma.CertificateCreateInput) {

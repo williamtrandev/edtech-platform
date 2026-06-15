@@ -1,11 +1,11 @@
-import { ArrowUpRight, BookOpen } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CourseProgressBar } from "./course-progress-bar";
-import { toMediaUrl } from "../lib/media-url";
-import { getCourseLearnPath } from "../lib/course-learn-path";
+import { CourseTerminalCover } from "./course-terminal-cover";
+import { getCourseLearnPath, getCourseReviewLearnPath } from "../lib/course-learn-path";
 import type { Enrollment } from "../services/enrollment.service";
 
 type MyLearningCourseCardProps = {
@@ -38,7 +38,7 @@ export function MyLearningCourseCard({
   const course = enrollment.course;
   const title = course?.title ?? enrollment.courseId;
   const progress = enrollment.progress;
-  const isComplete = progress ? progress.percentage >= 100 && progress.totalLessons > 0 : false;
+  const isComplete = progress?.isComplete ?? false;
 
   return (
     <article
@@ -47,26 +47,13 @@ export function MyLearningCourseCard({
         className
       )}
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-        {course?.coverImageUrl ? (
-          <img
-            src={toMediaUrl(course.coverImageUrl)}
-            alt=""
-            className="absolute inset-0 size-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(135deg,hsl(var(--muted)),hsl(var(--card)))] text-muted-foreground">
-            <BookOpen className="size-8" aria-hidden />
-          </div>
-        )}
+      <CourseTerminalCover title={title} label="course" imageUrl={course?.coverImageUrl}>
         {isComplete ? (
-          <span className="absolute left-3 top-3 rounded-md bg-background/90 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground ring-1 ring-foreground/10 backdrop-blur-sm">
+          <span className="absolute left-3 top-3 rounded-md border border-primary/30 bg-primary/15 px-2 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-primary backdrop-blur-sm">
             {completeLabel}
           </span>
         ) : null}
-      </div>
+      </CourseTerminalCover>
 
       <div className="grid min-h-[14rem] grid-rows-[auto_1fr_auto] gap-4 p-4">
         <div className="space-y-2">
@@ -97,7 +84,13 @@ export function MyLearningCourseCard({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {secondaryAction}
             <Button asChild size="sm" className="h-10 flex-1 rounded-md px-4">
-              <Link to={getCourseLearnPath(enrollment.courseId, enrollment.progress?.continueLessonId ?? undefined)}>
+              <Link
+                to={
+                  isComplete
+                    ? getCourseReviewLearnPath(enrollment.courseId, enrollment.progress?.continueLessonId ?? undefined)
+                    : getCourseLearnPath(enrollment.courseId, enrollment.progress?.continueLessonId ?? undefined)
+                }
+              >
                 {continueLabel}
                 <ArrowUpRight className="size-4" aria-hidden />
               </Link>

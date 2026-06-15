@@ -62,9 +62,22 @@ export class CourseProgressService {
     const lessonsPercent = this.segmentPercent(cappedCompletedLessonWeight, totalLessonWeight);
     const examsPercent = this.segmentPercent(passedExams, totalExams);
     const assignmentsPercent = this.segmentPercent(submittedAssignments, totalAssignments);
-    const weights = COURSE_PROGRESS_WEIGHTS.lessonsOnly;
-    const percentage = lessonsPercent;
-    const isComplete = lessonsPercent >= 100;
+    const hasExamRequirement = totalExams > 0;
+    const hasAssignmentRequirement = totalAssignments > 0;
+    const useFullRequirements = hasExamRequirement || hasAssignmentRequirement;
+    const weights = this.resolveProgressWeights(hasExamRequirement, hasAssignmentRequirement);
+    const percentage = Math.min(
+      100,
+      Math.round(
+        (lessonsPercent * weights.lessons + examsPercent * weights.exams + assignmentsPercent * weights.assignments) /
+          100
+      )
+    );
+
+    const lessonsDone = totalLessons === 0 || lessonsPercent >= 100;
+    const examsDone = !hasExamRequirement || examsPercent >= 100;
+    const assignmentsDone = !hasAssignmentRequirement || assignmentsPercent >= 100;
+    const isComplete = lessonsDone && examsDone && assignmentsDone;
 
     return {
       courseId,
@@ -77,7 +90,9 @@ export class CourseProgressService {
       percentage,
       isComplete,
       completionCriteria: {
-        type: COURSE_COMPLETION_CRITERIA_TYPE.allLessonsCompleted,
+        type: useFullRequirements
+          ? COURSE_COMPLETION_CRITERIA_TYPE.fullCourseRequirements
+          : COURSE_COMPLETION_CRITERIA_TYPE.allLessonsCompleted,
         lessonCount: totalLessons,
         examCount: totalExams,
         assignmentCount: totalAssignments
@@ -89,6 +104,22 @@ export class CourseProgressService {
         weights
       }
     };
+  }
+
+  private resolveProgressWeights(hasExams: boolean, hasAssignments: boolean): ProgressWeights {
+    if (hasExams && hasAssignments) {
+      return COURSE_PROGRESS_WEIGHTS.full;
+    }
+
+    if (hasExams) {
+      return COURSE_PROGRESS_WEIGHTS.lessonsAndExams;
+    }
+
+    if (hasAssignments) {
+      return COURSE_PROGRESS_WEIGHTS.lessonsAndAssignments;
+    }
+
+    return COURSE_PROGRESS_WEIGHTS.lessonsOnly;
   }
 
   async getContinueLessonId(userId: string, courseId: string): Promise<string | null> {

@@ -1,5 +1,6 @@
 import { createQueue, createWorker } from "./base.queue";
 import { CertificateRepository } from "../modules/certificate/certificate.repository";
+import { CodeGradingService } from "../modules/code-execution/code-grading.service";
 import { CertificateService } from "../modules/certificate/certificate.service";
 import { CourseRepository } from "../modules/course/course.repository";
 import { ExamAttemptRepository } from "../modules/exam-attempt/exam-attempt.repository";
@@ -39,7 +40,8 @@ const examGradingService = new ExamGradingService(
   examAttemptRepository,
   notificationService,
   certificateEligibilityService,
-  auditRepository
+  auditRepository,
+  new CodeGradingService()
 );
 
 export const examGradingWorker = createWorker(queueName, async (job) => {

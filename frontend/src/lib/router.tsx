@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, InstructorCreateCourseGate, LearnerWorkspaceGate, PublicOnly, RequireAuth } from "../components/route-guards";
 import { AccountSettingsPage } from "../pages/account-settings-page";
 import { AuditLogsPage } from "../pages/audit-logs-page";
-import { CertificateVerifyPage } from "../pages/certificate-verify-page";
 import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
 import { CourseCompletedPage } from "../pages/course-completed-page";
@@ -18,6 +17,7 @@ import { JobsPage } from "../pages/jobs-page";
 import { NotificationManagementPage } from "../pages/notification-management-page";
 import { LoginPage } from "../pages/login-page";
 import { MyLearningPage } from "../pages/my-learning-page";
+import { MyCertificatesPage } from "../pages/my-certificates-page";
 import { MyProgressPage } from "../pages/my-progress-page";
 import { NotFoundPage } from "../pages/not-found-page";
 import { PlatformAnalyticsPage } from "../pages/platform-analytics-page";
@@ -51,10 +51,6 @@ export const router = createBrowserRouter([
   {
     path: "/email-confirmed",
     element: <EmailConfirmedPage />
-  },
-  {
-    path: "/certificates/verify/:verificationCode",
-    element: <CertificateVerifyPage />
   },
   {
     path: "/",
@@ -116,6 +112,16 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <MyProgressPage />
+          }
+        ]
+      },
+      {
+        path: "/my-certificates",
+        element: <RequireAuth />,
+        children: [
+          {
+            index: true,
+            element: <MyCertificatesPage />
           }
         ]
       },

@@ -57,10 +57,16 @@ enum ExamStatus {
   ARCHIVED
 }
 
+enum ExamScope {
+  LESSON
+  COURSE
+}
+
 enum ExamQuestionType {
   SINGLE_CHOICE
   MULTIPLE_CHOICE
   FREE_TEXT
+  CODE
 }
 
 enum ExamAttemptStatus {
@@ -321,6 +327,8 @@ model AssignmentRubricScore {
 model Exam {
   id              String     @id @default(cuid())
   courseId        String
+  lessonId        String?
+  scope           ExamScope  @default(COURSE)
   title           String
   description     String?
   status          ExamStatus @default(DRAFT)
@@ -331,10 +339,13 @@ model Exam {
   archivedAt      DateTime?
 
   course    Course         @relation(fields: [courseId], references: [id])
+  lesson    Lesson?        @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   questions ExamQuestion[]
   attempts  ExamAttempt[]
 
   @@index([courseId])
+  @@index([lessonId])
+  @@index([courseId, scope])
   @@index([status])
 }
 
@@ -345,6 +356,7 @@ model ExamQuestion {
   prompt         String
   options        Json?
   correctAnswers Json?
+  codeConfig     Json?
   explanation    String?
   points         Int              @default(1)
   sortOrder      Int
@@ -399,12 +411,13 @@ model ExamAttemptIntegrityEvent {
 }
 
 model ExamAnswer {
-  id         String   @id @default(cuid())
-  attemptId  String
-  questionId String
-  answer     Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  attemptId      String
+  questionId     String
+  answer         Json?
+  gradingResult  Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   attempt  ExamAttempt  @relation(fields: [attemptId], references: [id])
   question ExamQuestion @relation(fields: [questionId], references: [id])
@@ -469,6 +482,7 @@ model Lesson {
   dependentLessons   Lesson[]         @relation("LessonPrerequisite")
   progress           LessonProgress[]
   discussionComments CourseDiscussionComment[]
+  exams              Exam[]
 
   @@unique([courseId, sortOrder])
   @@index([courseId])

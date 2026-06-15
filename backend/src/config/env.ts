@@ -46,7 +46,13 @@ const envSchema = z
     SMTP_SECURE: booleanFromEnv.default(false),
     RESEND_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     /** Project URL (e.g. https://xxxx.supabase.co). Required when access tokens use RS256/ES256 (JWKS verification). */
-    SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional())
+    SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    /** Piston code-execution API base. Self-host for production; public instance is the dev default. */
+    PISTON_URL: z.preprocess(emptyToUndefined, z.string().url().default("https://emkc.org/api/v2/piston")),
+    /** When false, CODE questions skip auto-execution and fall back to manual grading. */
+    CODE_EXECUTION_ENABLED: booleanFromEnv.default(true),
+    /** Per-run wall-clock limit (ms) for a single code execution against one test. */
+    CODE_EXECUTION_TIMEOUT_MS: z.coerce.number().int().positive().default(8000)
   })
   .superRefine((value, ctx) => {
     if (value.EMAIL_PROVIDER === "SMTP" && !value.SMTP_HOST) {

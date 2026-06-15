@@ -42,7 +42,8 @@ import { CourseCreateAssignmentsStep, type PendingAssignment } from "../componen
 import { CourseCreateExamsStep, type PendingExam } from "../components/course-create-exams-step";
 import { CourseCreateStepper } from "../components/course-create-stepper";
 import { CourseCreateWizardFooter } from "../components/course-create-wizard-footer";
-import { CourseCoverFrame } from "../components/course-cover-frame";
+import { CourseLessonPreviewPanel } from "../components/course-lesson-preview-panel";
+import { CourseStudioCoverHero } from "../components/course-studio-cover-hero";
 import { CourseStatusBadge } from "../components/course-status-badge";
 import { CourseCoverUploader } from "../components/course-cover-uploader";
 import { FormField } from "../components/form-field";
@@ -50,7 +51,7 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { COURSE_STATUS, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
 import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
@@ -198,6 +199,7 @@ export function CourseCreatePage() {
   const nextLessonSortOrder = getNextLessonSortOrder(curriculumLessons);
   const isRestoringCourse = Boolean(courseId && courseQuery.isLoading);
   const lessons = curriculumLessons;
+  const selectedLesson = selectedLessonId ? lessons.find((lesson) => lesson.id === selectedLessonId) : undefined;
   const archivedLessons = (lessonsQuery.data ?? []).filter((lesson) => lesson.archivedAt);
   const editingLessonSortOrder = selectedLessonId
     ? (lessons.find((lesson) => lesson.id === selectedLessonId)?.sortOrder ?? nextLessonSortOrder)
@@ -246,9 +248,11 @@ export function CourseCreatePage() {
     }
   ];
   const publishedExamOptions = useMemo(() => {
-    const saved = (examsQuery.data ?? []).filter((exam) => exam.status === EXAM_STATUS.published);
+    const saved = (examsQuery.data ?? []).filter(
+      (exam) => exam.status === EXAM_STATUS.published && exam.scope === EXAM_SCOPE.lesson
+    );
     const pending = pendingExams
-      .filter((exam) => exam.payload.status === EXAM_STATUS.published)
+      .filter((exam) => exam.payload.status === EXAM_STATUS.published && exam.payload.scope === EXAM_SCOPE.lesson)
       .map((exam) => ({ id: exam.id, title: exam.payload.title }));
     return [...pending, ...saved];
   }, [examsQuery.data, pendingExams]);
@@ -944,26 +948,22 @@ export function CourseCreatePage() {
         </Button>
       }
     >
-      <div className="grid gap-5">
-        {courseId ? (
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-            <CourseCoverFrame src={coverImageUrl} className="min-h-0 max-h-[22rem]" emptyLabel={t("courseDetail.coverEmptyTitle")} />
-            <div className="grid gap-3 self-start">
-              <div className="rounded-xl bg-card ring-1 ring-foreground/10 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.status")}</span>
-                  <CourseStatusBadge status={courseStatus} label={t(`courseStatus.${courseStatus}` as I18nKey)} />
-                </div>
+      <div className="overflow-x-hidden space-y-8">
+        {courseId && courseQuery.data ? (
+          <CourseStudioCoverHero
+            title={courseTitle || courseQuery.data.title}
+            coverImageUrl={coverImageUrl}
+            coverEmptyLabel={t("courseDetail.coverEmptyTitle")}
+            status={courseStatus}
+            statusLabel={t(`courseStatus.${courseStatus}` as I18nKey)}
+            stats={
+              <div className="min-h-24 rounded-xl bg-background/80 px-3 py-3 ring-1 ring-foreground/10">
+                <ListOrdered className="mb-2 size-4 text-muted-foreground" aria-hidden />
+                <p className="truncate text-xl font-semibold tabular-nums">{lessonsQuery.isLoading ? "..." : lessons.length}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{t("courseDetail.metricLessons")}</p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-h-24 rounded-xl bg-card ring-1 ring-foreground/10 p-3">
-                  <ListOrdered className="mb-2 size-4 text-muted-foreground" aria-hidden />
-                  <p className="truncate text-xl font-semibold tabular-nums">{lessonsQuery.isLoading ? "..." : lessons.length}</p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">{t("courseDetail.metricLessons")}</p>
-                </div>
-              </div>
-            </div>
-          </section>
+            }
+          />
         ) : null}
 
         <CourseCreateStepper
@@ -1131,7 +1131,8 @@ export function CourseCreatePage() {
         {activeStep === COURSE_CREATE_STEP.lessons ? (
         <section className="grid gap-4">
         <section className={STUDIO_WORKSPACE_GRID}>
-          <Card className="order-2 min-w-0 w-full">
+          <div className="order-2 grid min-w-0 gap-4">
+          <Card className="min-w-0 w-full rounded-2xl border-0 shadow-none ring-1 ring-foreground/10">
             <CardHeader className="border-b border-border pb-4">
               <CardTitle className={STUDIO_EDITOR_TITLE}>{selectedLessonId ? t("courseDetail.editLesson") : t("courseStudio.addLessons")}</CardTitle>
               <CardDescription>{selectedLessonId ? t("courseDetail.editingSelectedLesson") : t("courseStudio.addLessonsDescription")}</CardDescription>
@@ -1409,8 +1410,22 @@ export function CourseCreatePage() {
               </form>
             </CardContent>
           </Card>
+          {courseId ? (
+            <CourseLessonPreviewPanel
+              lesson={selectedLesson}
+              courseId={courseId}
+              title={t("courseDetail.lessonPreviewTitle")}
+              description={t("courseDetail.lessonPreviewDescription")}
+              emptyTitle={t("courseDetail.selectLesson")}
+              emptyDescription={t("courseDetail.lessonPreviewEmptyDescription")}
+              contentEmptyTitle={t("courseDetail.lessonContentEmptyTitle")}
+              contentEmptyDescription={t("courseDetail.lessonContentEmptyDescription")}
+              resumeVideoLabel={t("courseLearn.resumeVideo")}
+            />
+          ) : null}
+          </div>
 
-          <Card className={cn("order-1", STUDIO_LIST_STICKY)}>
+          <Card className={cn("order-1 rounded-2xl border-0 shadow-none ring-1 ring-foreground/10", STUDIO_LIST_STICKY)}>
             <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
               <div>
                 <CardTitle className={STUDIO_EDITOR_TITLE}>{t("courseDetail.curriculum")}</CardTitle>

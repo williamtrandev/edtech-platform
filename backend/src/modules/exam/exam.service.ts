@@ -1,10 +1,11 @@
-import { ExamStatus } from "@prisma/client";
-import { COURSE_STATUS, EXAM_STATUS, USER_ROLE } from "../../common/constants/business";
+import { ExamScope, ExamStatus } from "@prisma/client";
+import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, USER_ROLE } from "../../common/constants/business";
 import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
+import { LessonRepository } from "../lesson/lesson.repository";
 import { ExamRepository } from "./exam.repository";
 
 type ExamPayload = {
@@ -13,18 +14,26 @@ type ExamPayload = {
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   durationMinutes?: number | null;
   passingScore?: number | null;
+  scope?: ExamScope;
+  lessonId?: string | null;
 };
 
 type UpdateExamPayload = Partial<ExamPayload>;
+
+type ListCourseExamsQuery = {
+  scope?: ExamScope;
+  lessonId?: string;
+};
 
 export class ExamService {
   constructor(
     private readonly examRepository: ExamRepository,
     private readonly courseRepository: CourseRepository,
+    private readonly lessonRepository: LessonRepository,
     private readonly auditRepository?: AuditRepository
   ) {}
 
-  async listCourseExams(user: Express.UserClaims | undefined, courseId: string) {
+  async listCourseExams(user: Express.UserClaims | undefined, courseId: string, query?: ListCourseExamsQuery) {
     const course = await this.courseRepository.findById(courseId);
     if (!course) {
       throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
@@ -35,7 +44,11 @@ export class ExamService {
       throw new AppError("Course is not available", 403, "FORBIDDEN");
     }
 
-    return this.examRepository.findByCourseId(courseId, isStaff ? undefined : ExamStatus.PUBLISHED);
+    return this.examRepository.findByCourseId(courseId, {
+      status: isStaff ? undefined : ExamStatus.PUBLISHED,
+      scope: query?.scope,
+      lessonId: query?.lessonId
+    });
   }
 
   async createCourseExam(user: Express.UserClaims | undefined, courseId: string, payload: ExamPayload) {
@@ -50,8 +63,13 @@ export class ExamService {
 
     this.assertCanManageCourse(user, course.instructorId);
 
+    const scope = payload.scope ?? EXAM_SCOPE.course;
+    const lessonId = await this.resolveLessonIdForScope(courseId, scope, payload.lessonId ?? null);
+
     const exam = await this.examRepository.create({
       course: { connect: { id: courseId } },
+      ...(lessonId ? { lesson: { connect: { id: lessonId } } } : {}),
+      scope,
       title: payload.title,
       description: payload.description || null,
       status: payload.status,
@@ -91,11 +109,27 @@ export class ExamService {
 
     this.assertCanManageCourse(user, course.instructorId);
 
+    const nextScope = payload.scope ?? exam.scope;
+    const nextLessonId =
+      payload.scope !== undefined || payload.lessonId !== undefined
+        ? await this.resolveLessonIdForScope(
+            exam.courseId,
+            nextScope,
+            payload.lessonId !== undefined ? payload.lessonId : exam.lessonId
+          )
+        : undefined;
+
     const data = {
       ...(payload.title !== undefined ? { title: payload.title } : {}),
       ...(payload.description !== undefined ? { description: payload.description || null } : {}),
       ...(payload.durationMinutes !== undefined ? { durationMinutes: payload.durationMinutes } : {}),
       ...(payload.passingScore !== undefined ? { passingScore: payload.passingScore } : {}),
+      ...(payload.scope !== undefined ? { scope: payload.scope } : {}),
+      ...(nextLessonId !== undefined
+        ? nextLessonId
+          ? { lesson: { connect: { id: nextLessonId } } }
+          : { lesson: { disconnect: true } }
+        : {}),
       ...(payload.status !== undefined
         ? {
             status: payload.status,
@@ -155,6 +189,23 @@ export class ExamService {
     });
 
     return archivedExam;
+  }
+
+  private async resolveLessonIdForScope(courseId: string, scope: ExamScope, lessonId: string | null) {
+    if (scope === EXAM_SCOPE.course) {
+      return null;
+    }
+
+    if (!lessonId) {
+      throw new AppError("Lesson is required for lesson-scoped exercises", 422, "VALIDATION_ERROR");
+    }
+
+    const lesson = await this.lessonRepository.findById(lessonId);
+    if (!lesson || lesson.courseId !== courseId) {
+      throw new AppError("Lesson not found in this course", 404, "LESSON_NOT_FOUND");
+    }
+
+    return lessonId;
   }
 
   private assertCanManageCourse(user: Express.UserClaims, instructorId: string) {

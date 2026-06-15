@@ -1,10 +1,18 @@
-import { ExamStatus, Prisma } from "@prisma/client";
+import { ExamScope, ExamStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
+
+type FindExamsByCourseOptions = {
+  status?: ExamStatus;
+  scope?: ExamScope;
+  lessonId?: string;
+};
 
 export class ExamRepository {
   private readonly examSelect = {
     id: true,
     courseId: true,
+    lessonId: true,
+    scope: true,
     title: true,
     description: true,
     status: true,
@@ -12,7 +20,14 @@ export class ExamRepository {
     passingScore: true,
     archivedAt: true,
     createdAt: true,
-    updatedAt: true
+    updatedAt: true,
+    lesson: {
+      select: {
+        id: true,
+        title: true,
+        sortOrder: true
+      }
+    }
   } satisfies Prisma.ExamSelect;
 
   private mapExam<T extends { _count?: { questions: number } }>(exam: T) {
@@ -38,11 +53,13 @@ export class ExamRepository {
     return exam ? this.mapExam(exam) : null;
   }
 
-  async findByCourseId(courseId: string, status?: ExamStatus) {
+  async findByCourseId(courseId: string, options?: FindExamsByCourseOptions) {
     const exams = await prisma.exam.findMany({
       where: {
         courseId,
-        ...(status ? { status } : {})
+        ...(options?.status ? { status: options.status } : {}),
+        ...(options?.scope ? { scope: options.scope } : {}),
+        ...(options?.lessonId ? { lessonId: options.lessonId } : {})
       },
       select: {
         ...this.examSelect,

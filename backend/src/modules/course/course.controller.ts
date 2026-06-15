@@ -79,4 +79,16 @@ export class CourseController {
     const course = await this.courseService.unlockCourse(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });
   };
+
+  getSearchSuggestions = async (req: Request, res: Response): Promise<void> => {
+    const query = typeof req.query.q === "string" ? req.query.q : "";
+    const limit = Number(req.query.limit ?? 8);
+    const suggestions = await this.courseService.getSearchSuggestions(query, limit);
+    res.status(200).json({ success: true, data: suggestions });
+  };
+
+  trackSearchTerm = async (req: Request, res: Response): Promise<void> => {
+    await this.courseService.trackSearchTerm(req.body.term);
+    res.status(204).send();
+  };
 }

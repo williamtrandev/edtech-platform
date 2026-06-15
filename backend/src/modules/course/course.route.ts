@@ -6,7 +6,18 @@ import { CourseController } from "./course.controller";
 import { CourseRepository } from "./course.repository";
 import { CourseService } from "./course.service";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
-import { assignCourseInstructorSchema, courseEnrollmentsSchema, courseFacetsSchema, courseIdParamSchema, createCourseSchema, listCoursesSchema, lockCourseSchema, updateCourseSchema } from "./course.schema";
+import {
+  assignCourseInstructorSchema,
+  courseEnrollmentsSchema,
+  courseFacetsSchema,
+  courseIdParamSchema,
+  courseSearchEventSchema,
+  courseSearchSuggestionsSchema,
+  createCourseSchema,
+  listCoursesSchema,
+  lockCourseSchema,
+  updateCourseSchema
+} from "./course.schema";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseReviewController } from "../course-review/course-review.controller";
 import { CourseReviewRepository } from "../course-review/course-review.repository";
@@ -66,7 +77,7 @@ const courseDiscussionService = new CourseDiscussionService(
 );
 const courseDiscussionController = new CourseDiscussionController(courseDiscussionService);
 const examRepository = new ExamRepository();
-const examService = new ExamService(examRepository, courseRepository, auditRepository);
+const examService = new ExamService(examRepository, courseRepository, lessonRepository, auditRepository);
 const examController = new ExamController(examService);
 const assignmentRepository = new AssignmentRepository();
 const assignmentRubricRepository = new AssignmentRubricRepository();
@@ -99,6 +110,8 @@ export const courseRouter = Router();
 
 courseRouter.get("/", optionalAuthMiddleware, validateRequest(listCoursesSchema), asyncHandler(courseController.listCourses));
 courseRouter.get("/facets", optionalAuthMiddleware, validateRequest(courseFacetsSchema), asyncHandler(courseController.listCourseFacets));
+courseRouter.get("/search-suggestions", optionalAuthMiddleware, validateRequest(courseSearchSuggestionsSchema), asyncHandler(courseController.getSearchSuggestions));
+courseRouter.post("/search-events", optionalAuthMiddleware, validateRequest(courseSearchEventSchema), asyncHandler(courseController.trackSearchTerm));
 courseRouter.get("/:id/exams", optionalAuthMiddleware, validateRequest(courseExamsParamSchema), asyncHandler(examController.listCourseExams));
 courseRouter.post("/:id/exams", authMiddleware, validateRequest(createExamSchema), asyncHandler(examController.createCourseExam));
 courseRouter.get("/:id/assignments", authMiddleware, validateRequest(courseAssignmentsParamSchema), asyncHandler(assignmentController.listCourseAssignments));

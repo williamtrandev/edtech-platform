@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
   ASSIGNMENT_STATUS,
+  CODE_QUESTION_LANGUAGES,
   COURSE_STATUS,
   EXAM_QUESTION_TYPE,
+  EXAM_SCOPE,
   EXAM_STATUS,
   LESSON_CONTENT_TYPE,
   LESSON_PROGRESS_WEIGHT
@@ -128,24 +130,52 @@ export function createLessonFormSchema(t: Translate) {
 export type CreateLessonFormValues = z.infer<ReturnType<typeof createLessonFormSchema>>;
 
 export function createExamFormSchema(t: Translate) {
-  return z.object({
-    title: z.string().min(3, t("validation.examTitleMin")).max(200, t("validation.examTitleMax")),
-    description: z.string().max(1000, t("validation.examDescriptionMax")).optional(),
-    status: z.enum([EXAM_STATUS.draft, EXAM_STATUS.published, EXAM_STATUS.archived]).default(EXAM_STATUS.draft),
-    durationMinutes: z.coerce.number().int().min(1, t("validation.examDurationMin")).max(10000, t("validation.examDurationMax")).optional().or(z.literal("")),
-    passingScore: z.coerce.number().int().min(0, t("validation.examPassingScoreMin")).max(100, t("validation.examPassingScoreMax")).optional().or(z.literal(""))
-  });
+  return z
+    .object({
+      title: z.string().min(3, t("validation.examTitleMin")).max(200, t("validation.examTitleMax")),
+      description: z.string().max(1000, t("validation.examDescriptionMax")).optional(),
+      status: z.enum([EXAM_STATUS.draft, EXAM_STATUS.published, EXAM_STATUS.archived]).default(EXAM_STATUS.draft),
+      scope: z.enum([EXAM_SCOPE.lesson, EXAM_SCOPE.course]).default(EXAM_SCOPE.course),
+      lessonId: z.string().optional(),
+      durationMinutes: z.coerce.number().int().min(1, t("validation.examDurationMin")).max(10000, t("validation.examDurationMax")).optional().or(z.literal("")),
+      passingScore: z.coerce.number().int().min(0, t("validation.examPassingScoreMin")).max(100, t("validation.examPassingScoreMax")).optional().or(z.literal(""))
+    })
+    .superRefine((value, ctx) => {
+      if (value.scope === EXAM_SCOPE.lesson && !value.lessonId?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t("validation.examLessonRequired"),
+          path: ["lessonId"]
+        });
+      }
+    });
 }
 
 export type ExamFormValues = z.infer<ReturnType<typeof createExamFormSchema>>;
 
 export function createExamQuestionFormSchema(t: Translate) {
   return z.object({
-    type: z.enum([EXAM_QUESTION_TYPE.singleChoice, EXAM_QUESTION_TYPE.multipleChoice, EXAM_QUESTION_TYPE.freeText]).default(EXAM_QUESTION_TYPE.singleChoice),
+    type: z
+      .enum([EXAM_QUESTION_TYPE.singleChoice, EXAM_QUESTION_TYPE.multipleChoice, EXAM_QUESTION_TYPE.freeText, EXAM_QUESTION_TYPE.code])
+      .default(EXAM_QUESTION_TYPE.singleChoice),
     prompt: z.string().min(3, t("validation.examQuestionPromptMin")).max(2000, t("validation.examQuestionPromptMax")),
     optionsText: z.string().max(4000, t("validation.examQuestionOptionsMax")).optional(),
     correctAnswersText: z.string().max(500, t("validation.examQuestionAnswersMax")).optional(),
     explanation: z.string().max(2000, t("validation.examQuestionExplanationMax")).optional(),
+    codeLanguage: z.enum(CODE_QUESTION_LANGUAGES).default("python"),
+    codeStarter: z.string().max(20000).optional(),
+    codeSolution: z.string().max(20000).optional(),
+    codeInstructions: z.string().max(4000).optional(),
+    codeTests: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1, t("validation.examQuestionCodeTestName")).max(80),
+          input: z.string().max(10000),
+          expectedOutput: z.string().max(10000),
+          hidden: z.boolean()
+        })
+      )
+      .default([]),
     points: z.coerce.number().int().min(1, t("validation.examQuestionPointsMin")).max(100, t("validation.examQuestionPointsMax")),
     sortOrder: z.coerce.number().int().min(1)
   });
