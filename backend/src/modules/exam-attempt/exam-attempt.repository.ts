@@ -13,6 +13,7 @@ export class ExamAttemptRepository {
     type: true,
     prompt: true,
     options: true,
+    codeConfig: true,
     points: true,
     sortOrder: true
   } satisfies Prisma.ExamQuestionSelect;
@@ -34,6 +35,7 @@ export class ExamAttemptRepository {
         id: true,
         questionId: true,
         answer: true,
+        gradingResult: true,
         updatedAt: true
       }
     }
@@ -224,6 +226,7 @@ export class ExamAttemptRepository {
         updatedAt: true,
         answers: {
           select: {
+            id: true,
             questionId: true,
             answer: true
           }
@@ -237,7 +240,8 @@ export class ExamAttemptRepository {
                 id: true,
                 type: true,
                 points: true,
-                correctAnswers: true
+                correctAnswers: true,
+                codeConfig: true
               },
               orderBy: { sortOrder: "asc" }
             }
@@ -256,6 +260,14 @@ export class ExamAttemptRepository {
         gradedAt: new Date()
       },
       select: this.attemptSelect
+    });
+  }
+
+  /** Persists per-test CODE grading feedback onto the learner's answer row. */
+  async setAnswerGradingResult(attemptId: string, questionId: string, result: Prisma.InputJsonValue) {
+    return prisma.examAnswer.update({
+      where: { attemptId_questionId: { attemptId, questionId } },
+      data: { gradingResult: result }
     });
   }
 

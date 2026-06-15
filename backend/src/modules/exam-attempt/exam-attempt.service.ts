@@ -1,17 +1,36 @@
-import { ExamAttemptStatus, ExamStatus, Prisma } from "@prisma/client";
+import { ExamAttemptEventType, ExamAttemptStatus, ExamStatus, Prisma } from "@prisma/client";
 import { redisConnection } from "../../config/redis";
 import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE, AUDIT_GRADING_SOURCE } from "../../common/constants/audit";
+import {
+  EXAM_ATTEMPT_EVENT_TYPE,
+  EXAM_SUBMIT_REASON,
+  type ExamSubmitReason
+} from "../../common/constants/exam-integrity";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor } from "../../common/auth/course-access";
 import { examGradingQueue } from "../../jobs/exam-grading.queue";
+import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
+import { CertificateEligibilityService } from "../progress/certificate-eligibility.service";
+import { NotificationService } from "../notification/notification.service";
+import { ExamAttemptIntegrityRepository } from "./exam-attempt-integrity.repository";
 import { ExamAttemptRepository, type SubmitExamAnswerInput } from "./exam-attempt.repository";
 
 type SubmitExamAttemptPayload = {
   answers: Array<{
     questionId: string;
     answer: string | string[] | null;
+  }>;
+  submitReason?: ExamSubmitReason;
+};
+
+type RecordIntegrityEventsPayload = {
+  events: Array<{
+    type: ExamAttemptEventType;
+    clientEventId?: string;
+    metadata?: Record<string, unknown>;
   }>;
 };
 
@@ -32,11 +51,20 @@ type ListExamAttemptsPayload = {
   status?: ExamAttemptStatus;
 };
 
+const SERVER_ONLY_INTEGRITY_EVENT_TYPES = new Set<ExamAttemptEventType>([
+  EXAM_ATTEMPT_EVENT_TYPE.timerExpired,
+  EXAM_ATTEMPT_EVENT_TYPE.manualSubmit
+]);
+
 export class ExamAttemptService {
   constructor(
     private readonly examAttemptRepository: ExamAttemptRepository,
+    private readonly examAttemptIntegrityRepository: ExamAttemptIntegrityRepository,
     private readonly courseRepository: CourseRepository,
-    private readonly enrollmentRepository: EnrollmentRepository
+    private readonly enrollmentRepository: EnrollmentRepository,
+    private readonly auditRepository?: AuditRepository,
+    private readonly notificationService?: NotificationService,
+    private readonly certificateEligibilityService?: CertificateEligibilityService
   ) {}
 
   async startAttempt(user: Express.UserClaims | undefined, examId: string) {
@@ -128,13 +156,71 @@ export class ExamAttemptService {
       payload.status
     );
 
+    const suspiciousCounts = await this.examAttemptIntegrityRepository.countSuspiciousByAttemptIds(
+      items.map((item) => item.id)
+    );
+
     return {
-      items,
+      items: items.map((item) => ({
+        ...item,
+        suspiciousEventCount: suspiciousCounts.get(item.id) ?? 0
+      })),
       pagination: {
         page: payload.page,
         limit: payload.limit,
         total
       }
+    };
+  }
+
+  async recordIntegrityEvents(user: Express.UserClaims | undefined, attemptId: string, payload: RecordIntegrityEventsPayload) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const attempt = await this.examAttemptRepository.findById(attemptId);
+    if (!attempt) {
+      throw new AppError("Attempt not found", 404, "EXAM_ATTEMPT_NOT_FOUND");
+    }
+    if (attempt.userId !== user.id) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+    if (attempt.status !== ExamAttemptStatus.IN_PROGRESS) {
+      throw new AppError("Attempt is no longer in progress", 409, "EXAM_ATTEMPT_NOT_IN_PROGRESS");
+    }
+
+    const clientEvents = payload.events.filter((event) => !SERVER_ONLY_INTEGRITY_EVENT_TYPES.has(event.type));
+    if (clientEvents.length === 0) {
+      throw new AppError("No recordable integrity events in payload", 422, "EXAM_INTEGRITY_EVENTS_EMPTY");
+    }
+
+    const created = await this.examAttemptIntegrityRepository.createMany(
+      clientEvents.map((event) => ({
+        attemptId,
+        type: event.type,
+        clientEventId: event.clientEventId ?? null,
+        metadata: event.metadata ? (event.metadata as Prisma.InputJsonValue) : null
+      }))
+    );
+
+    return { events: created };
+  }
+
+  async listIntegrityEvents(user: Express.UserClaims | undefined, attemptId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    await this.assertCanViewIntegrityEvents(user, attemptId);
+    const events = await this.examAttemptIntegrityRepository.findByAttemptId(attemptId);
+    const suspiciousEventCount = events.filter((event) =>
+      event.type === EXAM_ATTEMPT_EVENT_TYPE.tabHidden || event.type === EXAM_ATTEMPT_EVENT_TYPE.windowBlur
+    ).length;
+
+    return {
+      attemptId,
+      events,
+      suspiciousEventCount
     };
   }
 
@@ -184,7 +270,29 @@ export class ExamAttemptService {
       };
     });
 
+    const submitEventType =
+      payload.submitReason === EXAM_SUBMIT_REASON.timer
+        ? EXAM_ATTEMPT_EVENT_TYPE.timerExpired
+        : EXAM_ATTEMPT_EVENT_TYPE.manualSubmit;
+    await this.examAttemptIntegrityRepository.createEvent({
+      attemptId,
+      type: submitEventType,
+      clientEventId: `server:${submitEventType.toLowerCase()}`,
+      metadata: { submitReason: payload.submitReason ?? EXAM_SUBMIT_REASON.manual }
+    });
+
     const submittedAttempt = await this.examAttemptRepository.submitAttempt(attemptId, answers);
+    await this.notificationService?.createNotification({
+      userId: user.id,
+      type: "SYSTEM",
+      title: "Exam submitted",
+      body: "Your exam submission was received and grading is in progress.",
+      linkUrl: "/my-progress",
+      metadata: {
+        examId: exam.id,
+        attemptId
+      }
+    });
     await examGradingQueue.add(
       "grade",
       { attemptId },
@@ -266,7 +374,67 @@ export class ExamAttemptService {
     }
 
     const gradedAttempt = await this.examAttemptRepository.markAttemptManuallyGraded(attemptId, payload.score);
+    await this.notificationService?.createNotification({
+      userId: gradingContext.userId,
+      type: "SYSTEM",
+      title: "Exam graded",
+      body: `Your exam was graded. Score: ${gradedAttempt.score ?? 0}.`,
+      linkUrl: "/my-progress",
+      metadata: {
+        examId: gradingContext.examId,
+        attemptId: gradedAttempt.id,
+        score: gradedAttempt.score
+      }
+    });
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: AUDIT_ACTION.examAttemptGraded,
+      entityType: AUDIT_ENTITY_TYPE.examAttempt,
+      entityId: attemptId,
+      metadata: {
+        courseId: gradingContext.exam.courseId,
+        examId: gradingContext.examId,
+        userId: gradingContext.userId,
+        attemptNumber: gradingContext.attemptNumber,
+        gradingSource: AUDIT_GRADING_SOURCE.manual,
+        before: {
+          status: attempt.status,
+          score: attempt.score
+        },
+        after: {
+          status: gradedAttempt.status,
+          score: gradedAttempt.score
+        }
+      }
+    });
+    await this.certificateEligibilityService?.tryIssueCertificateIfEligible(
+      gradingContext.userId,
+      gradingContext.exam.courseId
+    );
     return { attempt: gradedAttempt };
+  }
+
+  private async assertCanViewIntegrityEvents(user: Express.UserClaims, attemptId: string) {
+    const attempt = await this.examAttemptRepository.findById(attemptId);
+    if (!attempt) {
+      throw new AppError("Attempt not found", 404, "EXAM_ATTEMPT_NOT_FOUND");
+    }
+
+    if (attempt.userId === user.id) {
+      return;
+    }
+
+    const exam = await this.examAttemptRepository.findExamForAttempt(attempt.examId);
+    if (!exam) {
+      throw new AppError("Exam not found", 404, "EXAM_NOT_FOUND");
+    }
+
+    const course = await this.courseRepository.findById(exam.courseId);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    this.assertCanManageCourse(user, course.instructorId);
   }
 
   private assertCanManageCourse(user: Express.UserClaims, instructorId: string) {

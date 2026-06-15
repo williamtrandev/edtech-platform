@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { ASSIGNMENT_STATUS, COURSE_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, LESSON_CONTENT_TYPE } from "../constants/business";
+import {
+  ASSIGNMENT_STATUS,
+  CODE_QUESTION_LANGUAGES,
+  COURSE_STATUS,
+  EXAM_QUESTION_TYPE,
+  EXAM_SCOPE,
+  EXAM_STATUS,
+  LESSON_CONTENT_TYPE,
+  LESSON_PROGRESS_WEIGHT
+} from "../constants/business";
 import type { I18nKey } from "../i18n";
 import { isLessonHtmlEmpty } from "../lib/lesson-content";
 
@@ -19,6 +28,8 @@ export function createCourseFormSchema(t: Translate) {
     requirements: z.string().trim().min(1, t("validation.courseRequirementsRequired")).max(2000, t("validation.courseLongTextMax")),
     outcomes: z.string().trim().min(1, t("validation.courseOutcomesRequired")).max(2000, t("validation.courseLongTextMax")),
     coverImageUrl: z.string().trim().min(1, t("validation.courseCoverRequired")).max(2000, t("validation.courseCoverUrlMax")),
+    priceCents: z.coerce.number().int().min(0, t("validation.coursePriceMin")).max(10_000_000, t("validation.coursePriceMax")).optional().or(z.literal("")),
+    currency: z.string().trim().length(3, t("validation.courseCurrencyInvalid")).optional(),
     status: z.enum([COURSE_STATUS.draft, COURSE_STATUS.published, COURSE_STATUS.archived]).default(COURSE_STATUS.draft)
   });
 }
@@ -36,6 +47,8 @@ export function updateCourseFormSchema(t: Translate) {
     requirements: z.string().max(2000, t("validation.courseLongTextMax")).optional(),
     outcomes: z.string().max(2000, t("validation.courseLongTextMax")).optional(),
     coverImageUrl: z.string().max(2000, t("validation.courseCoverUrlMax")).optional(),
+    priceCents: z.coerce.number().int().min(0, t("validation.coursePriceMin")).max(10_000_000, t("validation.coursePriceMax")).optional().or(z.literal("")),
+    currency: z.string().trim().length(3, t("validation.courseCurrencyInvalid")).optional(),
     status: z.enum([COURSE_STATUS.draft, COURSE_STATUS.published, COURSE_STATUS.archived, COURSE_STATUS.locked]).default(COURSE_STATUS.draft)
   });
 }
@@ -46,16 +59,65 @@ export function createLessonFormSchema(t: Translate) {
   return z
     .object({
       title: z.string().min(3, t("validation.lessonTitleMin")),
-      contentType: z.enum([LESSON_CONTENT_TYPE.video, LESSON_CONTENT_TYPE.text, LESSON_CONTENT_TYPE.resource]).default(LESSON_CONTENT_TYPE.text),
-      content: z.string().min(1, t("validation.lessonContentRequired")),
-      sortOrder: z.coerce.number().int().min(1)
+      contentType: z
+        .enum([
+          LESSON_CONTENT_TYPE.video,
+          LESSON_CONTENT_TYPE.text,
+          LESSON_CONTENT_TYPE.resource,
+          LESSON_CONTENT_TYPE.quiz,
+          LESSON_CONTENT_TYPE.liveSession
+        ])
+        .default(LESSON_CONTENT_TYPE.text),
+      content: z.string().default(""),
+      quizExamId: z.string().optional(),
+      liveMeetingUrl: z.string().optional(),
+      liveStartsAt: z.string().optional(),
+      liveInstructions: z.string().optional(),
+      liveDurationMinutes: z.coerce.number().int().min(5, t("validation.lessonLiveDurationMin")).max(480, t("validation.lessonLiveDurationMax")).optional().or(z.literal("")),
+      sortOrder: z.coerce.number().int().min(1),
+      progressWeight: z.coerce
+        .number()
+        .int()
+        .min(LESSON_PROGRESS_WEIGHT.min, t("validation.lessonProgressWeightMin"))
+        .max(LESSON_PROGRESS_WEIGHT.max, t("validation.lessonProgressWeightMax"))
+        .default(LESSON_PROGRESS_WEIGHT.default),
+      prerequisiteLessonId: z.string().nullable().optional()
     })
     .superRefine((values, context) => {
-      if (values.contentType !== LESSON_CONTENT_TYPE.text) {
+      if (values.contentType === LESSON_CONTENT_TYPE.quiz) {
+        if (!values.quizExamId?.trim()) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["quizExamId"],
+            message: t("validation.lessonQuizExamRequired")
+          });
+        }
         return;
       }
 
-      if (isLessonHtmlEmpty(values.content)) {
+      if (values.contentType === LESSON_CONTENT_TYPE.liveSession) {
+        const meetingUrl = values.liveMeetingUrl?.trim() ?? "";
+        const instructions = values.liveInstructions?.trim() ?? "";
+        if (!meetingUrl && !instructions) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["liveMeetingUrl"],
+            message: t("validation.lessonLiveSessionRequired")
+          });
+        }
+        return;
+      }
+
+      if (!values.content.trim()) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["content"],
+          message: t("validation.lessonContentRequired")
+        });
+        return;
+      }
+
+      if (values.contentType === LESSON_CONTENT_TYPE.text && isLessonHtmlEmpty(values.content)) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["content"],
@@ -68,24 +130,52 @@ export function createLessonFormSchema(t: Translate) {
 export type CreateLessonFormValues = z.infer<ReturnType<typeof createLessonFormSchema>>;
 
 export function createExamFormSchema(t: Translate) {
-  return z.object({
-    title: z.string().min(3, t("validation.examTitleMin")).max(200, t("validation.examTitleMax")),
-    description: z.string().max(1000, t("validation.examDescriptionMax")).optional(),
-    status: z.enum([EXAM_STATUS.draft, EXAM_STATUS.published, EXAM_STATUS.archived]).default(EXAM_STATUS.draft),
-    durationMinutes: z.coerce.number().int().min(1, t("validation.examDurationMin")).max(10000, t("validation.examDurationMax")).optional().or(z.literal("")),
-    passingScore: z.coerce.number().int().min(0, t("validation.examPassingScoreMin")).max(100, t("validation.examPassingScoreMax")).optional().or(z.literal(""))
-  });
+  return z
+    .object({
+      title: z.string().min(3, t("validation.examTitleMin")).max(200, t("validation.examTitleMax")),
+      description: z.string().max(1000, t("validation.examDescriptionMax")).optional(),
+      status: z.enum([EXAM_STATUS.draft, EXAM_STATUS.published, EXAM_STATUS.archived]).default(EXAM_STATUS.draft),
+      scope: z.enum([EXAM_SCOPE.lesson, EXAM_SCOPE.course]).default(EXAM_SCOPE.course),
+      lessonId: z.string().optional(),
+      durationMinutes: z.coerce.number().int().min(1, t("validation.examDurationMin")).max(10000, t("validation.examDurationMax")).optional().or(z.literal("")),
+      passingScore: z.coerce.number().int().min(0, t("validation.examPassingScoreMin")).max(100, t("validation.examPassingScoreMax")).optional().or(z.literal(""))
+    })
+    .superRefine((value, ctx) => {
+      if (value.scope === EXAM_SCOPE.lesson && !value.lessonId?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t("validation.examLessonRequired"),
+          path: ["lessonId"]
+        });
+      }
+    });
 }
 
 export type ExamFormValues = z.infer<ReturnType<typeof createExamFormSchema>>;
 
 export function createExamQuestionFormSchema(t: Translate) {
   return z.object({
-    type: z.enum([EXAM_QUESTION_TYPE.singleChoice, EXAM_QUESTION_TYPE.multipleChoice, EXAM_QUESTION_TYPE.freeText]).default(EXAM_QUESTION_TYPE.singleChoice),
+    type: z
+      .enum([EXAM_QUESTION_TYPE.singleChoice, EXAM_QUESTION_TYPE.multipleChoice, EXAM_QUESTION_TYPE.freeText, EXAM_QUESTION_TYPE.code])
+      .default(EXAM_QUESTION_TYPE.singleChoice),
     prompt: z.string().min(3, t("validation.examQuestionPromptMin")).max(2000, t("validation.examQuestionPromptMax")),
     optionsText: z.string().max(4000, t("validation.examQuestionOptionsMax")).optional(),
     correctAnswersText: z.string().max(500, t("validation.examQuestionAnswersMax")).optional(),
     explanation: z.string().max(2000, t("validation.examQuestionExplanationMax")).optional(),
+    codeLanguage: z.enum(CODE_QUESTION_LANGUAGES).default("python"),
+    codeStarter: z.string().max(20000).optional(),
+    codeSolution: z.string().max(20000).optional(),
+    codeInstructions: z.string().max(4000).optional(),
+    codeTests: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1, t("validation.examQuestionCodeTestName")).max(80),
+          input: z.string().max(10000),
+          expectedOutput: z.string().max(10000),
+          hidden: z.boolean()
+        })
+      )
+      .default([]),
     points: z.coerce.number().int().min(1, t("validation.examQuestionPointsMin")).max(100, t("validation.examQuestionPointsMax")),
     sortOrder: z.coerce.number().int().min(1)
   });

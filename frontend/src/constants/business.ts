@@ -26,13 +26,26 @@ export const EXAM_STATUS = {
 
 export type ExamStatus = (typeof EXAM_STATUS)[keyof typeof EXAM_STATUS];
 
+export const EXAM_SCOPE = {
+  lesson: "LESSON",
+  course: "COURSE"
+} as const;
+
+export type ExamScope = (typeof EXAM_SCOPE)[keyof typeof EXAM_SCOPE];
+
 export const EXAM_QUESTION_TYPE = {
   singleChoice: "SINGLE_CHOICE",
   multipleChoice: "MULTIPLE_CHOICE",
-  freeText: "FREE_TEXT"
+  freeText: "FREE_TEXT",
+  code: "CODE"
 } as const;
 
 export type ExamQuestionType = (typeof EXAM_QUESTION_TYPE)[keyof typeof EXAM_QUESTION_TYPE];
+
+/** Languages a CODE question may target (mirror of backend CODE_QUESTION_LANGUAGES). */
+export const CODE_QUESTION_LANGUAGES = ["python", "javascript", "typescript", "go", "rust", "java", "cpp", "sql", "bash"] as const;
+
+export type CodeQuestionLanguage = (typeof CODE_QUESTION_LANGUAGES)[number];
 
 export const EXAM_ATTEMPT_STATUS = {
   inProgress: "IN_PROGRESS",
@@ -41,6 +54,25 @@ export const EXAM_ATTEMPT_STATUS = {
 } as const;
 
 export type ExamAttemptStatus = (typeof EXAM_ATTEMPT_STATUS)[keyof typeof EXAM_ATTEMPT_STATUS];
+
+export const EXAM_ATTEMPT_EVENT_TYPE = {
+  tabHidden: "TAB_HIDDEN",
+  tabVisible: "TAB_VISIBLE",
+  windowBlur: "WINDOW_BLUR",
+  windowFocus: "WINDOW_FOCUS",
+  reconnect: "RECONNECT",
+  timerExpired: "TIMER_EXPIRED",
+  manualSubmit: "MANUAL_SUBMIT"
+} as const;
+
+export type ExamAttemptEventType = (typeof EXAM_ATTEMPT_EVENT_TYPE)[keyof typeof EXAM_ATTEMPT_EVENT_TYPE];
+
+export const EXAM_SUBMIT_REASON = {
+  manual: "MANUAL",
+  timer: "TIMER"
+} as const;
+
+export type ExamSubmitReason = (typeof EXAM_SUBMIT_REASON)[keyof typeof EXAM_SUBMIT_REASON];
 
 export const ASSIGNMENT_STATUS = {
   draft: "DRAFT",
@@ -92,7 +124,41 @@ export type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
 export const LESSON_CONTENT_TYPE = {
   text: "TEXT",
   video: "VIDEO",
-  resource: "RESOURCE"
+  resource: "RESOURCE",
+  quiz: "QUIZ",
+  liveSession: "LIVE_SESSION"
 } as const;
 
 export type LessonContentType = (typeof LESSON_CONTENT_TYPE)[keyof typeof LESSON_CONTENT_TYPE];
+
+export const LESSON_PROGRESS_WEIGHT = {
+  min: 1,
+  max: 100,
+  default: 1
+} as const;
+
+export const LIVE_SESSION_STATUS = {
+  unscheduled: "UNSCHEDULED",
+  upcoming: "UPCOMING",
+  live: "LIVE",
+  ended: "ENDED"
+} as const;
+
+export type LiveSessionStatus = (typeof LIVE_SESSION_STATUS)[keyof typeof LIVE_SESSION_STATUS];
+
+export const LEARNING_PATH_STATUS = {
+  draft: "DRAFT",
+  published: "PUBLISHED",
+  archived: "ARCHIVED"
+} as const;
+
+export type LearningPathStatus = (typeof LEARNING_PATH_STATUS)[keyof typeof LEARNING_PATH_STATUS];
+
+export const COURSE_PAYMENT_STATUS = {
+  pending: "PENDING",
+  completed: "COMPLETED",
+  failed: "FAILED",
+  refunded: "REFUNDED"
+} as const;
+
+export type CoursePaymentStatus = (typeof COURSE_PAYMENT_STATUS)[keyof typeof COURSE_PAYMENT_STATUS];

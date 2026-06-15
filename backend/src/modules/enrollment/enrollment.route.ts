@@ -5,25 +5,35 @@ import { validateRequest } from "../../common/middleware/validate-request";
 import { CourseRepository } from "../course/course.repository";
 import { NotificationRepository } from "../notification/notification.repository";
 import { NotificationService } from "../notification/notification.service";
+import { CourseProgressRepository } from "../progress/course-progress.repository";
+import { CourseProgressService } from "../progress/course-progress.service";
 import { ProgressRepository } from "../progress/progress.repository";
 import { EnrollmentController } from "./enrollment.controller";
 import { EnrollmentRepository } from "./enrollment.repository";
 import { EnrollmentService } from "./enrollment.service";
 import { adminEnrollCourseSchema, adminRemoveCourseEnrollmentSchema, createEnrollmentSchema, dropEnrollmentSchema } from "./enrollment.schema";
 import { UserRepository } from "../user/user.repository";
+import { AuditRepository } from "../audit/audit.repository";
+import { CoursePaymentRepository } from "../course-payment/course-payment.repository";
 
 const enrollmentRepository = new EnrollmentRepository();
 const courseRepository = new CourseRepository();
 const progressRepository = new ProgressRepository();
+const courseProgressRepository = new CourseProgressRepository();
+const courseProgressService = new CourseProgressService(progressRepository, courseProgressRepository);
 const notificationRepository = new NotificationRepository();
 const notificationService = new NotificationService(notificationRepository);
 const userRepository = new UserRepository();
+const coursePaymentRepository = new CoursePaymentRepository();
+const auditRepository = new AuditRepository();
 const enrollmentService = new EnrollmentService(
   enrollmentRepository,
   courseRepository,
-  progressRepository,
+  courseProgressService,
   userRepository,
-  notificationService
+  notificationService,
+  coursePaymentRepository,
+  auditRepository
 );
 const enrollmentController = new EnrollmentController(enrollmentService);
 

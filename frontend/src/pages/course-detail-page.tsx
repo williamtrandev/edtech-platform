@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Download, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users, Video } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -45,11 +45,22 @@ import {
   STUDIO_TAB_COUNT_ACTIVE,
   STUDIO_TAB_COUNT_IDLE,
   STUDIO_TAB_IDLE,
-  STUDIO_WORKSPACE_GRID
+  STUDIO_WORKSPACE_GRID,
+  LEARNER_CURRICULUM_GRID,
+  STUDIO_EDITOR_PANEL
 } from "../lib/studio-layout";
+import { AssignmentRubricBreakdown, AssignmentRubricEditor } from "../components/assignment-rubric-editor";
 import { AppShell } from "../components/app-shell";
+import { CourseArchivedLessonsPanel } from "../components/course-archived-lessons-panel";
+import { CourseArchiveImpactSummary } from "../components/course-archive-impact-summary";
+import { CourseAnalyticsInsights } from "../components/course-analytics-insights";
 import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { CourseCoverFrame } from "../components/course-cover-frame";
+import { CourseDetailLearnerHero } from "../components/course-detail-learner-hero";
+import { CourseDetailLearnerTabs } from "../components/course-detail-learner-tabs";
+import { CourseLessonPreviewPanel } from "../components/course-lesson-preview-panel";
+import { CourseStudioCoverHero } from "../components/course-studio-cover-hero";
+import { LearnerLessonContent } from "../components/learner-lesson-content";
 import { CourseStatusBadge } from "../components/course-status-badge";
 import { CourseCoverUploader } from "../components/course-cover-uploader";
 import { EmptyState } from "../components/empty-state";
@@ -57,13 +68,27 @@ import { FormField } from "../components/form-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { TextareaField } from "../components/textarea-field";
-import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_STATUS, LESSON_CONTENT_TYPE, USER_ROLE } from "../constants/business";
-import { useArchiveAssignment, useAssignmentSubmissions, useCourseAssignments, useCreateAssignment, useGradeAssignmentSubmission, useSubmitAssignment, useUpdateAssignment } from "../hooks/use-assignments";
+import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_SCOPE, EXAM_STATUS, EXAM_SUBMIT_REASON, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
+import { ExamScopeFields } from "../components/exam-scope-fields";
+import { ExamIntegrityEventsPanel } from "../components/exam-integrity-events-panel";
+import {
+  useArchiveAssignment,
+  useAssignmentSubmissions,
+  useCourseAssignments,
+  useCreateAssignment,
+  useGradeAssignmentSubmission,
+  useReplaceAssignmentRubric,
+  useSubmitAssignment,
+  useUpdateAssignment
+} from "../hooks/use-assignments";
 import { useAuth } from "../hooks/use-auth";
 import {
   useArchiveCourse,
   useAdminEnrollLearner,
   useAdminRemoveLearner,
+  useAssignCourseInstructor,
+  useCourseArchiveImpact,
+  useCourseAnalytics,
   useCourseDetail,
   useCourseEnrollments,
   useCourseLessons,
@@ -71,6 +96,7 @@ import {
   useCreateLesson,
   useDeleteMyCourseReview,
   useDeleteLesson,
+  useRestoreLesson,
   useLockCourse,
   useReorderLessons,
   useUnlockCourse,
@@ -78,12 +104,21 @@ import {
   useUpdateLesson,
   useUpdateCourse
 } from "../hooks/use-courses";
-import { useEnrollCourse, useMyEnrollments } from "../hooks/use-enrollments";
+import { useMyEnrollments } from "../hooks/use-enrollments";
+import { CourseEnrollButton } from "../components/course-enroll-button";
+import { useExamIntegrityMonitor } from "../hooks/use-exam-integrity-monitor";
 import { useArchiveExam, useCourseExams, useCreateExam, useCreateExamQuestion, useDeleteExamQuestion, useExamAttempt, useExamAttempts, useExamQuestions, useGradeExamAttempt, useSaveExamAttemptAnswers, useStartExamAttempt, useSubmitExamAttempt, useUpdateExam, useUpdateExamQuestion } from "../hooks/use-exams";
 import { useCourseCertificates, useRestoreCertificate, useRevokeCertificate } from "../hooks/use-certificates";
 import { useCurrentUser } from "../hooks/use-current-user";
 import { useCompleteLesson, useCourseLessonProgress, useCourseProgress } from "../hooks/use-progress";
-import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { useUsers } from "../hooks/use-users";
+import { buildLessonContentFromForm, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import type { AssignmentRubricCriterionInput } from "../lib/assignment-rubric";
+import { sumRubricMaxPoints, sumRubricPoints, toRubricCriterionInputs } from "../lib/assignment-rubric";
+import { getCourseLearnPath, getCoursePreviewPath } from "../lib/course-learn-path";
+import { canSelfEnrollInCourse, isEnrolledStudentExperience, showOwnerCannotSelfEnrollHint } from "../lib/enrollment-access";
+import { downloadBlob } from "../lib/download-file";
+import { certificateService } from "../services/certificate.service";
 import { createAssignmentFormSchema, createAssignmentGradeFormSchema, createAssignmentSubmissionFormSchema, createExamAttemptGradeFormSchema, createExamFormSchema, createExamQuestionFormSchema, createLessonFormSchema, AssignmentFormValues, AssignmentGradeFormValues, AssignmentSubmissionFormValues, CreateLessonFormValues, ExamAttemptGradeFormValues, ExamFormValues, ExamQuestionFormValues, updateCourseFormSchema, UpdateCourseFormValues } from "../schemas/course.schema";
 import { uploadService, type UploadedFile } from "../services/upload.service";
 import type { Exam, ExamAttemptForReview, ExamAttemptSession, ExamQuestion, ExamQuestionOption } from "../services/exam.service";
@@ -91,8 +126,9 @@ import type { Assignment, AssignmentSubmission } from "../services/assignment.se
 import type { Lesson } from "../services/course.service";
 import { type I18nKey, useI18n } from "../i18n";
 
-function getNextLessonSortOrder(lessons: { sortOrder: number }[] | undefined) {
-  const maxSortOrder = lessons?.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0) ?? 0;
+function getNextLessonSortOrder(lessons: { sortOrder: number; archivedAt?: string | null }[] | undefined) {
+  const activeLessons = (lessons ?? []).filter((lesson) => !lesson.archivedAt);
+  const maxSortOrder = activeLessons.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0);
   return maxSortOrder + 1;
 }
 
@@ -122,26 +158,21 @@ function formatQuestionOptions(options: ExamQuestionOption[] | null | undefined)
   return (options ?? []).map((option) => `${option.id}. ${option.text}`).join("\n");
 }
 
-function renderLearnerLessonContent(lesson: Lesson) {
+function hasRenderableLessonContent(lesson: Lesson) {
   const parsed = parseLessonContent(lesson.content, lesson.contentType);
-
-  if (parsed.kind === LESSON_CONTENT_TYPE.text && parsed.body) {
-    return <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: parsed.body }} />;
+  if (parsed.kind === LESSON_CONTENT_TYPE.text) {
+    return Boolean(parsed.body?.trim());
   }
-
-  if (parsed.kind === LESSON_CONTENT_TYPE.video && parsed.url) {
-    return <video controls className="w-full rounded-lg ring-1 ring-foreground/10 bg-black" src={parsed.url} />;
+  if (parsed.kind === LESSON_CONTENT_TYPE.video || parsed.kind === LESSON_CONTENT_TYPE.resource) {
+    return Boolean(parsed.url?.trim());
   }
-
-  if (parsed.kind === LESSON_CONTENT_TYPE.resource && parsed.url) {
-    return (
-      <a className="inline-flex h-10 items-center rounded-md ring-1 ring-foreground/10 px-4 text-sm font-medium hover:bg-muted/40" href={parsed.url} rel="noreferrer" target="_blank">
-        {parsed.fileName ?? parsed.url}
-      </a>
-    );
+  if (parsed.kind === LESSON_CONTENT_TYPE.quiz) {
+    return Boolean(parsed.examId?.trim());
   }
-
-  return null;
+  if (parsed.kind === LESSON_CONTENT_TYPE.liveSession) {
+    return Boolean(parsed.meetingUrl?.trim() || parsed.startsAt?.trim() || parsed.instructions?.trim());
+  }
+  return false;
 }
 
 function parseCorrectAnswers(value: string | undefined) {
@@ -166,6 +197,31 @@ function formatAttemptAnswer(answer: string | string[] | null | undefined) {
   return answer?.trim() || "—";
 }
 
+function normalizeRubricCriteriaForSave(criteria: AssignmentRubricCriterionInput[]) {
+  return criteria
+    .map((criterion) => ({
+      title: criterion.title.trim(),
+      description: criterion.description?.trim() || null,
+      maxPoints: Number(criterion.maxPoints)
+    }))
+    .filter((criterion) => criterion.title.length > 0);
+}
+
+function isValidRubricCriteriaForSave(criteria: ReturnType<typeof normalizeRubricCriteriaForSave>) {
+  return criteria.every((criterion) => criterion.maxPoints >= 1 && criterion.maxPoints <= 1000);
+}
+
+function buildRubricGradePointsMap(
+  criteria: Array<{ id: string }>,
+  scores?: Array<{ criterionId: string; points: number }>
+) {
+  const pointsByCriterionId = Object.fromEntries(criteria.map((criterion) => [criterion.id, 0]));
+  for (const score of scores ?? []) {
+    pointsByCriterionId[score.criterionId] = score.points;
+  }
+  return pointsByCriterionId;
+}
+
 type CourseDetailTab = "curriculum" | "exams" | "assignments" | "reviews" | "learners" | "settings";
 
 export function CourseDetailPage() {
@@ -175,11 +231,11 @@ export function CourseDetailPage() {
   const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const courseQuery = useCourseDetail(courseId);
   const myEnrollmentsQuery = useMyEnrollments(isAuthenticated && !isBootstrapping);
-  const enrollMutation = useEnrollCourse();
   const createLessonMutation = useCreateLesson(courseId);
   const updateLessonMutation = useUpdateLesson(courseId);
   const reorderLessonsMutation = useReorderLessons(courseId);
   const deleteLessonMutation = useDeleteLesson(courseId);
+  const restoreLessonMutation = useRestoreLesson(courseId);
   const createExamMutation = useCreateExam(courseId);
   const updateExamMutation = useUpdateExam(courseId);
   const archiveExamMutation = useArchiveExam(courseId);
@@ -188,6 +244,7 @@ export function CourseDetailPage() {
   const submitExamAttemptMutation = useSubmitExamAttempt(courseId);
   const createAssignmentMutation = useCreateAssignment(courseId);
   const updateAssignmentMutation = useUpdateAssignment(courseId);
+  const replaceAssignmentRubricMutation = useReplaceAssignmentRubric(courseId);
   const archiveAssignmentMutation = useArchiveAssignment(courseId);
   const submitAssignmentMutation = useSubmitAssignment(courseId);
   const completeLessonMutation = useCompleteLesson(courseId);
@@ -195,6 +252,7 @@ export function CourseDetailPage() {
   const lockCourseMutation = useLockCourse(courseId);
   const unlockCourseMutation = useUnlockCourse(courseId);
   const updateCourseMutation = useUpdateCourse(courseId);
+  const assignCourseInstructorMutation = useAssignCourseInstructor(courseId);
   const upsertReviewMutation = useUpsertMyCourseReview(courseId);
   const deleteReviewMutation = useDeleteMyCourseReview(courseId);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
@@ -209,8 +267,10 @@ export function CourseDetailPage() {
   const [enrollmentPage, setEnrollmentPage] = useState(1);
   const [certificatePage, setCertificatePage] = useState(1);
   const [certificateStatusFilter, setCertificateStatusFilter] = useState<"ALL" | (typeof CERTIFICATE_STATUS)[keyof typeof CERTIFICATE_STATUS]>("ALL");
+  const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
   const [adminEnrollEmail, setAdminEnrollEmail] = useState("");
   const [lockReasonInput, setLockReasonInput] = useState("");
+  const [selectedInstructorId, setSelectedInstructorId] = useState("");
   const [orderedLessons, setOrderedLessons] = useState<Lesson[]>([]);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [draggingLessonId, setDraggingLessonId] = useState<string | null>(null);
@@ -230,8 +290,11 @@ export function CourseDetailPage() {
   const [examNow, setExamNow] = useState(() => Date.now());
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [assignmentPendingArchive, setAssignmentPendingArchive] = useState<Assignment | null>(null);
+  const [courseArchiveOpen, setCourseArchiveOpen] = useState(false);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [assignmentSubmissionPage, setAssignmentSubmissionPage] = useState(1);
+  const [assignmentRubricCriteria, setAssignmentRubricCriteria] = useState<AssignmentRubricCriterionInput[]>([]);
+  const [rubricGradePoints, setRubricGradePoints] = useState<Record<string, number>>({});
   const [reviewRating, setReviewRating] = useState("5");
   const [reviewComment, setReviewComment] = useState("");
   const reorderSaveTimerRef = useRef<number | null>(null);
@@ -244,14 +307,35 @@ export function CourseDetailPage() {
   const isCourseOwner =
     meQuery.data?.role === USER_ROLE.instructor && courseQuery.data?.instructorId === meQuery.data.id;
   const isAdminReviewer = meQuery.data?.role === USER_ROLE.admin;
+  const instructorUsersQuery = useUsers(
+    {
+      role: USER_ROLE.instructor,
+      status: USER_STATUS.active,
+      page: 1,
+      limit: 100
+    },
+    Boolean(isAdminReviewer)
+  );
   const canManageCourse = Boolean(isCourseOwner);
   const canReviewCourse = isAdminReviewer;
   const canAccessCourseWorkspace = canManageCourse || canReviewCourse;
   const canViewExamWorkspace = canAccessCourseWorkspace;
 
-  const isLearner = meQuery.data?.role === USER_ROLE.user;
   const isCoursePublished = courseQuery.data?.status === COURSE_STATUS.published;
   const isEnrolled = myEnrollmentsQuery.data?.some((enrollment) => enrollment.courseId === courseId) ?? false;
+  const canSelfEnroll = canSelfEnrollInCourse({
+    userId: meQuery.data?.id,
+    instructorId: courseQuery.data?.instructorId,
+    courseStatus: courseQuery.data?.status,
+    isEnrolled
+  });
+  const isEnrolledStudent = isEnrolledStudentExperience({ isEnrolled, canAccessCourseWorkspace });
+  const showOwnerCannotEnrollHint = showOwnerCannotSelfEnrollHint({
+    isAuthenticated,
+    isCoursePublished,
+    isEnrolled,
+    canManageCourse
+  });
   const canReadLessons = Boolean(canAccessCourseWorkspace || isEnrolled);
   const isCourseLocked = courseQuery.data?.status === COURSE_STATUS.locked;
   const canEditCourse = canManageCourse && !isCourseLocked;
@@ -271,9 +355,15 @@ export function CourseDetailPage() {
   const lessonProgressQuery = useCourseLessonProgress(courseId, isAuthenticated && !isBootstrapping && canReadLessons && !canManageCourse);
   const pollExamAttempt = activeExamSession?.attempt.status === EXAM_ATTEMPT_STATUS.submitted;
   const examAttemptQuery = useExamAttempt(activeExamSession?.attempt.id ?? null, Boolean(activeExamSession), pollExamAttempt);
+  useExamIntegrityMonitor({
+    attemptId: activeExamSession?.attempt.id ?? null,
+    enabled: activeExamSession?.attempt.status === EXAM_ATTEMPT_STATUS.inProgress
+  });
   const nextLessonSortOrder = getNextLessonSortOrder(lessonQuery.data);
 
   const enrollmentsQuery = useCourseEnrollments(courseId, Boolean(canAccessCourseWorkspace && courseQuery.data), enrollmentPage, learnerSearch.trim());
+  const courseAnalyticsQuery = useCourseAnalytics(courseId, Boolean(canAccessCourseWorkspace && courseQuery.data));
+  const courseArchiveImpactQuery = useCourseArchiveImpact(courseId, Boolean(canManageCourse && courseArchiveOpen));
   const certificatesQuery = useCourseCertificates(courseId, certificatePage, certificateStatusFilter, Boolean(canAccessCourseWorkspace && courseQuery.data));
   const revokeCertificateMutation = useRevokeCertificate(courseId, certificatePage, certificateStatusFilter);
   const restoreCertificateMutation = useRestoreCertificate(courseId, certificatePage, certificateStatusFilter);
@@ -286,6 +376,7 @@ export function CourseDetailPage() {
   const certificatesTotal = certificatesQuery.data?.pagination.total ?? 0;
   const certificatesTotalPages = Math.max(1, Math.ceil(certificatesTotal / 20));
   const lessons = orderedLessons;
+  const archivedLessons = (lessonQuery.data ?? []).filter((lesson) => lesson.archivedAt);
   const selectedLesson = selectedLessonId ? lessons.find((lesson) => lesson.id === selectedLessonId) : undefined;
   const selectedLessonIndex = selectedLesson ? lessons.findIndex((lesson) => lesson.id === selectedLesson.id) : -1;
   const completedLessonIds = new Set(
@@ -305,7 +396,33 @@ export function CourseDetailPage() {
   const assignmentSubmissionsTotal = assignmentSubmissionsQuery.data?.pagination.total ?? 0;
   const assignmentSubmissionsTotalPages = Math.max(1, Math.ceil(assignmentSubmissionsTotal / 20));
   const selectedAssignment = selectedAssignmentId ? assignments.find((assignment) => assignment.id === selectedAssignmentId) : undefined;
+  const selectedAssignmentRubric = selectedAssignment?.rubricCriteria ?? [];
+  const hasAssignmentRubric = selectedAssignmentRubric.length > 0;
+  const rubricGradeTotal = sumRubricPoints(
+    selectedAssignmentRubric.map((criterion) => ({
+      points: Number(rubricGradePoints[criterion.id] ?? 0)
+    }))
+  );
   const selectedSubmission = selectedSubmissionId ? assignmentSubmissions.find((submission) => submission.id === selectedSubmissionId) : undefined;
+  const courseAnalytics = courseAnalyticsQuery.data;
+  const analyticsLoading = courseAnalyticsQuery.isLoading;
+  const activeInstructors = instructorUsersQuery.data?.items ?? [];
+  const instructorOptions =
+    courseQuery.data?.instructor && !activeInstructors.some((instructor) => instructor.id === courseQuery.data?.instructorId)
+      ? [courseQuery.data.instructor, ...activeInstructors]
+      : activeInstructors;
+
+  const handleDownloadCertificate = async (certificateId: string) => {
+    setDownloadingCertificateId(certificateId);
+    try {
+      const file = await certificateService.downloadCertificatePdf(certificateId);
+      downloadBlob(file.blob, file.filename);
+    } catch (error) {
+      toast.error(formatError(error, "progress.certificateDownloadFailed"));
+    } finally {
+      setDownloadingCertificateId(null);
+    }
+  };
 
   const courseForm = useForm<UpdateCourseFormValues>({
     resolver: zodResolver(updateCourseFormSchema(t)),
@@ -319,6 +436,8 @@ export function CourseDetailPage() {
       requirements: "",
       outcomes: "",
       coverImageUrl: "",
+      priceCents: "",
+      currency: "USD",
       status: COURSE_STATUS.draft
     }
   });
@@ -329,6 +448,11 @@ export function CourseDetailPage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
+      quizExamId: "",
+      liveMeetingUrl: "",
+      liveStartsAt: "",
+      liveInstructions: "",
+      liveDurationMinutes: "",
       sortOrder: 1
     }
   });
@@ -339,6 +463,8 @@ export function CourseDetailPage() {
       title: "",
       description: "",
       status: EXAM_STATUS.draft,
+      scope: EXAM_SCOPE.course,
+      lessonId: "",
       durationMinutes: "",
       passingScore: ""
     }
@@ -397,6 +523,7 @@ export function CourseDetailPage() {
       return;
     }
 
+    setSelectedInstructorId(courseQuery.data.instructorId);
     courseForm.reset({
       title: courseQuery.data.title,
       description: courseQuery.data.description ?? "",
@@ -407,13 +534,15 @@ export function CourseDetailPage() {
       requirements: courseQuery.data.requirements ?? "",
       outcomes: courseQuery.data.outcomes ?? "",
       coverImageUrl: courseQuery.data.coverImageUrl ?? "",
+      priceCents: courseQuery.data.priceCents ?? 0,
+      currency: (courseQuery.data.currency ?? "USD").toUpperCase(),
       status: courseQuery.data.status
     });
   }, [courseForm, courseQuery.data]);
 
   useEffect(() => {
-    const nextLessons = lessonQuery.data ?? [];
-    setOrderedLessons(nextLessons);
+    const activeLessons = (lessonQuery.data ?? []).filter((lesson) => !lesson.archivedAt);
+    setOrderedLessons(activeLessons);
   }, [lessonQuery.data]);
 
   useEffect(() => {
@@ -529,7 +658,8 @@ export function CourseDetailPage() {
       try {
         const submitted = await submitExamAttemptMutation.mutateAsync({
           attemptId: activeExamSession.attempt.id,
-          answers
+          answers,
+          submitReason: EXAM_SUBMIT_REASON.timer
         });
         setActiveExamSession({
           ...activeExamSession,
@@ -552,6 +682,8 @@ export function CourseDetailPage() {
         title: "",
         description: "",
         status: EXAM_STATUS.draft,
+        scope: EXAM_SCOPE.course,
+        lessonId: "",
         durationMinutes: "",
         passingScore: ""
       });
@@ -652,22 +784,23 @@ export function CourseDetailPage() {
       return;
     }
 
-    const body = values.content.trim();
     const content =
       values.contentType === LESSON_CONTENT_TYPE.text
         ? serializeLessonContent({
             version: 1,
             kind: values.contentType,
-            body
+            body: values.content.trim()
           })
-        : serializeLessonContent({
-            version: 1,
-            kind: values.contentType,
-            url: body,
-            fileName: uploadedLessonFile?.fileName,
-            mimeType: uploadedLessonFile?.mimeType,
-            size: uploadedLessonFile?.size
-          });
+        : values.contentType === LESSON_CONTENT_TYPE.video || values.contentType === LESSON_CONTENT_TYPE.resource
+          ? serializeLessonContent({
+              version: 1,
+              kind: values.contentType,
+              url: values.content.trim(),
+              fileName: uploadedLessonFile?.fileName,
+              mimeType: uploadedLessonFile?.mimeType,
+              size: uploadedLessonFile?.size
+            })
+          : buildLessonContentFromForm(values);
 
     try {
       if (lessonId) {
@@ -689,6 +822,11 @@ export function CourseDetailPage() {
           title: "",
           contentType: LESSON_CONTENT_TYPE.text,
           content: "",
+          quizExamId: "",
+          liveMeetingUrl: "",
+          liveStartsAt: "",
+          liveInstructions: "",
+          liveDurationMinutes: "",
           sortOrder: sortOrder + 1
         });
         form.clearErrors();
@@ -718,11 +856,26 @@ export function CourseDetailPage() {
         requirements: values.requirements || null,
         outcomes: values.outcomes || null,
         coverImageUrl: values.coverImageUrl || null,
+        priceCents: values.priceCents === "" ? 0 : Number(values.priceCents),
+        currency: (values.currency ?? "USD").trim().toUpperCase(),
         ...(values.status === COURSE_STATUS.locked ? {} : { status: values.status })
       });
       toast.success(t("courseDetail.courseUpdated"));
     } catch (e) {
       toast.error(formatError(e, "courseDetail.courseUpdateFailed"));
+    }
+  };
+
+  const onAssignInstructor = async () => {
+    if (!selectedInstructorId || selectedInstructorId === courseQuery.data?.instructorId) {
+      return;
+    }
+
+    try {
+      await assignCourseInstructorMutation.mutateAsync(selectedInstructorId);
+      toast.success(t("courseDetail.instructorAssigned"));
+    } catch (e) {
+      toast.error(formatError(e, "courseDetail.instructorAssignFailed"));
     }
   };
 
@@ -743,6 +896,8 @@ export function CourseDetailPage() {
       title: values.title,
       description: values.description || null,
       status: values.status,
+      scope: values.scope,
+      lessonId: values.scope === EXAM_SCOPE.lesson ? values.lessonId?.trim() || null : null,
       durationMinutes: values.durationMinutes === "" ? null : Number(values.durationMinutes),
       passingScore: values.passingScore === "" ? null : Number(values.passingScore)
     };
@@ -758,6 +913,8 @@ export function CourseDetailPage() {
           title: "",
           description: "",
           status: EXAM_STATUS.draft,
+          scope: EXAM_SCOPE.course,
+          lessonId: "",
           durationMinutes: "",
           passingScore: ""
         });
@@ -776,6 +933,8 @@ export function CourseDetailPage() {
       title: exam.title,
       description: exam.description ?? "",
       status: exam.status,
+      scope: exam.scope ?? EXAM_SCOPE.course,
+      lessonId: exam.lessonId ?? "",
       durationMinutes: exam.durationMinutes ?? "",
       passingScore: exam.passingScore ?? ""
     });
@@ -799,6 +958,8 @@ export function CourseDetailPage() {
       title: "",
       description: "",
       status: EXAM_STATUS.draft,
+      scope: EXAM_SCOPE.course,
+      lessonId: "",
       durationMinutes: "",
       passingScore: ""
     });
@@ -820,7 +981,7 @@ export function CourseDetailPage() {
       type: question.type,
       prompt: question.prompt,
       optionsText: formatQuestionOptions(question.options),
-      correctAnswersText: (question.correctAnswers ?? []).join(", "),
+      correctAnswersText: Array.isArray(question.correctAnswers) ? question.correctAnswers.join(", ") : "",
       explanation: question.explanation ?? "",
       points: question.points,
       sortOrder: question.sortOrder
@@ -943,22 +1104,43 @@ export function CourseDetailPage() {
     }
   };
 
+  const persistAssignmentRubric = async (assignmentId: string) => {
+    const criteria = normalizeRubricCriteriaForSave(assignmentRubricCriteria);
+    if (criteria.length > 0 && !isValidRubricCriteriaForSave(criteria)) {
+      throw new Error(t("courseDetail.rubricInvalid"));
+    }
+
+    await replaceAssignmentRubricMutation.mutateAsync({
+      assignmentId,
+      payload: { criteria }
+    });
+  };
+
   const onSubmitAssignment = async (values: AssignmentFormValues) => {
+    const normalizedRubric = normalizeRubricCriteriaForSave(assignmentRubricCriteria);
+    if (normalizedRubric.length > 0 && !isValidRubricCriteriaForSave(normalizedRubric)) {
+      toast.error(t("courseDetail.rubricInvalid"));
+      return;
+    }
+
+    const rubricMaxScore = normalizedRubric.length > 0 ? sumRubricMaxPoints(normalizedRubric) : null;
     const payload = {
       title: values.title,
       instructions: values.instructions || null,
       status: values.status,
       dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null,
-      maxScore: values.maxScore === "" ? null : Number(values.maxScore),
+      maxScore: rubricMaxScore ?? (values.maxScore === "" ? null : Number(values.maxScore)),
       attachmentUrl: values.attachmentUrl || null
     };
 
     try {
       if (selectedAssignmentId) {
         await updateAssignmentMutation.mutateAsync({ assignmentId: selectedAssignmentId, payload });
+        await persistAssignmentRubric(selectedAssignmentId);
         toast.success(t("courseDetail.assignmentUpdated"));
       } else {
-        await createAssignmentMutation.mutateAsync(payload);
+        const created = await createAssignmentMutation.mutateAsync(payload);
+        await persistAssignmentRubric(created.id);
         toast.success(t("courseDetail.assignmentCreated"));
         onNewAssignment();
       }
@@ -983,6 +1165,8 @@ export function CourseDetailPage() {
       maxScore: assignment.maxScore ?? "",
       attachmentUrl: assignment.attachmentUrl ?? ""
     });
+    setAssignmentRubricCriteria(toRubricCriterionInputs(assignment.rubricCriteria ?? []));
+    setRubricGradePoints(buildRubricGradePointsMap(assignment.rubricCriteria ?? []));
     assignmentSubmissionForm.reset({
       content: assignment.mySubmission?.content ?? "",
       attachmentUrl: assignment.mySubmission?.attachmentUrl ?? ""
@@ -1004,6 +1188,8 @@ export function CourseDetailPage() {
       maxScore: "",
       attachmentUrl: ""
     });
+    setAssignmentRubricCriteria([]);
+    setRubricGradePoints({});
     assignmentSubmissionForm.reset({
       content: "",
       attachmentUrl: ""
@@ -1024,6 +1210,17 @@ export function CourseDetailPage() {
       toast.success(t("courseDetail.assignmentArchived"));
     } catch (e) {
       toast.error(formatError(e, "courseDetail.assignmentArchiveFailed"));
+    }
+  };
+
+  const confirmArchiveCourse = async () => {
+    try {
+      await archiveCourseMutation.mutateAsync(courseId);
+      setCourseArchiveOpen(false);
+      toast.success(t("courseDetail.courseArchived"));
+      navigate("/courses", { replace: true });
+    } catch (e) {
+      toast.error(formatError(e, "courseDetail.archiveFailed"));
     }
   };
 
@@ -1054,6 +1251,7 @@ export function CourseDetailPage() {
       score: submission.score ?? 0,
       feedback: submission.feedback ?? ""
     });
+    setRubricGradePoints(buildRubricGradePointsMap(selectedAssignmentRubric, submission.rubricScores));
   };
 
   const onGradeAssignmentSubmission = async (values: AssignmentGradeFormValues) => {
@@ -1063,12 +1261,22 @@ export function CourseDetailPage() {
     }
 
     try {
+      const payload = hasAssignmentRubric
+        ? {
+            rubricScores: selectedAssignmentRubric.map((criterion) => ({
+              criterionId: criterion.id,
+              points: Number(rubricGradePoints[criterion.id] ?? 0)
+            })),
+            feedback: values.feedback || null
+          }
+        : {
+            score: Number(values.score),
+            feedback: values.feedback || null
+          };
+
       await gradeAssignmentSubmissionMutation.mutateAsync({
         submissionId: selectedSubmissionId,
-        payload: {
-          score: Number(values.score),
-          feedback: values.feedback || null
-        }
+        payload
       });
       toast.success(t("courseDetail.assignmentGraded"));
     } catch (e) {
@@ -1134,7 +1342,8 @@ export function CourseDetailPage() {
       }
       const submitted = await submitExamAttemptMutation.mutateAsync({
         attemptId: activeExamSession.attempt.id,
-        answers
+        answers,
+        submitReason: EXAM_SUBMIT_REASON.manual
       });
       setActiveExamSession({
         ...activeExamSession,
@@ -1305,6 +1514,11 @@ export function CourseDetailPage() {
       title: lesson.title,
       contentType: lesson.contentType,
       content: parsedContent.kind === LESSON_CONTENT_TYPE.text ? parsedContent.body ?? "" : parsedContent.url ?? "",
+      quizExamId: parsedContent.examId ?? "",
+      liveMeetingUrl: parsedContent.meetingUrl ?? "",
+      liveStartsAt: parsedContent.startsAt ? parsedContent.startsAt.slice(0, 16) : "",
+      liveInstructions: parsedContent.instructions ?? "",
+      liveDurationMinutes: parsedContent.durationMinutes ?? "",
       sortOrder: lesson.sortOrder
     });
   };
@@ -1318,6 +1532,11 @@ export function CourseDetailPage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
+      quizExamId: "",
+      liveMeetingUrl: "",
+      liveStartsAt: "",
+      liveInstructions: "",
+      liveDurationMinutes: "",
       sortOrder: nextLessonSortOrder
     });
   };
@@ -1338,9 +1557,18 @@ export function CourseDetailPage() {
         onNewLesson();
       }
       setLessonPendingDelete(null);
-      toast.success(t("courseDetail.lessonDeleted"));
+      toast.success(t("courseDetail.lessonArchived"));
     } catch (e) {
-      toast.error(formatError(e, "courseDetail.lessonDeleteFailed"));
+      toast.error(formatError(e, "courseDetail.lessonArchiveFailed"));
+    }
+  };
+
+  const onRestoreArchivedLesson = async (lessonId: string) => {
+    try {
+      await restoreLessonMutation.mutateAsync(lessonId);
+      toast.success(t("courseDetail.lessonRestored"));
+    } catch (e) {
+      toast.error(formatError(e, "courseDetail.lessonRestoreFailed"));
     }
   };
 
@@ -1376,7 +1604,8 @@ export function CourseDetailPage() {
   const questionType = questionForm.watch("type");
   const isLessonSubmitPending = createLessonMutation.isPending || updateLessonMutation.isPending;
   const isQuestionSubmitPending = createExamQuestionMutation.isPending || updateExamQuestionMutation.isPending;
-  const isAssignmentSubmitPending = createAssignmentMutation.isPending || updateAssignmentMutation.isPending;
+  const isAssignmentSubmitPending =
+    createAssignmentMutation.isPending || updateAssignmentMutation.isPending || replaceAssignmentRubricMutation.isPending;
   const lessonSubmitLabel = updateLessonMutation.isPending
     ? t("courseDetail.savingLesson")
     : createLessonMutation.isPending
@@ -1402,8 +1631,21 @@ export function CourseDetailPage() {
       icon: Paperclip,
       label: t("lessonType.RESOURCE"),
       description: t("courseDetail.resourceTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.quiz,
+      icon: ClipboardCheck,
+      label: t("lessonType.QUIZ"),
+      description: t("courseDetail.quizTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.liveSession,
+      icon: Video,
+      label: t("lessonType.LIVE_SESSION"),
+      description: t("courseDetail.liveSessionTypeHint")
     }
   ];
+  const publishedExamOptions = exams.filter((exam) => exam.status === EXAM_STATUS.published);
   const publishChecks = [
     { label: t("courseDetail.publishRequirementTitle"), done: hasText(courseTitle) },
     { label: t("courseDetail.publishRequirementCover"), done: hasText(courseCoverImageUrl) },
@@ -1462,42 +1704,48 @@ export function CourseDetailPage() {
       ].filter((item) => Boolean(item.value))
     : [];
   const hasLongMetadata = Boolean(courseQuery.data?.requirements || courseQuery.data?.outcomes);
+  const isLearnerCatalogView = !canAccessCourseWorkspace;
+  const learnerCount = isLearnerCatalogView
+    ? (courseQuery.data?.enrollmentCount ?? 0)
+    : enrollmentsTotal;
+  const learnerCompletionValue = canReadLessons
+    ? `${progressQuery.data?.percentage ?? 0}%`
+    : isAuthenticated
+      ? "—"
+      : t("courseDetail.signIn");
+  const learnerLessonCount = canReadLessons ? lessons.length : "—";
 
   return (
     <AppShell
       title={courseQuery.data?.title ?? t("courseDetail.title")}
-      subtitle={t("courseDetail.subtitle")}
+      subtitle={isLearnerCatalogView ? t("courseDetail.learnerSubtitle") : t("courseDetail.subtitle")}
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          {!isAuthenticated && isCoursePublished ? (
+          {!isLearnerCatalogView && !isAuthenticated && isCoursePublished ? (
             <Button asChild size="sm" className="rounded-lg shadow-none">
               <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
             </Button>
           ) : null}
-          {isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
-            <Button size="sm" className="rounded-lg shadow-none" type="button" onClick={() => setActiveTab("curriculum")}>
-              {t("courseDetail.continueLearning")}
+          {!isLearnerCatalogView && isAuthenticated && isEnrolledStudent && isCoursePublished ? (
+            <Button asChild size="sm" className="rounded-lg shadow-none">
+              <Link to={getCourseLearnPath(courseId)}>{t("courseDetail.continueLearning")}</Link>
             </Button>
           ) : null}
-          {isAuthenticated && isLearner && isCoursePublished && !isEnrolled ? (
-            <Button
-              size="sm"
+          {!isLearnerCatalogView && canSelfEnroll ? (
+            <CourseEnrollButton
+              courseId={courseId}
+              priceCents={courseQuery.data?.priceCents}
+              currency={courseQuery.data?.currency}
               className="rounded-lg shadow-none"
-              disabled={enrollMutation.isPending}
-              type="button"
-              onClick={() => {
-                void (async () => {
-                  try {
-                    await enrollMutation.mutateAsync(courseId);
-                    toast.success(t("courseDetail.enrolled"));
-                    setActiveTab("curriculum");
-                  } catch (e) {
-                    toast.error(formatError(e, "courseDetail.enrollFailed"));
-                  }
-                })();
-              }}
-            >
-              {enrollMutation.isPending ? t("courseDetail.enrolling") : t("courseDetail.enroll")}
+              onEnrolled={() => setActiveTab("curriculum")}
+            />
+          ) : null}
+          {!isLearnerCatalogView && showOwnerCannotEnrollHint ? (
+            <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">{t("courseDetail.enrollmentOwnerCannotEnroll")}</p>
+          ) : null}
+          {canAccessCourseWorkspace && lessons.length > 0 ? (
+            <Button asChild size="sm" variant="outline" className="rounded-lg shadow-none">
+              <Link to={getCoursePreviewPath(courseId)}>{t("courseDetail.previewAsLearner")}</Link>
             </Button>
           ) : null}
           {canManageCourse && courseQuery.data?.status !== COURSE_STATUS.archived && !isCourseLocked ? (
@@ -1507,20 +1755,7 @@ export function CourseDetailPage() {
               className="rounded-lg shadow-none"
               disabled={archiveCourseMutation.isPending}
               type="button"
-              onClick={() => {
-                if (!window.confirm(t("courseDetail.archiveConfirm"))) {
-                  return;
-                }
-                void (async () => {
-                  try {
-                    await archiveCourseMutation.mutateAsync(courseId);
-                    toast.success(t("courseDetail.courseArchived"));
-                    navigate("/courses", { replace: true });
-                  } catch (e) {
-                    toast.error(formatError(e, "courseDetail.archiveFailed"));
-                  }
-                })();
-              }}
+              onClick={() => setCourseArchiveOpen(true)}
             >
               {archiveCourseMutation.isPending ? t("courseDetail.archiving") : t("courseDetail.archiveCourse")}
             </Button>
@@ -1585,7 +1820,7 @@ export function CourseDetailPage() {
         </div>
       }
     >
-      <div className="space-y-5">
+      <div className={cn(isLearnerCatalogView ? "overflow-x-hidden space-y-8" : "space-y-5")}>
         {isCourseLocked ? (
           <section className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30" role="status">
             <div className="flex items-start gap-3">
@@ -1615,49 +1850,174 @@ export function CourseDetailPage() {
             </div>
           </section>
         ) : null}
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-          <CourseCoverFrame src={courseQuery.data?.coverImageUrl} className="min-h-0 max-h-[22rem]" emptyLabel={t("courseDetail.coverEmptyTitle")} />
-          <div className="grid gap-3 self-start">
-            <div className="rounded-xl bg-card ring-1 ring-foreground/10 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.status")}</span>
-                {courseQuery.data ? (
-                  <CourseStatusBadge status={courseQuery.data.status} label={t(`courseStatus.${courseQuery.data.status}` as I18nKey)} />
-                ) : null}
+        {isLearnerCatalogView && courseQuery.data ? (
+          <CourseDetailLearnerHero
+            courseId={courseId}
+            title={courseQuery.data.title}
+            description={courseQuery.data.description}
+            coverImageUrl={courseQuery.data.coverImageUrl}
+            category={courseQuery.data.category}
+            level={courseQuery.data.level}
+            language={courseQuery.data.language}
+            durationMinutes={courseQuery.data.durationMinutes}
+            instructorEmail={courseQuery.data.instructor?.email}
+            priceCents={courseQuery.data.priceCents}
+            currency={courseQuery.data.currency}
+            lessonCount={learnerLessonCount}
+            completionPercent={learnerCompletionValue}
+            learnerCount={learnerCount}
+            ratingAverage={courseQuery.data.ratingCount ? courseQuery.data.ratingAverage : null}
+            ratingCount={courseQuery.data.ratingCount}
+            loadingMetrics={loadingMetrics}
+            isAuthenticated={isAuthenticated}
+            isCoursePublished={isCoursePublished}
+            isEnrolledStudent={isEnrolledStudent}
+            canSelfEnroll={canSelfEnroll}
+            showOwnerCannotEnrollHint={showOwnerCannotEnrollHint}
+            loginRedirectTo={loginRedirectTo}
+            coverEmptyLabel={t("courseDetail.coverEmptyTitle")}
+            taughtByLabel={t("courseDetail.taughtBy")}
+            freeCourseLabel={t("courseDetail.freeCourse")}
+            noDescriptionLabel={t("courseDetail.noDescription")}
+            metricLessonsLabel={t("courseDetail.metricLessons")}
+            metricCompletionLabel={t("courseDetail.metricCompletion")}
+            metricLearnersLabel={t("courseDetail.metricLearners")}
+            metricRatingLabel={t("courseDetail.metricRating")}
+            signInToEnrollLabel={t("courseDetail.signInToEnroll")}
+            continueLearningLabel={t("courseDetail.continueLearning")}
+            ownerCannotEnrollLabel={t("courseDetail.enrollmentOwnerCannotEnroll")}
+            categoryLabel={t("courseDetail.courseCategory")}
+            levelLabel={t("courseDetail.courseLevel")}
+            languageLabel={t("courseDetail.courseLanguage")}
+            durationLabel={t("courseDetail.courseDuration")}
+            durationUnitLabel={t("courseDetail.courseDurationUnit")}
+            onEnrolled={() => setActiveTab("curriculum")}
+          />
+        ) : courseQuery.data ? (
+          <CourseStudioCoverHero
+            title={courseQuery.data.title}
+            coverImageUrl={courseQuery.data.coverImageUrl}
+            coverEmptyLabel={t("courseDetail.coverEmptyTitle")}
+            status={courseQuery.data.status}
+            statusLabel={t(`courseStatus.${courseQuery.data.status}` as I18nKey)}
+            stats={[
+              { icon: ListOrdered, label: t("courseDetail.metricLessons"), value: canReadLessons ? lessons.length : "—" },
+              { icon: CheckCircle2, label: t("courseDetail.metricCompletion"), value: canReadLessons ? `${progressQuery.data?.percentage ?? 0}%` : isAuthenticated ? "—" : t("courseDetail.signIn") },
+              { icon: Users, label: t("courseDetail.metricLearners"), value: enrollmentsTotal },
+              { icon: Star, label: t("courseDetail.metricRating"), value: courseQuery.data.ratingCount ? courseQuery.data.ratingAverage.toFixed(1) : "—" }
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="min-h-24 rounded-xl bg-background/80 px-3 py-3 ring-1 ring-foreground/10">
+                  <Icon className="mb-2 size-4 text-muted-foreground" aria-hidden />
+                  <p className="truncate text-xl font-semibold tabular-nums">{loadingMetrics ? "..." : item.value}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{item.label}</p>
+                </div>
+              );
+            })}
+          />
+        ) : null}
+
+        {canAccessCourseWorkspace ? (
+          <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">{t("courseDetail.analyticsTitle")}</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">{t("courseDetail.analyticsDescription")}</p>
               </div>
+              {courseAnalyticsQuery.isFetching ? (
+                <Badge variant="outline" className="w-fit rounded-md">
+                  {t("common.loading")}
+                </Badge>
+              ) : null}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { icon: ListOrdered, label: t("courseDetail.metricLessons"), value: canReadLessons ? lessons.length : "—" },
-                { icon: CheckCircle2, label: t("courseDetail.metricCompletion"), value: canReadLessons ? `${progressQuery.data?.percentage ?? 0}%` : isAuthenticated ? "—" : t("courseDetail.signIn") },
-                { icon: Users, label: t("courseDetail.metricLearners"), value: enrollmentsTotal },
-                { icon: Star, label: t("courseDetail.metricRating"), value: courseQuery.data?.ratingCount ? courseQuery.data.ratingAverage.toFixed(1) : "—" }
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="min-h-24 rounded-xl bg-card ring-1 ring-foreground/10 p-3">
-                    <Icon className="mb-2 size-4 text-muted-foreground" aria-hidden />
-                    <p className="truncate text-xl font-semibold tabular-nums">{loadingMetrics ? "..." : item.value}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">{item.label}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
+            {courseAnalyticsQuery.isError ? (
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {t("courseDetail.analyticsLoadFailed")}
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {[
+                  {
+                    icon: CheckCircle2,
+                    label: t("courseDetail.analyticsCompletionRate"),
+                    value: `${courseAnalytics?.completionRate ?? 0}%`,
+                    hint: `${courseAnalytics?.completedLessonCount ?? 0}/${(courseAnalytics?.enrollmentCount ?? 0) * (courseAnalytics?.lessonCount ?? 0)} ${t("courseDetail.analyticsCompletionHint")}`
+                  },
+                  {
+                    icon: Users,
+                    label: t("courseDetail.analyticsEngagementRate"),
+                    value: `${courseAnalytics?.engagementRate ?? 0}%`,
+                    hint: `${courseAnalytics?.activeLearnerCount ?? 0}/${courseAnalytics?.enrollmentCount ?? 0} ${t("courseDetail.analyticsEngagementHint")}`
+                  },
+                  {
+                    icon: ClipboardCheck,
+                    label: t("courseDetail.analyticsExamAttempts"),
+                    value: courseAnalytics?.examAttemptCount ?? 0,
+                    hint: `${courseAnalytics?.gradedExamAttemptCount ?? 0} ${t("courseDetail.analyticsExamAttemptsHint")}`
+                  },
+                  {
+                    icon: FileCheck2,
+                    label: t("courseDetail.analyticsAssignmentSubmissions"),
+                    value: courseAnalytics?.assignmentSubmissionCount ?? 0,
+                    hint: `${courseAnalytics?.lateAssignmentSubmissionCount ?? 0} ${t("courseDetail.analyticsAssignmentSubmissionsHint")}`
+                  },
+                  {
+                    icon: Award,
+                    label: t("courseDetail.analyticsCertificates"),
+                    value: courseAnalytics?.certificatesIssued ?? 0,
+                    hint: t("courseDetail.analyticsCertificatesHint")
+                  },
+                  {
+                    icon: Star,
+                    label: t("courseDetail.analyticsRating"),
+                    value: courseAnalytics?.ratingCount ? courseAnalytics.ratingAverage.toFixed(1) : "—",
+                    hint: `${courseAnalytics?.ratingCount ?? 0} ${t("courseDetail.analyticsRatingHint")}`
+                  }
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="min-h-28 rounded-lg border border-border/70 bg-background px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                        <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      </div>
+                      <p className="mt-3 text-2xl font-semibold tabular-nums text-foreground">{analyticsLoading ? "..." : item.value}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{analyticsLoading ? t("common.loading") : item.hint}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <CourseAnalyticsInsights analytics={courseAnalytics} isLoading={analyticsLoading} />
+          </section>
+        ) : null}
 
         {courseMetadata.length || hasLongMetadata ? (
-          <section className="grid gap-3 rounded-xl bg-card ring-1 ring-foreground/10 p-4">
+          <section
+            className={cn(
+              "grid gap-4",
+              isLearnerCatalogView ? "rounded-2xl bg-muted/20 p-5 ring-1 ring-foreground/10 sm:p-6" : "gap-3 rounded-xl bg-card ring-1 ring-foreground/10 p-4"
+            )}
+          >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold">{t("courseDetail.courseMetadata")}</h2>
+              <h2 className={cn("font-semibold", isLearnerCatalogView ? "text-lg tracking-tight" : "text-sm")}>
+                {t("courseDetail.courseMetadata")}
+              </h2>
               {courseQuery.data?.category ? <Badge variant="secondary">{courseQuery.data.category}</Badge> : null}
             </div>
             {courseMetadata.length ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className={cn("grid gap-3", isLearnerCatalogView ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-4")}>
                 {courseMetadata.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.label} className="min-w-0 rounded-xl bg-muted/40 ring-1 ring-foreground/10 px-3 py-3">
+                    <div
+                      key={item.label}
+                      className={cn(
+                        "min-w-0 ring-1 ring-foreground/10",
+                        isLearnerCatalogView ? "rounded-xl bg-background px-4 py-3.5" : "rounded-xl bg-muted/40 px-3 py-3"
+                      )}
+                    >
                       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                         <Icon className="size-4 shrink-0" aria-hidden />
                         <span className="truncate">{item.label}</span>
@@ -1669,15 +2029,15 @@ export function CourseDetailPage() {
               </div>
             ) : null}
             {hasLongMetadata ? (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {courseQuery.data?.requirements ? (
-                  <div className="rounded-xl bg-background ring-1 ring-foreground/10 px-3 py-3">
+                  <div className={cn("ring-1 ring-foreground/10", isLearnerCatalogView ? "rounded-xl bg-background px-4 py-4" : "rounded-xl bg-background px-3 py-3")}>
                     <h3 className="text-sm font-semibold">{t("courseDetail.courseRequirements")}</h3>
                     <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">{courseQuery.data.requirements}</p>
                   </div>
                 ) : null}
                 {courseQuery.data?.outcomes ? (
-                  <div className="rounded-xl bg-background ring-1 ring-foreground/10 px-3 py-3">
+                  <div className={cn("ring-1 ring-foreground/10", isLearnerCatalogView ? "rounded-xl bg-background px-4 py-4" : "rounded-xl bg-background px-3 py-3")}>
                     <h3 className="text-sm font-semibold">{t("courseDetail.courseOutcomes")}</h3>
                     <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">{courseQuery.data.outcomes}</p>
                   </div>
@@ -1687,21 +2047,33 @@ export function CourseDetailPage() {
           </section>
         ) : null}
 
-        <div className={STUDIO_TAB_BAR}>
-          {visibleTabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cn(STUDIO_TAB, activeTab === item.id ? STUDIO_TAB_ACTIVE : STUDIO_TAB_IDLE)}
-              onClick={() => setActiveTab(item.id)}
-            >
-              {t(item.label)}
-              {typeof item.count === "number" ? (
-                <span className={cn(activeTab === item.id ? STUDIO_TAB_COUNT_ACTIVE : STUDIO_TAB_COUNT_IDLE)}>{item.count}</span>
-              ) : null}
-            </button>
-          ))}
-        </div>
+        {isLearnerCatalogView ? (
+          <CourseDetailLearnerTabs
+            items={visibleTabs.map((item) => ({
+              id: item.id,
+              label: t(item.label),
+              count: item.count
+            }))}
+            activeId={activeTab}
+            onChange={(tabId) => setActiveTab(tabId as CourseDetailTab)}
+          />
+        ) : (
+          <div className={STUDIO_TAB_BAR}>
+            {visibleTabs.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={cn(STUDIO_TAB, activeTab === item.id ? STUDIO_TAB_ACTIVE : STUDIO_TAB_IDLE)}
+                onClick={() => setActiveTab(item.id)}
+              >
+                {t(item.label)}
+                {typeof item.count === "number" ? (
+                  <span className={cn(activeTab === item.id ? STUDIO_TAB_COUNT_ACTIVE : STUDIO_TAB_COUNT_IDLE)}>{item.count}</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        )}
 
         {activeTab === "curriculum" ? (
           <section
@@ -1709,15 +2081,19 @@ export function CourseDetailPage() {
               canReadLessons && (canManageCourse || canReviewCourse)
                 ? STUDIO_WORKSPACE_GRID
                 : canReadLessons
-                  ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start"
+                  ? LEARNER_CURRICULUM_GRID
                   : "grid gap-4"
             )}
           >
-            <Card className={cn("", canManageCourse || canReviewCourse ? STUDIO_LIST_STICKY : undefined)}>
+            <Card className={cn("min-w-0", canManageCourse || canReviewCourse ? STUDIO_LIST_STICKY : undefined)}>
               <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
-                <div>
-                  <CardTitle className="text-base">{t("courseDetail.curriculum")}</CardTitle>
-                  <CardDescription>{t("courseDetail.curriculumDescription")}</CardDescription>
+                <div className="min-w-0">
+                  <CardTitle className={cn(canManageCourse || canReviewCourse ? "text-base" : "text-sm")}>
+                    {t("courseDetail.curriculum")}
+                  </CardTitle>
+                  {canManageCourse || canReviewCourse ? (
+                    <CardDescription>{t("courseDetail.curriculumDescription")}</CardDescription>
+                  ) : null}
                 </div>
                 {canManageCourse ? (
                   <Button type="button" variant="outline" size="sm" className="h-9 rounded-md shadow-none" onClick={onNewLesson}>
@@ -1730,31 +2106,26 @@ export function CourseDetailPage() {
                   <EmptyState
                     icon={BookOpenText}
                     title={t("courseDetail.lessonsLockedTitle")}
-                    description={isAuthenticated ? t("courseDetail.lessonsLockedEnrollDescription") : t("courseDetail.lessonsLockedSignInDescription")}
+                    description={
+                      !isAuthenticated
+                        ? t("courseDetail.lessonsLockedSignInDescription")
+                        : showOwnerCannotEnrollHint
+                          ? t("courseDetail.enrollmentOwnerCannotEnroll")
+                          : t("courseDetail.lessonsLockedEnrollDescription")
+                    }
                     action={
                       !isAuthenticated ? (
                         <Button asChild className="h-10 rounded-md px-4" size="sm">
                           <Link to={loginRedirectTo}>{t("courseDetail.signInToEnroll")}</Link>
                         </Button>
-                      ) : isLearner && isCoursePublished ? (
-                        <Button
+                      ) : canSelfEnroll ? (
+                        <CourseEnrollButton
+                          courseId={courseId}
+                          priceCents={courseQuery.data?.priceCents}
+                          currency={courseQuery.data?.currency}
                           className="h-10 rounded-md px-4"
-                          size="sm"
-                          disabled={enrollMutation.isPending}
-                          type="button"
-                          onClick={() => {
-                            void (async () => {
-                              try {
-                                await enrollMutation.mutateAsync(courseId);
-                                toast.success(t("courseDetail.enrolled"));
-                              } catch (e) {
-                                toast.error(formatError(e, "courseDetail.enrollFailed"));
-                              }
-                            })();
-                          }}
-                        >
-                          {enrollMutation.isPending ? t("courseDetail.enrolling") : t("courseDetail.enroll")}
-                        </Button>
+                          onEnrolled={() => setActiveTab("curriculum")}
+                        />
                       ) : null
                     }
                   />
@@ -1767,7 +2138,7 @@ export function CourseDetailPage() {
                 ) : null}
                 {canReadLessons && !lessonQuery.isLoading && !lessonQuery.isError ? (
                   lessons.length ? (
-                    <div className="max-h-[min(70vh,42rem)] overflow-auto rounded-xl bg-muted/40 p-1.5 ring-1 ring-foreground/10">
+                    <div className="max-h-[min(70vh,42rem)] overflow-y-auto overflow-x-hidden rounded-xl bg-muted/40 p-1.5 ring-1 ring-foreground/10">
                       <div className="grid gap-1" role="list" aria-label={t("courseDetail.curriculum")}>
                         {lessons.map((lesson, index) => {
                           const selected = selectedLessonId === lesson.id;
@@ -1830,7 +2201,10 @@ export function CourseDetailPage() {
                                 </div>
                                 <p className="mt-1 truncate text-sm font-medium text-foreground">{lesson.title}</p>
                                 {!canManageCourse && completedLessonIds.has(lesson.id) ? (
-                                  <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.lessonCompleted")}</p>
+                                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-primary">
+                                    <CheckCircle2 className="size-3.5" aria-hidden />
+                                    {t("courseDetail.lessonCompleted")}
+                                  </p>
                                 ) : null}
                               </div>
                               {canManageCourse ? (
@@ -1839,7 +2213,7 @@ export function CourseDetailPage() {
                                   size="sm"
                                   className="size-8 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                                   disabled={deleteLessonMutation.isPending}
-                                  aria-label={t("courseDetail.deleteLesson")}
+                                  aria-label={t("courseDetail.archiveLesson")}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     setLessonPendingDelete(lesson);
@@ -1847,17 +2221,6 @@ export function CourseDetailPage() {
                                   type="button"
                                 >
                                   <Trash2 className="size-4" aria-hidden />
-                                </Button>
-                              ) : isAuthenticated && isLearner ? (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-8 shrink-0 rounded-md"
-                                  disabled={completeLessonMutation.isPending}
-                                  onClick={() => void completeLessonMutation.mutateAsync(lesson.id)}
-                                  type="button"
-                                >
-                                  {t("courseDetail.markComplete")}
                                 </Button>
                               ) : null}
                             </div>
@@ -1869,14 +2232,26 @@ export function CourseDetailPage() {
                     <EmptyState icon={BookOpenText} title={t("courseDetail.noLessons")} description={t("courseDetail.noLessonsDescription")} />
                   )
                 ) : null}
+                {canManageCourse ? (
+                  <CourseArchivedLessonsPanel
+                    lessons={archivedLessons}
+                    isRestoring={restoreLessonMutation.isPending}
+                    restoringLessonId={restoreLessonMutation.variables ?? null}
+                    onRestore={(lessonId) => {
+                      void onRestoreArchivedLesson(lessonId);
+                    }}
+                  />
+                ) : null}
               </CardContent>
             </Card>
 
             {!canManageCourse && canReadLessons ? (
-              <Card>
-                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+              <Card className={cn(STUDIO_EDITOR_PANEL, isLearnerCatalogView && "rounded-2xl border-0 shadow-none ring-1 ring-foreground/10")}>
+                <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="text-base">{selectedLesson?.title ?? t("courseDetail.selectLesson")}</CardTitle>
+                    <CardTitle className="text-lg font-semibold tracking-tight">
+                      {selectedLesson?.title ?? t("courseDetail.selectLesson")}
+                    </CardTitle>
                     <CardDescription>
                       {selectedLesson
                         ? `${progressQuery.data?.completedLessons ?? 0}/${progressQuery.data?.totalLessons ?? lessons.length} ${t("courseDetail.lessonsCompletedLabel")}`
@@ -1884,16 +2259,37 @@ export function CourseDetailPage() {
                     </CardDescription>
                   </div>
                   {selectedLesson && completedLessonIds.has(selectedLesson.id) ? (
-                    <Badge variant="default" className="rounded-md">
+                    <Badge variant="default" className="shrink-0 rounded-md">
                       <CheckCircle2 className="mr-1 size-3.5" aria-hidden />
                       {t("courseDetail.lessonCompleted")}
                     </Badge>
                   ) : null}
                 </CardHeader>
-                <CardContent className="grid gap-4">
+                <CardContent className="grid gap-4 pt-6">
                   {selectedLesson ? (
                     <>
-                      <div className="min-h-[min(60vh,28rem)]">{renderLearnerLessonContent(selectedLesson)}</div>
+                      <div className="min-h-[min(70vh,40rem)] w-full rounded-xl bg-muted/15 p-4 ring-1 ring-foreground/10 sm:p-6">
+                        {hasRenderableLessonContent(selectedLesson) ? (
+                          <LearnerLessonContent
+                            lesson={selectedLesson}
+                            courseId={courseId}
+                            canAttemptQuiz={isEnrolledStudent && isCoursePublished}
+                            canAutoComplete={false}
+                            watchPositionSeconds={lessonProgressQuery.data?.items.find((item) => item.lessonId === selectedLesson.id)?.watchPositionSeconds ?? 0}
+                            resumeVideoLabel={t("courseLearn.resumeVideo")}
+                            onQuizGraded={() => {
+                              void lessonProgressQuery.refetch();
+                              void progressQuery.refetch();
+                            }}
+                          />
+                        ) : (
+                          <EmptyState
+                            icon={BookOpenText}
+                            title={t("courseDetail.lessonContentEmptyTitle")}
+                            description={t("courseDetail.lessonContentEmptyDescription")}
+                          />
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                         <div className="flex gap-2">
                           <Button
@@ -1929,17 +2325,24 @@ export function CourseDetailPage() {
                             <ChevronRight className="ml-1 size-4" aria-hidden />
                           </Button>
                         </div>
-                        {isAuthenticated && isLearner ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-9 rounded-md shadow-none"
-                            disabled={completeLessonMutation.isPending || completedLessonIds.has(selectedLesson.id)}
-                            onClick={() => void completeLessonMutation.mutateAsync(selectedLesson.id)}
-                          >
-                            {completedLessonIds.has(selectedLesson.id) ? t("courseDetail.lessonCompleted") : t("courseDetail.markComplete")}
-                          </Button>
-                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          {isAuthenticated && isEnrolledStudent && isCoursePublished ? (
+                            <Button asChild size="sm" className="h-9 rounded-md shadow-none">
+                              <Link to={getCourseLearnPath(courseId, selectedLesson.id)}>{t("courseDetail.openInLearnWorkspace")}</Link>
+                            </Button>
+                          ) : null}
+                          {isAuthenticated && isEnrolledStudent && selectedLesson && !completedLessonIds.has(selectedLesson.id) ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-9 rounded-md shadow-none"
+                              disabled={completeLessonMutation.isPending}
+                              onClick={() => void completeLessonMutation.mutateAsync(selectedLesson.id)}
+                            >
+                              {completeLessonMutation.isPending ? t("courseLearn.savingProgress") : t("courseDetail.markComplete")}
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
                     </>
                   ) : (
@@ -1950,7 +2353,8 @@ export function CourseDetailPage() {
             ) : null}
 
             {canManageCourse ? (
-              <Card className="min-w-0 w-full">
+              <div className="grid min-w-0 w-full gap-4">
+              <Card className="min-w-0 w-full rounded-2xl border-0 shadow-none ring-1 ring-foreground/10">
                 <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
                   <div>
                     <CardTitle className={STUDIO_EDITOR_TITLE}>{selectedLessonId ? t("courseDetail.editLesson") : t("courseDetail.addLesson")}</CardTitle>
@@ -1993,6 +2397,10 @@ export function CourseDetailPage() {
                                   onClick={() => {
                                     field.onChange(option.value);
                                     form.setValue("content", "", { shouldDirty: true });
+                                    form.setValue("quizExamId", "", { shouldDirty: true });
+                                    form.setValue("liveMeetingUrl", "", { shouldDirty: true });
+                                    form.setValue("liveStartsAt", "", { shouldDirty: true });
+                                    form.setValue("liveInstructions", "", { shouldDirty: true });
                                     setUploadedLessonFile(null);
                                   }}
                                 >
@@ -2096,6 +2504,85 @@ export function CourseDetailPage() {
                       </FormField>
                     ) : null}
 
+                    {lessonContentType === LESSON_CONTENT_TYPE.quiz ? (
+                      <FormField
+                        id="lesson-quiz-exam"
+                        label={t("courseDetail.quizLinkedExam")}
+                        hint={t("courseDetail.quizLinkedExamHint")}
+                        error={getLessonError(form.formState.errors.quizExamId?.message)}
+                      >
+                        <Controller
+                          control={form.control}
+                          name="quizExamId"
+                          render={({ field }) => (
+                            <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                              <SelectTrigger id="lesson-quiz-exam" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                                <SelectValue placeholder={t("courseDetail.quizLinkedExamPlaceholder")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {publishedExamOptions.length ? (
+                                  publishedExamOptions.map((exam) => (
+                                    <SelectItem key={exam.id} value={exam.id}>
+                                      {exam.title}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="__none" disabled>
+                                    {t("courseDetail.quizNoPublishedExams")}
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FormField>
+                    ) : null}
+
+                    {lessonContentType === LESSON_CONTENT_TYPE.liveSession ? (
+                      <>
+                        <FormField
+                          id="lesson-live-url"
+                          label={t("courseDetail.liveSessionMeetingUrl")}
+                          hint={t("courseDetail.optional")}
+                          error={getLessonError(form.formState.errors.liveMeetingUrl?.message)}
+                        >
+                          <Input id="lesson-live-url" type="url" placeholder={t("courseDetail.liveSessionMeetingUrlPlaceholder")} {...form.register("liveMeetingUrl")} />
+                        </FormField>
+                        <FormField
+                          id="lesson-live-starts"
+                          label={t("courseDetail.liveSessionStartsAt")}
+                          hint={t("courseDetail.optional")}
+                          error={getLessonError(form.formState.errors.liveStartsAt?.message)}
+                        >
+                          <Input id="lesson-live-starts" type="datetime-local" {...form.register("liveStartsAt")} />
+                        </FormField>
+                        <FormField
+                          id="lesson-live-duration"
+                          label={t("courseDetail.liveSessionDurationMinutes")}
+                          hint={t("courseDetail.liveSessionDurationHint")}
+                          error={getLessonError(form.formState.errors.liveDurationMinutes?.message)}
+                        >
+                          <Input
+                            id="lesson-live-duration"
+                            inputMode="numeric"
+                            min={5}
+                            max={480}
+                            type="number"
+                            placeholder={t("courseDetail.liveSessionDurationPlaceholder")}
+                            {...form.register("liveDurationMinutes")}
+                          />
+                        </FormField>
+                        <FormField
+                          id="lesson-live-instructions"
+                          label={t("courseDetail.liveSessionInstructions")}
+                          hint={t("courseDetail.liveSessionInstructionsHint")}
+                          error={getLessonError(form.formState.errors.liveInstructions?.message)}
+                        >
+                          <TextareaField id="lesson-live-instructions" rows={5} placeholder={t("courseDetail.liveSessionInstructionsPlaceholder")} {...form.register("liveInstructions")} />
+                        </FormField>
+                      </>
+                    ) : null}
+
                     <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
                       <span className="text-xs text-muted-foreground">
                         {selectedLessonId ? t("courseDetail.editingSelectedLesson") : `${t("courseDetail.nextLessonOrder")} #${nextLessonSortOrder}`}
@@ -2111,6 +2598,18 @@ export function CourseDetailPage() {
                   </form>
                 </CardContent>
               </Card>
+              <CourseLessonPreviewPanel
+                lesson={selectedLesson}
+                courseId={courseId}
+                title={t("courseDetail.lessonPreviewTitle")}
+                description={t("courseDetail.lessonPreviewDescription")}
+                emptyTitle={t("courseDetail.selectLesson")}
+                emptyDescription={t("courseDetail.lessonPreviewEmptyDescription")}
+                contentEmptyTitle={t("courseDetail.lessonContentEmptyTitle")}
+                contentEmptyDescription={t("courseDetail.lessonContentEmptyDescription")}
+                resumeVideoLabel={t("courseLearn.resumeVideo")}
+              />
+              </div>
             ) : null}
 
           </section>
@@ -2148,7 +2647,7 @@ export function CourseDetailPage() {
                             key={exam.id}
                             className={cn(
                               "rounded-lg border bg-background px-4 py-3 transition-colors",
-                              canViewExamWorkspace || (isAuthenticated && isLearner && isCoursePublished && isEnrolled)
+                              canViewExamWorkspace || (isAuthenticated && isEnrolledStudent && isCoursePublished)
                                 ? "cursor-pointer hover:bg-accent/40"
                                 : undefined,
                               selected ? "bg-accent/70 ring-foreground/20" : "ring-1 ring-foreground/10"
@@ -2219,7 +2718,7 @@ export function CourseDetailPage() {
                                   <Eye className="size-3.5" aria-hidden />
                                   {t("courseDetail.viewExam")}
                                 </span>
-                              ) : isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
+                              ) : isAuthenticated && isEnrolledStudent && isCoursePublished ? (
                                 <Button
                                   type="button"
                                   size="sm"
@@ -2265,6 +2764,13 @@ export function CourseDetailPage() {
                     <FormField id="exam-description" label={t("courseDetail.examDescription")} hint={t("courseDetail.optional")} error={examForm.formState.errors.description?.message}>
                       <TextareaField id="exam-description" rows={6} placeholder={t("courseDetail.examDescriptionPlaceholder")} {...examForm.register("description")} />
                     </FormField>
+                    <ExamScopeFields
+                      control={examForm.control}
+                      setValue={examForm.setValue}
+                      watch={examForm.watch}
+                      errors={examForm.formState.errors}
+                      lessons={lessonQuery.data ?? []}
+                    />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <FormField id="exam-duration" label={t("courseDetail.examDuration")} hint={t("courseDetail.examMinutes")} error={examForm.formState.errors.durationMinutes?.message}>
                         <Input id="exam-duration" inputMode="numeric" min={1} type="number" placeholder="45" {...examForm.register("durationMinutes")} />
@@ -2533,9 +3039,16 @@ export function CourseDetailPage() {
                                     {t("courseDetail.examAttempt")} #{attempt.attemptNumber}
                                   </p>
                                 </div>
-                                <Badge variant={attempt.status === EXAM_ATTEMPT_STATUS.graded ? "default" : "secondary"} className="shrink-0 rounded-md">
-                                  {t(`examAttemptStatus.${attempt.status}` as I18nKey)}
-                                </Badge>
+                                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                                  {(attempt.suspiciousEventCount ?? 0) > 0 ? (
+                                    <Badge variant="destructive" className="rounded-md text-[10px]">
+                                      {t("courseDetail.examIntegrityFlagged")}
+                                    </Badge>
+                                  ) : null}
+                                  <Badge variant={attempt.status === EXAM_ATTEMPT_STATUS.graded ? "default" : "secondary"} className="rounded-md">
+                                    {t(`examAttemptStatus.${attempt.status}` as I18nKey)}
+                                  </Badge>
+                                </div>
                               </div>
                               <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
                                 <span className="rounded-md bg-background/70 px-2 py-1">
@@ -2608,6 +3121,9 @@ export function CourseDetailPage() {
                         <EmptyState icon={FileCheck2} title={t("courseDetail.selectAttemptFirst")} description={t("courseDetail.examAttemptsDescription")} />
                       </div>
                     )}
+                    {selectedExamAttemptId ? (
+                      <ExamIntegrityEventsPanel attemptId={selectedExamAttemptId} enabled={Boolean(canManageCourse)} />
+                    ) : null}
                     <FormField id="exam-attempt-grade-score" label={t("courseDetail.score")} error={examAttemptGradeForm.formState.errors.score?.message}>
                       <Input id="exam-attempt-grade-score" inputMode="numeric" min={0} max={100} type="number" {...examAttemptGradeForm.register("score")} />
                     </FormField>
@@ -2716,7 +3232,7 @@ export function CourseDetailPage() {
                                   {question.options?.length ? (
                                     <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
                                       {question.options.map((option) => {
-                                        const isCorrect = question.correctAnswers?.includes(option.id);
+                                        const isCorrect = Array.isArray(question.correctAnswers) && question.correctAnswers.includes(option.id);
                                         return (
                                           <li
                                             key={option.id}
@@ -3025,10 +3541,28 @@ export function CourseDetailPage() {
                       <FormField id="assignment-due-at" label={t("courseDetail.assignmentDueAt")} hint={t("courseDetail.optional")} error={assignmentForm.formState.errors.dueAt?.message}>
                         <Input id="assignment-due-at" type="date" {...assignmentForm.register("dueAt")} />
                       </FormField>
-                      <FormField id="assignment-max-score" label={t("courseDetail.assignmentMaxScore")} error={assignmentForm.formState.errors.maxScore?.message}>
-                        <Input id="assignment-max-score" inputMode="numeric" min={1} type="number" placeholder="100" {...assignmentForm.register("maxScore")} />
+                      <FormField
+                        id="assignment-max-score"
+                        label={t("courseDetail.assignmentMaxScore")}
+                        hint={assignmentRubricCriteria.length > 0 ? t("courseDetail.assignmentMaxScoreRubricHint") : undefined}
+                        error={assignmentForm.formState.errors.maxScore?.message}
+                      >
+                        <Input
+                          id="assignment-max-score"
+                          inputMode="numeric"
+                          min={1}
+                          type="number"
+                          placeholder="100"
+                          disabled={assignmentRubricCriteria.length > 0}
+                          {...assignmentForm.register("maxScore")}
+                        />
                       </FormField>
                     </div>
+                    <AssignmentRubricEditor
+                      criteria={assignmentRubricCriteria}
+                      disabled={isAssignmentSubmitPending}
+                      onChange={setAssignmentRubricCriteria}
+                    />
                     <FormField id="assignment-attachment-url" label={t("courseDetail.assignmentAttachmentUrl")} hint={t("courseDetail.optional")} error={assignmentForm.formState.errors.attachmentUrl?.message}>
                       <LessonUploadField
                         id="assignment-attachment-url"
@@ -3197,9 +3731,44 @@ export function CourseDetailPage() {
                         {t("courseDetail.viewSubmissionFile")}
                       </a>
                     ) : null}
-                    <FormField id="assignment-grade-score" label={t("courseDetail.score")} error={assignmentGradeForm.formState.errors.score?.message}>
-                      <Input id="assignment-grade-score" inputMode="numeric" min={0} max={selectedAssignment?.maxScore ?? 10000} type="number" {...assignmentGradeForm.register("score")} />
-                    </FormField>
+                    {hasAssignmentRubric ? (
+                      <div className="grid gap-3">
+                        <p className="text-xs text-muted-foreground">{t("courseDetail.rubricScoreAutoSum")}</p>
+                        <ul className="grid gap-2">
+                          {selectedAssignmentRubric.map((criterion) => (
+                            <li key={criterion.id} className="grid gap-2 rounded-lg bg-background/70 p-3 ring-1 ring-foreground/10 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-end">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{criterion.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {t("courseDetail.rubricGradePoints")} 0-{criterion.maxPoints}
+                                </p>
+                              </div>
+                              <Input
+                                id={`rubric-grade-${criterion.id}`}
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={criterion.maxPoints}
+                                value={rubricGradePoints[criterion.id] ?? 0}
+                                onChange={(event) =>
+                                  setRubricGradePoints((current) => ({
+                                    ...current,
+                                    [criterion.id]: Number(event.target.value) || 0
+                                  }))
+                                }
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-sm font-medium tabular-nums">
+                          {t("courseDetail.score")}: {rubricGradeTotal} / {selectedAssignment?.maxScore ?? rubricGradeTotal}
+                        </p>
+                      </div>
+                    ) : (
+                      <FormField id="assignment-grade-score" label={t("courseDetail.score")} error={assignmentGradeForm.formState.errors.score?.message}>
+                        <Input id="assignment-grade-score" inputMode="numeric" min={0} max={selectedAssignment?.maxScore ?? 10000} type="number" {...assignmentGradeForm.register("score")} />
+                      </FormField>
+                    )}
                     <FormField id="assignment-grade-feedback" label={t("courseDetail.feedback")} hint={t("courseDetail.optional")} error={assignmentGradeForm.formState.errors.feedback?.message}>
                       <TextareaField id="assignment-grade-feedback" rows={4} placeholder={t("courseDetail.feedbackPlaceholder")} {...assignmentGradeForm.register("feedback")} />
                     </FormField>
@@ -3335,6 +3904,9 @@ export function CourseDetailPage() {
                         <p className="font-medium">
                           {t("courseDetail.assignmentScore")}: {selectedAssignment.mySubmission.score ?? "—"} / {selectedAssignment.maxScore ?? "—"}
                         </p>
+                        {selectedAssignment.mySubmission.rubricScores?.length ? (
+                          <AssignmentRubricBreakdown scores={selectedAssignment.mySubmission.rubricScores} className="mt-4" />
+                        ) : null}
                         {selectedAssignment.mySubmission.feedback ? <p className="mt-2 text-muted-foreground">{selectedAssignment.mySubmission.feedback}</p> : null}
                       </div>
                     ) : null}
@@ -3395,7 +3967,7 @@ export function CourseDetailPage() {
               </CardContent>
             </Card>
 
-            {isAuthenticated && isLearner && isCoursePublished && isEnrolled ? (
+            {isAuthenticated && isEnrolledStudent && isCoursePublished ? (
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">{t("courseDetail.yourReview")}</CardTitle>
@@ -3647,8 +4219,18 @@ export function CourseDetailPage() {
                                 </span>
                               ) : null}
                               <div className="ml-auto flex flex-wrap gap-2">
-                                <Button asChild type="button" variant="outline" size="sm" className="h-8 rounded-md">
-                                  <Link to={`/certificates/verify/${certificate.verificationCode}`}>{t("progress.verify")}</Link>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-md"
+                                  disabled={revoked || downloadingCertificateId === certificate.id}
+                                  onClick={() => {
+                                    void handleDownloadCertificate(certificate.id);
+                                  }}
+                                >
+                                  <Download className="size-3.5" aria-hidden />
+                                  {downloadingCertificateId === certificate.id ? t("progress.downloadingCertificate") : t("progress.downloadCertificate")}
                                 </Button>
                                 {revoked ? (
                                   <Button
@@ -3803,6 +4385,51 @@ export function CourseDetailPage() {
                     </div>
                   ) : null}
 
+                  {isAdminReviewer ? (
+                    <div className="grid gap-4 rounded-xl bg-muted/40 p-4 ring-1 ring-foreground/10">
+                      <div>
+                        <h2 className="text-sm font-semibold">{t("courseDetail.ownerAssignment")}</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.ownerAssignmentDescription")}</p>
+                      </div>
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                        <FormField id="course-instructor-assignment" label={t("courseDetail.currentInstructor")}>
+                          <Select value={selectedInstructorId} onValueChange={setSelectedInstructorId} disabled={instructorUsersQuery.isLoading || assignCourseInstructorMutation.isPending}>
+                            <SelectTrigger id="course-instructor-assignment" className="h-10 w-full rounded-md border-border/80 bg-background shadow-none">
+                              <SelectValue placeholder={t("courseDetail.instructorPlaceholder")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {instructorOptions.map((instructor) => (
+                                <SelectItem key={instructor.id} value={instructor.id}>
+                                  {instructor.email}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormField>
+                        <Button
+                          className="h-10 rounded-md font-medium shadow-none"
+                          disabled={
+                            assignCourseInstructorMutation.isPending ||
+                            instructorUsersQuery.isLoading ||
+                            !selectedInstructorId ||
+                            selectedInstructorId === courseQuery.data?.instructorId
+                          }
+                          type="button"
+                          onClick={() => {
+                            void onAssignInstructor();
+                          }}
+                        >
+                          {assignCourseInstructorMutation.isPending ? t("courseDetail.assigningInstructor") : t("courseDetail.assignInstructor")}
+                        </Button>
+                      </div>
+                      {instructorUsersQuery.isError ? (
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                          {t("courseDetail.instructorsLoadFailed")}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {canManageCourse ? (
                 <form className={STUDIO_SETTINGS_GRID} onSubmit={courseForm.handleSubmit(onUpdateCourse)} noValidate>
                   <div className="grid gap-3 self-start">
@@ -3863,6 +4490,31 @@ export function CourseDetailPage() {
                       </FormField>
                     </div>
 
+                    <div className="grid gap-3 rounded-xl bg-muted/40 ring-1 ring-foreground/10 p-4">
+                      <div>
+                        <h2 className="text-sm font-semibold">{t("courseDetail.coursePricing")}</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.coursePricingDescription")}</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <FormField
+                          id="edit-course-price"
+                          label={t("courseDetail.coursePriceCents")}
+                          hint={t("courseDetail.coursePriceCentsHint")}
+                          error={courseForm.formState.errors.priceCents?.message}
+                        >
+                          <Input id="edit-course-price" inputMode="numeric" min={0} type="number" placeholder="0" {...courseForm.register("priceCents")} />
+                        </FormField>
+                        <FormField
+                          id="edit-course-currency"
+                          label={t("courseDetail.courseCurrency")}
+                          hint={t("courseDetail.courseCurrencyHint")}
+                          error={courseForm.formState.errors.currency?.message}
+                        >
+                          <Input id="edit-course-currency" maxLength={3} placeholder="USD" {...courseForm.register("currency")} />
+                        </FormField>
+                      </div>
+                    </div>
+
                     <FormField id="edit-course-status" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>
                       <Controller
                         control={courseForm.control}
@@ -3920,9 +4572,9 @@ export function CourseDetailPage() {
       <AlertDialog open={Boolean(lessonPendingDelete)} onOpenChange={(open) => !open && setLessonPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("courseDetail.deleteLesson")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("courseDetail.archiveLesson")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("courseDetail.deleteLessonConfirm")}
+              {t("courseDetail.archiveLessonConfirm")}
               {lessonPendingDelete ? <span className="mt-2 block font-medium text-foreground">{lessonPendingDelete.title}</span> : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -3936,7 +4588,7 @@ export function CourseDetailPage() {
                 void confirmDeleteLesson();
               }}
             >
-              {deleteLessonMutation.isPending ? t("courseDetail.lessonDeletePending") : t("courseDetail.deleteLesson")}
+              {deleteLessonMutation.isPending ? t("courseDetail.lessonArchivePending") : t("courseDetail.archiveLesson")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -4009,6 +4661,39 @@ export function CourseDetailPage() {
               }}
             >
               {archiveAssignmentMutation.isPending ? t("courseDetail.assignmentArchivePending") : t("courseDetail.archiveAssignment")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={courseArchiveOpen} onOpenChange={setCourseArchiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("courseDetail.archiveCourseConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="grid gap-3 text-left text-sm text-muted-foreground">
+                <p>{t("courseDetail.archiveConfirm")}</p>
+                {courseQuery.data ? <p className="font-medium text-foreground">{courseQuery.data.title}</p> : null}
+                {courseArchiveImpactQuery.isLoading ? (
+                  <p className="text-xs">{t("courseDetail.archiveImpactLoading")}</p>
+                ) : null}
+                {courseArchiveImpactQuery.isError ? (
+                  <p className="text-xs text-destructive">{t("courseDetail.archiveImpactLoadFailed")}</p>
+                ) : null}
+                {courseArchiveImpactQuery.data ? <CourseArchiveImpactSummary impact={courseArchiveImpactQuery.data.impact} /> : null}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={archiveCourseMutation.isPending}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
+              disabled={archiveCourseMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmArchiveCourse();
+              }}
+            >
+              {archiveCourseMutation.isPending ? t("courseDetail.archiving") : t("courseDetail.archiveCourse")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

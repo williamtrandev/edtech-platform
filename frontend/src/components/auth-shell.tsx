@@ -5,6 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AUTH_LAYOUT } from "../constants/auth-ui";
 import { LanguageSelect, ThemeSelect } from "../features/preferences/preference-selectors";
 import { useI18n } from "../i18n";
+import {
+  HEADER_BRAND,
+  HEADER_BRAND_MARK,
+  HEADER_ICON_BUTTON,
+  HEADER_TOOLBAR
+} from "../lib/studio-ui";
 
 type AuthShellProps = {
   eyebrow: string;
@@ -21,18 +27,15 @@ export function AuthShell({ eyebrow, title, description, children, footer }: Aut
     <div className="min-h-dvh bg-background text-foreground">
       <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-3">
-          <Link
-            to="/login"
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-2 text-sm font-semibold tracking-tight transition-colors hover:bg-muted/70"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
-              E
+          <Link to="/login" className={HEADER_BRAND}>
+            <span className={HEADER_BRAND_MARK}>{">_"}</span>
+            <span className="hidden max-w-[9rem] truncate text-sm font-semibold tracking-tight text-foreground sm:inline">
+              {t("app.name")}
             </span>
-            {t("app.name")}
           </Link>
-          <div className="flex min-w-0 items-center gap-2">
-            <ThemeSelect variant="icon" className="border-border/70 bg-background shadow-none" />
-            <LanguageSelect variant="icon" className="border-border/70 bg-background shadow-none" />
+          <div className={HEADER_TOOLBAR}>
+            <ThemeSelect variant="icon" className={HEADER_ICON_BUTTON} />
+            <LanguageSelect variant="icon" className={HEADER_ICON_BUTTON} />
           </div>
         </header>
 

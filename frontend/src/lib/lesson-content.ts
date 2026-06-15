@@ -8,10 +8,105 @@ export type LessonContentPayload = {
   fileName?: string;
   mimeType?: string;
   size?: number;
+  examId?: string;
+  meetingUrl?: string;
+  startsAt?: string;
+  instructions?: string;
+  durationMinutes?: number;
 };
 
 export function serializeLessonContent(payload: LessonContentPayload) {
   return JSON.stringify(payload);
+}
+
+type LessonFormContentInput = {
+  contentType: LessonContentType;
+  content: string;
+  quizExamId?: string;
+  liveMeetingUrl?: string;
+  liveStartsAt?: string;
+  liveInstructions?: string;
+  liveDurationMinutes?: number | "" | null;
+};
+
+type LessonSubmitValues = LessonFormContentInput & {
+  contentType: LessonContentType;
+  content: string;
+};
+
+export function buildLessonContentForSubmit(
+  values: LessonSubmitValues,
+  uploadedFile?: { fileName?: string; mimeType?: string; size?: number } | null
+) {
+  if (values.contentType === LESSON_CONTENT_TYPE.text) {
+    return serializeLessonContent({
+      version: 1,
+      kind: values.contentType,
+      body: values.content.trim()
+    });
+  }
+
+  if (values.contentType === LESSON_CONTENT_TYPE.video || values.contentType === LESSON_CONTENT_TYPE.resource) {
+    return serializeLessonContent({
+      version: 1,
+      kind: values.contentType,
+      url: values.content.trim(),
+      ...(uploadedFile?.fileName
+        ? {
+            fileName: uploadedFile.fileName,
+            mimeType: uploadedFile.mimeType,
+            size: uploadedFile.size
+          }
+        : {})
+    });
+  }
+
+  return buildLessonContentFromForm(values);
+}
+
+export function buildLessonContentFromForm(values: LessonFormContentInput) {
+  if (values.contentType === LESSON_CONTENT_TYPE.quiz) {
+    return serializeLessonContent({
+      version: 1,
+      kind: LESSON_CONTENT_TYPE.quiz,
+      examId: values.quizExamId?.trim() ?? ""
+    });
+  }
+
+  if (values.contentType === LESSON_CONTENT_TYPE.liveSession) {
+    const meetingUrl = values.liveMeetingUrl?.trim();
+    const instructions = values.liveInstructions?.trim();
+    const startsAt = values.liveStartsAt?.trim();
+    const durationRaw = values.liveDurationMinutes;
+    const durationMinutes =
+      durationRaw === "" || durationRaw === null || durationRaw === undefined
+        ? undefined
+        : Number(durationRaw);
+
+    return serializeLessonContent({
+      version: 1,
+      kind: LESSON_CONTENT_TYPE.liveSession,
+      ...(meetingUrl ? { meetingUrl } : {}),
+      ...(instructions ? { instructions } : {}),
+      ...(startsAt ? { startsAt } : {}),
+      ...(durationMinutes !== undefined && Number.isFinite(durationMinutes) ? { durationMinutes } : {})
+    });
+  }
+
+  const body = values.content.trim();
+  if (values.contentType === LESSON_CONTENT_TYPE.text) {
+    return serializeLessonContent({
+      version: 1,
+      kind: values.contentType,
+      body
+    });
+  }
+
+  return serializeLessonContent({
+    version: 1,
+    kind: values.contentType,
+    url: body
+  });
 }
 
 export function isLessonHtmlEmpty(html: string) {
@@ -34,7 +129,12 @@ export function parseLessonContent(content: string, contentType: LessonContentTy
         url: parsed.url,
         fileName: parsed.fileName,
         mimeType: parsed.mimeType,
-        size: parsed.size
+        size: parsed.size,
+        examId: parsed.examId,
+        meetingUrl: parsed.meetingUrl,
+        startsAt: parsed.startsAt,
+        instructions: parsed.instructions,
+        durationMinutes: parsed.durationMinutes
       };
     }
   } catch {

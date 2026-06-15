@@ -1,5 +1,6 @@
 import { ExamQuestionType, Prisma } from "@prisma/client";
 import { EXAM_QUESTION_TYPE } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
 import { AuditRepository } from "../audit/audit.repository";
@@ -12,11 +13,41 @@ type ExamQuestionOption = {
   text: string;
 };
 
+type CodeTest = {
+  name: string;
+  input: string;
+  expectedOutput: string;
+  hidden: boolean;
+};
+
+type CodeQuestionPayload = {
+  language: string;
+  starterCode: string;
+  solutionCode: string;
+  instructions?: string | null;
+  tests: CodeTest[];
+};
+
+/** Public, learner-visible slice of a CODE question (no solution, no hidden tests). */
+type CodeConfig = {
+  language: string;
+  starterCode: string;
+  instructions: string | null;
+  sampleTests: Array<Pick<CodeTest, "name" | "input" | "expectedOutput">>;
+};
+
+/** Secret slice stored in `correctAnswers`: only selected during grading. */
+type CodeSecret = {
+  solutionCode: string;
+  tests: CodeTest[];
+};
+
 type ExamQuestionPayload = {
-  type: "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "FREE_TEXT";
+  type: "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "FREE_TEXT" | "CODE";
   prompt: string;
   options: ExamQuestionOption[];
   correctAnswers: string[];
+  code?: CodeQuestionPayload | null;
   explanation?: string | null;
   points: number;
   sortOrder: number;
@@ -29,10 +60,29 @@ type StoredQuestion = {
   prompt: string;
   options: Prisma.JsonValue | null;
   correctAnswers: Prisma.JsonValue | null;
+  codeConfig: Prisma.JsonValue | null;
   explanation: string | null;
   points: number;
   sortOrder: number;
 };
+
+/** Splits a CODE payload into its public (`codeConfig`) and secret (`correctAnswers`) parts. */
+function buildCodeStorage(code: CodeQuestionPayload): { codeConfig: CodeConfig; correctAnswers: CodeSecret } {
+  return {
+    codeConfig: {
+      language: code.language,
+      starterCode: code.starterCode,
+      instructions: code.instructions ?? null,
+      sampleTests: code.tests
+        .filter((test) => !test.hidden)
+        .map(({ name, input, expectedOutput }) => ({ name, input, expectedOutput }))
+    },
+    correctAnswers: {
+      solutionCode: code.solutionCode,
+      tests: code.tests
+    }
+  };
+}
 
 export class ExamQuestionService {
   constructor(
@@ -51,13 +101,19 @@ export class ExamQuestionService {
     await this.assertCanManageExam(user, examId);
     this.assertQuestionConfig(payload);
 
+    const storage =
+      payload.type === EXAM_QUESTION_TYPE.code && payload.code
+        ? buildCodeStorage(payload.code)
+        : null;
+
     try {
       const question = await this.examQuestionRepository.create({
         exam: { connect: { id: examId } },
         type: payload.type,
         prompt: payload.prompt,
-        options: payload.options as Prisma.InputJsonValue,
-        correctAnswers: payload.correctAnswers as Prisma.InputJsonValue,
+        options: (storage ? [] : payload.options) as Prisma.InputJsonValue,
+        correctAnswers: (storage ? storage.correctAnswers : payload.correctAnswers) as Prisma.InputJsonValue,
+        ...(storage ? { codeConfig: storage.codeConfig as Prisma.InputJsonValue } : {}),
         explanation: payload.explanation || null,
         points: payload.points,
         sortOrder: payload.sortOrder
@@ -65,8 +121,8 @@ export class ExamQuestionService {
 
       await this.auditRepository?.create({
         actor: { connect: { id: user!.id } },
-        action: "EXAM_QUESTION_CREATED",
-        entityType: "ExamQuestion",
+        action: AUDIT_ACTION.examQuestionCreated,
+        entityType: AUDIT_ENTITY_TYPE.examQuestion,
         entityId: question.id,
         metadata: {
           examId,
@@ -94,12 +150,24 @@ export class ExamQuestionService {
     const merged = this.mergeQuestion(question, payload);
     this.assertQuestionConfig(merged);
 
+    const codeStorage =
+      merged.type === EXAM_QUESTION_TYPE.code && merged.code ? buildCodeStorage(merged.code) : null;
+
     try {
       const updatedQuestion = await this.examQuestionRepository.update(questionId, {
         ...(payload.type !== undefined ? { type: payload.type } : {}),
         ...(payload.prompt !== undefined ? { prompt: payload.prompt } : {}),
-        ...(payload.options !== undefined ? { options: payload.options as Prisma.InputJsonValue } : {}),
-        ...(payload.correctAnswers !== undefined ? { correctAnswers: payload.correctAnswers as Prisma.InputJsonValue } : {}),
+        ...(codeStorage
+          ? {
+              options: [] as Prisma.InputJsonValue,
+              correctAnswers: codeStorage.correctAnswers as Prisma.InputJsonValue,
+              codeConfig: codeStorage.codeConfig as Prisma.InputJsonValue
+            }
+          : {
+              ...(payload.options !== undefined ? { options: payload.options as Prisma.InputJsonValue } : {}),
+              ...(payload.correctAnswers !== undefined ? { correctAnswers: payload.correctAnswers as Prisma.InputJsonValue } : {}),
+              ...(payload.type !== undefined && payload.type !== EXAM_QUESTION_TYPE.code ? { codeConfig: Prisma.DbNull } : {})
+            }),
         ...(payload.explanation !== undefined ? { explanation: payload.explanation || null } : {}),
         ...(payload.points !== undefined ? { points: payload.points } : {}),
         ...(payload.sortOrder !== undefined ? { sortOrder: payload.sortOrder } : {})
@@ -107,8 +175,8 @@ export class ExamQuestionService {
 
       await this.auditRepository?.create({
         actor: { connect: { id: user!.id } },
-        action: "EXAM_QUESTION_UPDATED",
-        entityType: "ExamQuestion",
+        action: AUDIT_ACTION.examQuestionUpdated,
+        entityType: AUDIT_ENTITY_TYPE.examQuestion,
         entityId: questionId,
         metadata: {
           examId: question.examId,
@@ -135,8 +203,8 @@ export class ExamQuestionService {
     const deletedQuestion = await this.examQuestionRepository.delete(questionId, question.examId, question.sortOrder);
     await this.auditRepository?.create({
       actor: { connect: { id: user!.id } },
-      action: "EXAM_QUESTION_DELETED",
-      entityType: "ExamQuestion",
+      action: AUDIT_ACTION.examQuestionDeleted,
+      entityType: AUDIT_ENTITY_TYPE.examQuestion,
       entityId: questionId,
       metadata: {
         examId: question.examId,
@@ -186,14 +254,32 @@ export class ExamQuestionService {
   }
 
   private mergeQuestion(question: StoredQuestion, payload: UpdateExamQuestionPayload): ExamQuestionPayload {
+    const type = payload.type ?? question.type;
     return {
-      type: payload.type ?? question.type,
+      type,
       prompt: payload.prompt ?? question.prompt,
       options: payload.options ?? this.parseJsonArray<ExamQuestionOption>(question.options),
       correctAnswers: payload.correctAnswers ?? this.parseJsonArray<string>(question.correctAnswers),
+      code: payload.code ?? (type === EXAM_QUESTION_TYPE.code ? this.reconstructCode(question) : null),
       explanation: payload.explanation === undefined ? question.explanation : payload.explanation,
       points: payload.points ?? question.points,
       sortOrder: payload.sortOrder ?? question.sortOrder
+    };
+  }
+
+  /** Rebuilds a CODE payload from its stored public (`codeConfig`) + secret (`correctAnswers`) parts. */
+  private reconstructCode(question: StoredQuestion): CodeQuestionPayload | null {
+    const config = question.codeConfig as CodeConfig | null;
+    if (!config) {
+      return null;
+    }
+    const secret = (question.correctAnswers as CodeSecret | null) ?? { solutionCode: "", tests: [] };
+    return {
+      language: config.language,
+      starterCode: config.starterCode ?? "",
+      solutionCode: secret.solutionCode ?? "",
+      instructions: config.instructions ?? null,
+      tests: Array.isArray(secret.tests) ? secret.tests : []
     };
   }
 
@@ -203,6 +289,13 @@ export class ExamQuestionService {
 
   private assertQuestionConfig(question: ExamQuestionPayload) {
     if (question.type === EXAM_QUESTION_TYPE.freeText) {
+      return;
+    }
+
+    if (question.type === EXAM_QUESTION_TYPE.code) {
+      if (!question.code || !question.code.tests.length) {
+        throw new AppError("Code questions need a configuration with at least one test", 422, "EXAM_QUESTION_CODE_INVALID");
+      }
       return;
     }
 

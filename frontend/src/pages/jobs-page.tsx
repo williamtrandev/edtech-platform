@@ -1,0 +1,314 @@
+import { Activity, AlertTriangle, CheckCircle2, Clock3, DatabaseZap, Loader2, RefreshCw, RotateCcw, TimerReset } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { AppShell } from "../components/app-shell";
+import { EmptyState } from "../components/empty-state";
+import { EmailDeliveryPanel } from "../components/email-delivery-panel";
+import { QueueFailedJobsPanel } from "../components/queue-failed-jobs-panel";
+import { MetricCard } from "../components/metric-card";
+import { MetricCardSkeleton, Skeleton } from "../components/skeleton";
+import { useJobQueues, useRetryFailedJob } from "../hooks/use-jobs";
+import { useI18n } from "../i18n";
+import type { JobQueueJob, JobQueueSummary } from "../services/job.service";
+
+function countTotal(queues: JobQueueSummary[], key: keyof JobQueueSummary["counts"]) {
+  return queues.reduce((total, queue) => total + queue.counts[key], 0);
+}
+
+type QueueHealth = {
+  labelKey: "jobs.attention" | "jobs.running" | "jobs.healthy";
+  variant: "destructive" | "secondary" | "outline";
+  icon: typeof AlertTriangle;
+};
+
+const QUEUE_LABEL_KEYS: Record<
+  string,
+  | "jobs.queue.examGrading"
+  | "jobs.queue.analyticsProcessing"
+  | "jobs.queue.notificationEmail"
+  | "jobs.queue.certificatePdf"
+  | "jobs.queue.fileCleanup"
+> = {
+  "exam-grading": "jobs.queue.examGrading",
+  "analytics-processing": "jobs.queue.analyticsProcessing",
+  "notification-email": "jobs.queue.notificationEmail",
+  "certificate-pdf": "jobs.queue.certificatePdf",
+  "file-cleanup": "jobs.queue.fileCleanup"
+};
+
+function getQueueLabel(queue: JobQueueSummary, t: ReturnType<typeof useI18n>["t"]) {
+  const labelKey = QUEUE_LABEL_KEYS[queue.name];
+  return labelKey ? t(labelKey) : queue.label;
+}
+
+function getHealth(queue: JobQueueSummary): QueueHealth {
+  if (queue.counts.failed > 0) {
+    return { labelKey: "jobs.attention", variant: "destructive" as const, icon: AlertTriangle };
+  }
+  if (queue.counts.active > 0 || queue.counts.waiting > 0 || queue.counts.delayed > 0) {
+    return { labelKey: "jobs.running", variant: "secondary" as const, icon: Loader2 };
+  }
+  return { labelKey: "jobs.healthy", variant: "outline" as const, icon: CheckCircle2 };
+}
+
+function JobList({
+  jobs,
+  emptyLabel,
+  onRetry,
+  retryingJobId,
+  showReason
+}: {
+  jobs: JobQueueJob[];
+  emptyLabel: string;
+  onRetry?: (jobId: string) => void;
+  retryingJobId?: string;
+  showReason?: boolean;
+}) {
+  const { t } = useI18n();
+  const formatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }),
+    []
+  );
+
+  if (!jobs.length) {
+    return <p className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">{emptyLabel}</p>;
+  }
+
+  return (
+    <ul className="space-y-2">
+      {jobs.map((job) => (
+        <li key={`${job.name}-${job.id}`} className="rounded-lg border border-border/70 bg-background px-3 py-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <p className="truncate text-sm font-medium text-foreground">{job.name}</p>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="rounded-md font-mono">
+                #{job.id || "-"}
+              </Badge>
+              {onRetry ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => onRetry(job.id)}
+                  disabled={!job.id || retryingJobId === job.id}
+                >
+                  {retryingJobId === job.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <RotateCcw className="size-3.5" aria-hidden />}
+                  {retryingJobId === job.id ? t("jobs.retrying") : t("jobs.retry")}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span>
+              {t("jobs.attempts")}: <span className="tabular-nums text-foreground">{job.attemptsMade}</span>
+            </span>
+            {job.timestamp ? <span>{formatter.format(new Date(job.timestamp))}</span> : null}
+          </div>
+          {showReason && job.failedReason ? (
+            <p className="mt-2 line-clamp-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{job.failedReason}</p>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function QueueCard({ onRetryJob, queue, retryingJobId }: { queue: JobQueueSummary; onRetryJob: (queueName: string, jobId: string) => void; retryingJobId?: string }) {
+  const { t } = useI18n();
+  const health = getHealth(queue);
+  const HealthIcon = health.icon;
+
+  const counts = [
+    ["jobs.waiting", queue.counts.waiting],
+    ["jobs.active", queue.counts.active],
+    ["jobs.failed", queue.counts.failed],
+    ["jobs.completed", queue.counts.completed],
+    ["jobs.delayed", queue.counts.delayed],
+    ["jobs.paused", queue.counts.paused]
+  ] as const;
+
+  return (
+    <Card className="rounded-lg border-border/70 shadow-none">
+      <CardHeader className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <CardTitle className="truncate text-base">{getQueueLabel(queue, t)}</CardTitle>
+          <CardDescription className="mt-1 font-mono text-xs">{queue.name}</CardDescription>
+        </div>
+        <Badge variant={health.variant} className="h-7 rounded-md px-2.5">
+          <HealthIcon className="size-3.5" aria-hidden />
+          {t(health.labelKey)}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-0">
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {counts.map(([labelKey, value]) => (
+            <div key={labelKey} className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5">
+              <dt className="text-xs text-muted-foreground">{t(labelKey)}</dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        {queue.failureRate > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("jobs.failureRate")}:{" "}
+            <span className="font-semibold tabular-nums text-destructive">{queue.failureRate}%</span>
+          </p>
+        ) : null}
+        <QueueFailedJobsPanel queueName={queue.name} failedCount={queue.counts.failed} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold text-foreground">{t("jobs.failedJobs")}</h2>
+            <JobList
+              jobs={queue.failedJobs}
+              emptyLabel={t("jobs.noFailedJobs")}
+              onRetry={(jobId) => onRetryJob(queue.name, jobId)}
+              retryingJobId={retryingJobId}
+              showReason
+            />
+          </section>
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold text-foreground">{t("jobs.waitingJobs")}</h2>
+            <JobList jobs={queue.waitingJobs} emptyLabel={t("jobs.noWaitingJobs")} />
+          </section>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function QueueSkeleton() {
+  return (
+    <Card className="rounded-lg border-border/70 shadow-none">
+      <CardHeader className="border-b border-border/70 pb-4">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-3 w-32" />
+      </CardHeader>
+      <CardContent className="space-y-4 pt-0">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className="h-16 rounded-lg" />
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-36 rounded-lg" />
+          <Skeleton className="h-36 rounded-lg" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function JobsPage() {
+  const { t, formatError } = useI18n();
+  const [queueSearch, setQueueSearch] = useState("");
+  const [includeSamples, setIncludeSamples] = useState(true);
+  const { data, isLoading, isError, error, isFetching, refetch } = useJobQueues(includeSamples);
+  const retryMutation = useRetryFailedJob();
+  const allQueues = data?.items ?? [];
+  const queues = useMemo(() => {
+    const query = queueSearch.trim().toLowerCase();
+    if (!query) {
+      return allQueues;
+    }
+
+    return allQueues.filter((queue) => {
+      const translatedLabel = getQueueLabel(queue, t).toLowerCase();
+      return queue.name.toLowerCase().includes(query) || translatedLabel.includes(query);
+    });
+  }, [allQueues, queueSearch, t]);
+  const retryingJobId = retryMutation.isPending ? retryMutation.variables?.jobId : undefined;
+
+  const handleRetryJob = (queueName: string, jobId: string) => {
+    retryMutation.mutate(
+      { queueName, jobId },
+      {
+        onSuccess: () => toast.success(t("jobs.retryQueued")),
+        onError: (retryError) => toast.error(formatError(retryError, "jobs.retryFailed"))
+      }
+    );
+  };
+
+  return (
+    <AppShell
+      title={t("jobs.title")}
+      subtitle={t("jobs.subtitle")}
+      actions={
+        <Button type="button" variant="outline" size="lg" onClick={() => void refetch()} disabled={isFetching}>
+          <RefreshCw className={isFetching ? "size-4 animate-spin" : "size-4"} aria-hidden />
+          {isFetching ? t("jobs.refreshing") : t("jobs.refresh")}
+        </Button>
+      }
+    >
+      <div className="space-y-5">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("jobs.summary")}>
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, index) => <MetricCardSkeleton key={index} />)
+          ) : (
+            <>
+              <MetricCard icon={Clock3} label={t("jobs.totalWaiting")} value={countTotal(queues, "waiting")} hint={t("jobs.totalWaitingHint")} />
+              <MetricCard icon={Activity} label={t("jobs.totalActive")} value={countTotal(queues, "active")} hint={t("jobs.totalActiveHint")} />
+              <MetricCard icon={AlertTriangle} label={t("jobs.totalFailed")} value={countTotal(queues, "failed")} hint={t("jobs.totalFailedHint")} />
+              <MetricCard icon={TimerReset} label={t("jobs.totalDelayed")} value={countTotal(queues, "delayed")} hint={t("jobs.totalDelayedHint")} />
+            </>
+          )}
+        </section>
+
+        <section className="grid gap-3 rounded-lg border border-border/70 bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto]">
+          <Input
+            value={queueSearch}
+            onChange={(event) => setQueueSearch(event.target.value)}
+            placeholder={t("jobs.searchPlaceholder")}
+            className="h-10 rounded-md border-border/80 shadow-none"
+            type="search"
+            aria-label={t("jobs.searchPlaceholder")}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10"
+            onClick={() => setIncludeSamples((value) => !value)}
+            aria-pressed={includeSamples}
+          >
+            {includeSamples ? t("jobs.samplesOn") : t("jobs.samplesOff")}
+          </Button>
+        </section>
+
+        {isError ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {formatError(error, "jobs.loadFailed")}
+          </div>
+        ) : null}
+
+        <EmailDeliveryPanel />
+
+        <section className="space-y-3" aria-label={t("jobs.queues")}>
+          {isLoading ? (
+            <>
+              <QueueSkeleton />
+              <QueueSkeleton />
+            </>
+          ) : null}
+          {!isLoading && !isError && queues.length === 0 ? (
+            <EmptyState
+              icon={DatabaseZap}
+              title={queueSearch.trim() ? t("jobs.noQueuesMatchSearch") : t("jobs.noQueues")}
+              description={queueSearch.trim() ? t("jobs.noQueuesMatchSearchDescription") : t("jobs.noQueuesDescription")}
+            />
+          ) : null}
+          {!isLoading && !isError ? (
+            queues.map((queue) => <QueueCard key={queue.name} queue={queue} onRetryJob={handleRetryJob} retryingJobId={retryingJobId} />)
+          ) : null}
+        </section>
+      </div>
+    </AppShell>
+  );
+}

@@ -27,6 +27,10 @@ export {
 export const STUDIO_WORKSPACE_GRID =
   "grid gap-4 lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)] xl:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:items-start";
 
+/** Learner curriculum: narrow lesson rail + wide content column */
+export const LEARNER_CURRICULUM_GRID =
+  "grid gap-4 lg:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)] xl:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] lg:items-start";
+
 export const STUDIO_LIST_STICKY = "min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto";
 
 export const STUDIO_EDITOR_PANEL = "min-w-0 w-full";

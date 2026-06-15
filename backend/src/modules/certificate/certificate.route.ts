@@ -8,7 +8,7 @@ import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { CertificateController } from "./certificate.controller";
 import { CertificateRepository } from "./certificate.repository";
-import { certificateIdParamSchema, certificateVerificationSchema } from "./certificate.schema";
+import { certificateIdParamSchema, certificateSearchEventSchema, certificateSearchSuggestionsSchema } from "./certificate.schema";
 import { CertificateService } from "./certificate.service";
 
 const certificateRepository = new CertificateRepository();
@@ -21,7 +21,9 @@ const certificateController = new CertificateController(certificateService);
 
 export const certificateRouter = Router();
 
-certificateRouter.get("/verify/:verificationCode", validateRequest(certificateVerificationSchema), asyncHandler(certificateController.verifyCertificate));
 certificateRouter.get("/me", authMiddleware, asyncHandler(certificateController.listMyCertificates));
+certificateRouter.get("/search-suggestions", authMiddleware, validateRequest(certificateSearchSuggestionsSchema), asyncHandler(certificateController.getSearchSuggestions));
+certificateRouter.post("/search-events", authMiddleware, validateRequest(certificateSearchEventSchema), asyncHandler(certificateController.trackSearchTerm));
+certificateRouter.get("/:certificateId/pdf", authMiddleware, validateRequest(certificateIdParamSchema), asyncHandler(certificateController.downloadCertificatePdf));
 certificateRouter.post("/:certificateId/revocations", authMiddleware, validateRequest(certificateIdParamSchema), asyncHandler(certificateController.revokeCertificate));
 certificateRouter.delete("/:certificateId/revocations", authMiddleware, validateRequest(certificateIdParamSchema), asyncHandler(certificateController.restoreCertificate));

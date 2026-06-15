@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
+import { USER_ROLE } from "../../common/constants/business";
 import { AppError } from "../../common/errors/app-error";
-import { NotificationRepository } from "./notification.repository";
+import { notificationEmailQueue, notificationEmailJobOptions } from "../../jobs/notification-email.queue";
+import { NotificationRepository, PlatformNotificationFilters } from "./notification.repository";
 import { UpdateNotificationPreferencesInput } from "./notification.schema";
 
 type CreateNotificationInput = {
@@ -18,19 +20,44 @@ export class NotificationService {
   async createNotification(input: CreateNotificationInput) {
     const preferences = await this.notificationRepository.findPreferenceByUser(input.userId);
     const preferenceKey = this.resolvePreferenceKey(input.type);
+    const shouldSendInApp = !preferences || (preferences.inAppEnabled && preferences[preferenceKey]);
+    const shouldQueueEmail = Boolean(preferences?.emailEnabled && preferences[preferenceKey]);
 
-    if (preferences && (!preferences.inAppEnabled || !preferences[preferenceKey])) {
+    if (!shouldSendInApp && !shouldQueueEmail) {
       return null;
     }
 
-    return this.notificationRepository.create({
-      user: { connect: { id: input.userId } },
-      type: input.type,
-      title: input.title,
-      body: input.body || null,
-      linkUrl: input.linkUrl || null,
-      metadata: input.metadata ?? Prisma.JsonNull
-    });
+    const notification = shouldSendInApp
+      ? await this.notificationRepository.create({
+          user: { connect: { id: input.userId } },
+          type: input.type,
+          title: input.title,
+          body: input.body || null,
+          linkUrl: input.linkUrl || null,
+          metadata: input.metadata ?? Prisma.JsonNull
+        })
+      : null;
+
+    if (shouldQueueEmail) {
+      const recipientEmail = await this.notificationRepository.findUserEmailById(input.userId);
+      if (recipientEmail) {
+        await notificationEmailQueue.add(
+          "send",
+          {
+            userId: input.userId,
+            email: recipientEmail,
+            type: input.type,
+            title: input.title,
+            body: input.body ?? null,
+            linkUrl: input.linkUrl ?? null,
+            notificationId: notification?.id ?? null
+          },
+          notificationEmailJobOptions
+        );
+      }
+    }
+
+    return notification;
   }
 
   async getMyPreferences(user: Express.UserClaims | undefined) {
@@ -88,6 +115,40 @@ export class NotificationService {
     return {
       updatedCount: result.count
     };
+  }
+
+  async listPlatformNotifications(
+    user: Express.UserClaims | undefined,
+    page: number,
+    limit: number,
+    filters: PlatformNotificationFilters = {}
+  ) {
+    this.requireAdmin(user);
+
+    const { items, total, unreadTotal } = await this.notificationRepository.findManyForPlatform(page, limit, filters);
+    return {
+      items,
+      unreadTotal,
+      pagination: {
+        page,
+        limit,
+        total
+      }
+    };
+  }
+
+  async getPlatformSummary(user: Express.UserClaims | undefined) {
+    this.requireAdmin(user);
+    return this.notificationRepository.getPlatformSummary();
+  }
+
+  private requireAdmin(user: Express.UserClaims | undefined) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+    if (user.role !== USER_ROLE.admin) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
   }
 
   private requireUserId(user: Express.UserClaims | undefined) {

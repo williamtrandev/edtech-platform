@@ -42,3 +42,18 @@ export const assignmentIdParamSchema = z.object({
     assignmentId: z.string().min(1)
   })
 });
+
+const rubricCriterionInputSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(1000).nullable().optional(),
+  maxPoints: z.coerce.number().int().min(1).max(1000)
+});
+
+export const replaceAssignmentRubricSchema = z.object({
+  params: z.object({
+    assignmentId: z.string().min(1)
+  }),
+  body: z.object({
+    criteria: z.array(rubricCriterionInputSchema).max(20)
+  })
+});

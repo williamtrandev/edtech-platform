@@ -38,4 +38,14 @@ export class ExamAttemptController {
     const graded = await this.examAttemptService.gradeAttemptManually(req.user, req.params.attemptId, req.body);
     res.status(200).json({ success: true, data: graded });
   };
+
+  recordIntegrityEvents = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.examAttemptService.recordIntegrityEvents(req.user, req.params.attemptId, req.body);
+    res.status(201).json({ success: true, data: result });
+  };
+
+  listIntegrityEvents = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.examAttemptService.listIntegrityEvents(req.user, req.params.attemptId);
+    res.status(200).json({ success: true, data: result });
+  };
 }

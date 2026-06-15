@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { userService, type UserListParams } from "../services/user.service";
 import { CreateUserFormValues } from "../schemas/user.schema";
 
-export function useUsers(params: UserListParams = {}) {
+export function useUsers(params: UserListParams = {}, enabled = true) {
   return useQuery({
     queryKey: ["users", params],
-    queryFn: () => userService.getUsers(params)
+    queryFn: () => userService.getUsers(params),
+    enabled
   });
 }
 

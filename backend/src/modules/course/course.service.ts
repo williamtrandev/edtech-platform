@@ -1,10 +1,15 @@
 import { CourseStatus } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
-import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
+import { COURSE_STATUS, USER_ROLE, USER_STATUS } from "../../common/constants/business";
+import { COURSE_SEARCH } from "../../common/constants/course-search";
+import { redisConnection } from "../../config/redis";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AuditRepository } from "../audit/audit.repository";
 import { CourseListFilters, CourseRepository } from "./course.repository";
 import { EnrollmentRepository } from "../enrollment/enrollment.repository";
+import { NotificationService } from "../notification/notification.service";
+import { UserRepository } from "../user/user.repository";
 
 type CoursePayload = {
   title: string;
@@ -35,11 +40,18 @@ function hasText(value: string | null | undefined) {
   return Boolean(value?.trim());
 }
 
+type CourseSearchSuggestion = {
+  term: string;
+  score: number;
+};
+
 export class CourseService {
   constructor(
     private readonly courseRepository: CourseRepository,
     private readonly enrollmentRepository: EnrollmentRepository,
-    private readonly auditRepository?: AuditRepository
+    private readonly auditRepository?: AuditRepository,
+    private readonly userRepository?: UserRepository,
+    private readonly notificationService?: NotificationService
   ) {}
 
   async listCourses(
@@ -235,15 +247,75 @@ export class CourseService {
     if (data.status && data.status !== course.status) {
       await this.auditRepository?.create({
         actor: { connect: { id: user.id } },
-        action: data.status === COURSE_STATUS.published ? "COURSE_PUBLISHED" : data.status === COURSE_STATUS.archived ? "COURSE_ARCHIVED" : "COURSE_STATUS_UPDATED",
-        entityType: "Course",
+        action:
+          data.status === COURSE_STATUS.published
+            ? AUDIT_ACTION.coursePublished
+            : data.status === COURSE_STATUS.archived
+              ? AUDIT_ACTION.courseArchived
+              : AUDIT_ACTION.courseStatusUpdated,
+        entityType: AUDIT_ENTITY_TYPE.course,
         entityId: id,
         metadata: {
           before: { status: course.status },
           after: { status: data.status }
         }
       });
+
+      if (data.status === COURSE_STATUS.published && course.status !== COURSE_STATUS.published) {
+        const enrollments = await this.enrollmentRepository.findAllByCourseId(id);
+        await Promise.all(
+          enrollments.map((enrollment) =>
+            this.notificationService?.createNotification({
+              userId: enrollment.userId,
+              type: "COURSE_PUBLISHED",
+              title: "Course is now published",
+              body: `"${updatedCourse.title}" is available to learn now.`,
+              linkUrl: `/courses/${id}/learn`,
+              metadata: {
+                courseId: id
+              }
+            })
+          )
+        );
+      }
     }
+
+    return updatedCourse;
+  }
+
+  async assignCourseInstructor(user: Express.UserClaims | undefined, id: string, instructorId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+    if (user.role !== USER_ROLE.admin) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    const [course, instructor] = await Promise.all([
+      this.courseRepository.findById(id),
+      this.userRepository?.findById(instructorId)
+    ]);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+    if (!instructor || instructor.role !== USER_ROLE.instructor || instructor.status !== USER_STATUS.active) {
+      throw new AppError("Instructor not found", 404, "INSTRUCTOR_NOT_FOUND");
+    }
+    if (course.instructorId === instructorId) {
+      return course;
+    }
+
+    const updatedCourse = await this.courseRepository.assignInstructor(id, instructorId);
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: AUDIT_ACTION.courseInstructorAssigned,
+      entityType: AUDIT_ENTITY_TYPE.course,
+      entityId: id,
+      metadata: {
+        before: { instructorId: course.instructorId },
+        after: { instructorId }
+      }
+    });
 
     return updatedCourse;
   }
@@ -274,6 +346,29 @@ export class CourseService {
     }
   }
 
+  async getCourseArchiveImpact(user: Express.UserClaims | undefined, id: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    if (!canViewCourseAsStaff(user, course.instructorId)) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    const impact = await this.courseRepository.getArchiveImpact(id);
+    return {
+      courseId: id,
+      courseTitle: course.title,
+      courseStatus: course.status,
+      impact
+    };
+  }
+
   async archiveCourse(user: Express.UserClaims | undefined, id: string) {
     if (!user?.id) {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
@@ -290,15 +385,17 @@ export class CourseService {
       return course;
     }
 
+    const impact = await this.courseRepository.getArchiveImpact(id);
     const archivedCourse = await this.courseRepository.archiveById(id);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "COURSE_ARCHIVED",
-      entityType: "Course",
+      action: AUDIT_ACTION.courseArchived,
+      entityType: AUDIT_ENTITY_TYPE.course,
       entityId: id,
       metadata: {
         before: { status: course.status },
-        after: { status: COURSE_STATUS.archived }
+        after: { status: COURSE_STATUS.archived },
+        impact
       }
     });
 
@@ -328,8 +425,8 @@ export class CourseService {
     const lockedCourse = await this.courseRepository.lockById(id, user.id, trimmedReason, course.status as CourseStatus);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "COURSE_LOCKED",
-      entityType: "Course",
+      action: AUDIT_ACTION.courseLocked,
+      entityType: AUDIT_ENTITY_TYPE.course,
       entityId: id,
       metadata: {
         before: { status: course.status },
@@ -360,8 +457,8 @@ export class CourseService {
     const unlockedCourse = await this.courseRepository.unlockById(id);
     await this.auditRepository?.create({
       actor: { connect: { id: user.id } },
-      action: "COURSE_UNLOCKED",
-      entityType: "Course",
+      action: AUDIT_ACTION.courseUnlocked,
+      entityType: AUDIT_ENTITY_TYPE.course,
       entityId: id,
       metadata: {
         before: { status: COURSE_STATUS.locked, lockReason: course.lockReason },
@@ -396,5 +493,126 @@ export class CourseService {
         total
       }
     };
+  }
+
+  async getCourseAnalytics(user: Express.UserClaims | undefined, courseId: string) {
+    if (!user?.id) {
+      throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) {
+      throw new AppError("Course not found", 404, "COURSE_NOT_FOUND");
+    }
+
+    if (!canViewCourseAsStaff(user, course.instructorId)) {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    return this.courseRepository.getAnalytics(courseId);
+  }
+
+  async getSearchSuggestions(query: string, limit: number): Promise<CourseSearchSuggestion[]> {
+    const clampedLimit = Math.min(Math.max(limit, 1), COURSE_SEARCH.maxLimit);
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return this.getPopularSearchSuggestions(clampedLimit);
+    }
+
+    const rankedTerms = await redisConnection.zrevrange(COURSE_SEARCH.redisKey, 0, 500, "WITHSCORES");
+    const suggestionsFromSearch = this.filterRankedTerms(rankedTerms, normalizedQuery, clampedLimit);
+
+    if (suggestionsFromSearch.length >= clampedLimit) {
+      return suggestionsFromSearch;
+    }
+
+    const fallbackTitles = await this.courseRepository.findPublishedCourseTitleSuggestions(normalizedQuery, clampedLimit);
+    const seen = new Set(suggestionsFromSearch.map((item) => item.term.toLowerCase()));
+    for (const title of fallbackTitles) {
+      const normalizedTitle = title.toLowerCase();
+      if (seen.has(normalizedTitle)) {
+        continue;
+      }
+      suggestionsFromSearch.push({
+        term: title,
+        score: 0
+      });
+      seen.add(normalizedTitle);
+      if (suggestionsFromSearch.length >= clampedLimit) {
+        break;
+      }
+    }
+
+    return suggestionsFromSearch;
+  }
+
+  async trackSearchTerm(term: string): Promise<void> {
+    const normalizedTerm = term.trim().toLowerCase();
+    if (normalizedTerm.length < COURSE_SEARCH.minQueryLength) {
+      return;
+    }
+
+    await redisConnection.zincrby(COURSE_SEARCH.redisKey, 1, normalizedTerm);
+    await redisConnection.zremrangebyrank(COURSE_SEARCH.redisKey, 0, -COURSE_SEARCH.maxTrackedTerms - 1);
+  }
+
+  private async getPopularSearchSuggestions(limit: number): Promise<CourseSearchSuggestion[]> {
+    const rankedTerms = await redisConnection.zrevrange(COURSE_SEARCH.redisKey, 0, limit - 1, "WITHSCORES");
+    const suggestions: CourseSearchSuggestion[] = [];
+
+    for (let index = 0; index < rankedTerms.length; index += 2) {
+      const term = rankedTerms[index];
+      const rawScore = rankedTerms[index + 1];
+      if (!term || !rawScore) {
+        continue;
+      }
+
+      suggestions.push({
+        term,
+        score: Number(rawScore)
+      });
+    }
+
+    if (suggestions.length >= limit) {
+      return suggestions;
+    }
+
+    const fallback = await this.courseRepository.findPopularPublishedCourseTitles(limit);
+    const seen = new Set(suggestions.map((item) => item.term.toLowerCase()));
+    for (const item of fallback) {
+      const normalized = item.term.toLowerCase();
+      if (seen.has(normalized)) {
+        continue;
+      }
+      suggestions.push(item);
+      seen.add(normalized);
+      if (suggestions.length >= limit) {
+        break;
+      }
+    }
+
+    return suggestions;
+  }
+
+  private filterRankedTerms(rawEntries: string[], normalizedQuery: string, limit: number): CourseSearchSuggestion[] {
+    const suggestions: CourseSearchSuggestion[] = [];
+    for (let index = 0; index < rawEntries.length; index += 2) {
+      const term = rawEntries[index];
+      const rawScore = rawEntries[index + 1];
+      if (!term || !rawScore || !term.includes(normalizedQuery)) {
+        continue;
+      }
+
+      suggestions.push({
+        term,
+        score: Number(rawScore)
+      });
+      if (suggestions.length >= limit) {
+        break;
+      }
+    }
+
+    return suggestions;
   }
 }

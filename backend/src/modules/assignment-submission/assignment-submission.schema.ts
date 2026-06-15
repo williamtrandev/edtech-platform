@@ -24,12 +24,22 @@ export const submitAssignmentSchema = z.object({
     })
 });
 
+const rubricScoreInputSchema = z.object({
+  criterionId: z.string().min(1),
+  points: z.coerce.number().int().min(0).max(1000)
+});
+
 export const gradeAssignmentSubmissionSchema = z.object({
   params: z.object({
     submissionId: z.string().min(1)
   }),
-  body: z.object({
-    score: z.coerce.number().int().min(0).max(10000),
-    feedback: z.string().trim().max(5000).nullable().optional()
-  })
+  body: z
+    .object({
+      score: z.coerce.number().int().min(0).max(10000).optional(),
+      feedback: z.string().trim().max(5000).nullable().optional(),
+      rubricScores: z.array(rubricScoreInputSchema).optional()
+    })
+    .refine((value) => value.score !== undefined || (value.rubricScores?.length ?? 0) > 0, {
+      message: "Score or rubric scores are required"
+    })
 });

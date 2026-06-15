@@ -1,27 +1,60 @@
-import { BookOpen, Compass, Search, Sparkles, Star, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { BookOpen, Search, TrendingUp, X } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { AppShell } from "../components/app-shell";
+import { CourseCatalogCard } from "../components/course-catalog-card";
+import { CourseEnrollButton } from "../components/course-enroll-button";
 import { EmptyState } from "../components/empty-state";
-import { CourseListSkeleton } from "../components/skeleton";
+import { CourseCardGridSkeleton } from "../components/skeleton";
 import { COURSE_STATUS } from "../constants/business";
 import { useAuth } from "../hooks/use-auth";
-import { useCourseFacets, useInfiniteCourses } from "../hooks/use-courses";
-import { useEnrollCourse } from "../hooks/use-enrollments";
+import { useCourseFacets, useCourseSearchSuggestions, useInfiniteCourses } from "../hooks/use-courses";
+import { courseService } from "../services/course.service";
+import { useCurrentUser } from "../hooks/use-current-user";
+import { useMyEnrollments } from "../hooks/use-enrollments";
 import { useI18n } from "../i18n";
-import { toMediaUrl } from "../lib/media-url";
+import { canSelfEnrollInCourse } from "../lib/enrollment-access";
+import { formatMoney, isPaidCourse } from "../lib/course-pricing";
+import { getCourseLearnPath } from "../lib/course-learn-path";
+import { STUDIO_FORM_SHELL, STUDIO_NOTICE } from "../lib/studio-ui";
 
 const COURSE_PAGE_SIZE = 12;
 const ALL_FILTER_VALUE = "all";
 
+const FILTER_SELECT_TRIGGER =
+  "h-10 w-full rounded-lg border-0 bg-background shadow-none ring-1 ring-foreground/10 focus:ring-foreground/20";
+
+type ExploreFilterFieldProps = {
+  label: string;
+  children: ReactNode;
+  className?: string;
+};
+
+function ExploreFilterField({ label, children, className }: ExploreFilterFieldProps) {
+  return (
+    <div className={cn("grid min-w-0 gap-1.5", className)}>
+      <span className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+type ActiveFilterChip = {
+  key: string;
+  label: string;
+  onClear: () => void;
+};
+
 export function ExploreCoursesPage() {
   const { t, formatError } = useI18n();
-  const { isAuthenticated } = useAuth();
-  const enrollMutation = useEnrollCourse();
+  const { isAuthenticated, isBootstrapping } = useAuth();
+  const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
+  const myEnrollmentsQuery = useMyEnrollments(isAuthenticated && !isBootstrapping);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [category, setCategory] = useState(ALL_FILTER_VALUE);
@@ -30,8 +63,14 @@ export function ExploreCoursesPage() {
   const [instructorId, setInstructorId] = useState(ALL_FILTER_VALUE);
   const [enrollment, setEnrollment] = useState<"all" | "enrolled" | "not-enrolled">("all");
   const [sort, setSort] = useState<"newest" | "oldest" | "popular" | "highest-rated" | "title">("newest");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [trackingTerm, setTrackingTerm] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const trackTimeoutRef = useRef<number | null>(null);
   const facetsQuery = useCourseFacets(COURSE_STATUS.published);
+  const searchSuggestionsQuery = useCourseSearchSuggestions(debouncedQuery, isSearchFocused);
+  const suggestions = searchSuggestionsQuery.data ?? [];
+  const showSuggestions = isSearchFocused && suggestions.length > 0;
   const { data, isLoading, isFetchingNextPage, isError, error, hasNextPage, fetchNextPage } = useInfiniteCourses(
     COURSE_STATUS.published,
     COURSE_PAGE_SIZE,
@@ -53,6 +92,34 @@ export function ExploreCoursesPage() {
 
     return () => window.clearTimeout(timer);
   }, [query]);
+
+  const trackSearchTerm = (term: string) => {
+    const normalizedTerm = term.trim();
+    if (!normalizedTerm || trackingTerm === normalizedTerm) {
+      return;
+    }
+    setTrackingTerm(normalizedTerm);
+    void courseService.trackCourseSearch(normalizedTerm).catch(() => {
+      // Ignore tracking failures to keep search UX responsive.
+    });
+  };
+
+  const scheduleTrackSearch = (term: string) => {
+    if (trackTimeoutRef.current) {
+      window.clearTimeout(trackTimeoutRef.current);
+    }
+    trackTimeoutRef.current = window.setTimeout(() => {
+      trackSearchTerm(term);
+    }, 600);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (trackTimeoutRef.current) {
+        window.clearTimeout(trackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const target = loadMoreRef.current;
@@ -78,14 +145,10 @@ export function ExploreCoursesPage() {
     [data?.pages]
   );
   const total = data?.pages[0]?.pagination.total ?? 0;
-  const hasActiveFilters = Boolean(
-    query.trim() ||
-      category !== ALL_FILTER_VALUE ||
-      level !== ALL_FILTER_VALUE ||
-      language !== ALL_FILTER_VALUE ||
-      instructorId !== ALL_FILTER_VALUE ||
-      enrollment !== ALL_FILTER_VALUE ||
-      sort !== "newest"
+  const facets = facetsQuery.data ?? { categories: [], levels: [], languages: [], instructors: [] };
+  const enrolledCourseIds = useMemo(
+    () => new Set((myEnrollmentsQuery.data ?? []).map((item) => item.courseId)),
+    [myEnrollmentsQuery.data]
   );
   const clearFilters = () => {
     setQuery("");
@@ -96,144 +159,285 @@ export function ExploreCoursesPage() {
     setEnrollment(ALL_FILTER_VALUE);
     setSort("newest");
   };
-  const facets = facetsQuery.data ?? { categories: [], levels: [], languages: [], instructors: [] };
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+
+    if (query.trim()) {
+      chips.push({
+        key: "query",
+        label: `"${query.trim()}"`,
+        onClear: () => setQuery("")
+      });
+    }
+    if (category !== ALL_FILTER_VALUE) {
+      chips.push({
+        key: "category",
+        label: category,
+        onClear: () => setCategory(ALL_FILTER_VALUE)
+      });
+    }
+    if (level !== ALL_FILTER_VALUE) {
+      chips.push({
+        key: "level",
+        label: level,
+        onClear: () => setLevel(ALL_FILTER_VALUE)
+      });
+    }
+    if (language !== ALL_FILTER_VALUE) {
+      chips.push({
+        key: "language",
+        label: language,
+        onClear: () => setLanguage(ALL_FILTER_VALUE)
+      });
+    }
+    if (instructorId !== ALL_FILTER_VALUE) {
+      const instructorEmail = facets.instructors.find((item) => item.id === instructorId)?.email ?? instructorId;
+      chips.push({
+        key: "instructor",
+        label: instructorEmail,
+        onClear: () => setInstructorId(ALL_FILTER_VALUE)
+      });
+    }
+    if (isAuthenticated && enrollment !== ALL_FILTER_VALUE) {
+      chips.push({
+        key: "enrollment",
+        label:
+          enrollment === "enrolled" ? t("explore.enrollmentEnrolled") : t("explore.enrollmentNotEnrolled"),
+        onClear: () => setEnrollment(ALL_FILTER_VALUE)
+      });
+    }
+    if (sort !== "newest") {
+      const sortLabel =
+        sort === "oldest"
+          ? t("explore.sortOldest")
+          : sort === "popular"
+            ? t("explore.sortPopular")
+            : sort === "highest-rated"
+              ? t("explore.sortHighestRated")
+              : t("explore.sortTitle");
+      chips.push({
+        key: "sort",
+        label: sortLabel,
+        onClear: () => setSort("newest")
+      });
+    }
+
+    return chips;
+  }, [category, enrollment, facets.instructors, instructorId, isAuthenticated, language, level, query, sort, t]);
+
+  const hasActiveFilters = activeFilterChips.length > 0;
 
   return (
-    <AppShell
-      title={t("explore.title")}
-      subtitle={t("explore.subtitle")}
-    >
-      <div className="space-y-8">
-        <section className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-card/80 p-6 shadow-sm ring-1 ring-border/30 sm:p-8">
-          <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-primary/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 left-8 size-40 rounded-full bg-muted/60 blur-3xl" />
-
-          <div className="relative z-10 space-y-6">
-            <div className="max-w-2xl space-y-3">
-              <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Sparkles className="size-3.5 text-primary" aria-hidden />
-                {t("explore.heroEyebrow")}
-              </p>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{t("explore.heroTitle")}</h2>
-              <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">{t("explore.heroDescription")}</p>
-              {!isAuthenticated ? (
-                <p className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                  {t("explore.guestHint")}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-3">
-              <div className="relative max-w-md">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t("explore.searchPlaceholder")}
-                  className="h-11 rounded-xl border-border/80 bg-background/90 pl-10 shadow-sm"
-                  type="search"
-                  aria-label={t("explore.searchPlaceholder")}
-                />
-              </div>
-
-              <div className="grid gap-2 rounded-xl border border-border/60 bg-background/80 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("explore.filters")}</p>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="h-10 w-full rounded-md border-border/80 bg-background shadow-none" aria-label={t("explore.categoryPlaceholder")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_FILTER_VALUE}>{t("explore.categoryAll")}</SelectItem>
-                      {facets.categories.map((option) => (
-                        <SelectItem key={option} value={option}>{option}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={level} onValueChange={setLevel}>
-                    <SelectTrigger className="h-10 w-full rounded-md border-border/80 bg-background shadow-none" aria-label={t("explore.levelPlaceholder")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_FILTER_VALUE}>{t("explore.levelAll")}</SelectItem>
-                      {facets.levels.map((option) => (
-                        <SelectItem key={option} value={option}>{option}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger className="h-10 w-full rounded-md border-border/80 bg-background shadow-none" aria-label={t("explore.languagePlaceholder")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_FILTER_VALUE}>{t("explore.languageAll")}</SelectItem>
-                      {facets.languages.map((option) => (
-                        <SelectItem key={option} value={option}>{option}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={instructorId} onValueChange={setInstructorId}>
-                    <SelectTrigger className="h-10 w-full rounded-md border-border/80 bg-background shadow-none" aria-label={t("explore.instructorPlaceholder")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_FILTER_VALUE}>{t("explore.instructorAll")}</SelectItem>
-                      {facets.instructors.map((instructor) => (
-                        <SelectItem key={instructor.id} value={instructor.id}>{instructor.email}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {isAuthenticated ? (
-                    <Select value={enrollment} onValueChange={(value) => setEnrollment(value as typeof enrollment)}>
-                      <SelectTrigger className="h-10 rounded-md border-border/80 bg-background shadow-none" aria-label={t("explore.enrollmentFilter")}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("explore.enrollmentAll")}</SelectItem>
-                        <SelectItem value="enrolled">{t("explore.enrollmentEnrolled")}</SelectItem>
-                        <SelectItem value="not-enrolled">{t("explore.enrollmentNotEnrolled")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : null}
-                  <Select value={sort} onValueChange={(value) => setSort(value as typeof sort)}>
-                    <SelectTrigger className="h-10 rounded-md border-border/80 bg-background shadow-none" aria-label={t("explore.sort")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="newest">{t("explore.sortNewest")}</SelectItem>
-                      <SelectItem value="oldest">{t("explore.sortOldest")}</SelectItem>
-                      <SelectItem value="popular">{t("explore.sortPopular")}</SelectItem>
-                      <SelectItem value="highest-rated">{t("explore.sortHighestRated")}</SelectItem>
-                      <SelectItem value="title">{t("explore.sortTitle")}</SelectItem>
-                    </SelectContent>
-                  </Select>
+    <AppShell title={t("explore.title")} subtitle={t("explore.subtitle")}>
+      <div className="space-y-6">
+        <section className={cn(STUDIO_FORM_SHELL, "space-y-4")}>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3.5 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                scheduleTrackSearch(event.target.value);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  setIsSearchFocused(false);
+                }, 120);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && query.trim()) {
+                  trackSearchTerm(query);
+                }
+              }}
+              placeholder={t("explore.searchPlaceholder")}
+              className="h-11 rounded-xl border-0 bg-background pl-10 shadow-none ring-1 ring-foreground/10 focus-visible:ring-foreground/20"
+              type="search"
+              aria-label={t("explore.searchPlaceholder")}
+              aria-expanded={showSuggestions}
+              aria-controls="explore-search-suggestions"
+              autoComplete="off"
+            />
+            {showSuggestions ? (
+              <div
+                id="explore-search-suggestions"
+                role="listbox"
+                className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-xl bg-background shadow-lg ring-1 ring-foreground/10"
+              >
+                {!query.trim() ? (
+                  <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground">
+                    <TrendingUp className="size-3.5 shrink-0" aria-hidden />
+                    {t("explore.popularSearches")}
+                  </div>
+                ) : null}
+                <div className="p-1">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.term}-${suggestion.score}`}
+                      type="button"
+                      role="option"
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/60 active:scale-[0.99]"
+                      onMouseDown={() => {
+                        setQuery(suggestion.term);
+                        setDebouncedQuery(suggestion.term.trim());
+                        trackSearchTerm(suggestion.term);
+                      }}
+                    >
+                      <span className="truncate">{suggestion.term}</span>
+                      <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+                        {suggestion.score > 0 ? Math.round(suggestion.score) : t("explore.suggestionNew")}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
+            ) : null}
           </div>
+
+          {!isAuthenticated ? <p className={cn(STUDIO_NOTICE, "text-sm leading-6 text-muted-foreground")}>{t("explore.guestHint")}</p> : null}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <ExploreFilterField label={t("explore.categoryPlaceholder")}>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.categoryPlaceholder")}>
+                  <SelectValue placeholder={t("explore.categoryAll")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>{t("explore.categoryAll")}</SelectItem>
+                  {facets.categories.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ExploreFilterField>
+
+            <ExploreFilterField label={t("explore.levelPlaceholder")}>
+              <Select value={level} onValueChange={setLevel}>
+                <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.levelPlaceholder")}>
+                  <SelectValue placeholder={t("explore.levelAll")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>{t("explore.levelAll")}</SelectItem>
+                  {facets.levels.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ExploreFilterField>
+
+            <ExploreFilterField label={t("explore.languagePlaceholder")}>
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.languagePlaceholder")}>
+                  <SelectValue placeholder={t("explore.languageAll")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>{t("explore.languageAll")}</SelectItem>
+                  {facets.languages.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ExploreFilterField>
+
+            <ExploreFilterField label={t("explore.instructorPlaceholder")}>
+              <Select value={instructorId} onValueChange={setInstructorId}>
+                <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.instructorPlaceholder")}>
+                  <SelectValue placeholder={t("explore.instructorAll")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>{t("explore.instructorAll")}</SelectItem>
+                  {facets.instructors.map((instructor) => (
+                    <SelectItem key={instructor.id} value={instructor.id}>
+                      {instructor.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ExploreFilterField>
+
+            {isAuthenticated ? (
+              <ExploreFilterField label={t("explore.enrollmentFilter")}>
+                <Select value={enrollment} onValueChange={(value) => setEnrollment(value as typeof enrollment)}>
+                  <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.enrollmentFilter")}>
+                    <SelectValue placeholder={t("explore.enrollmentAll")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("explore.enrollmentAll")}</SelectItem>
+                    <SelectItem value="enrolled">{t("explore.enrollmentEnrolled")}</SelectItem>
+                    <SelectItem value="not-enrolled">{t("explore.enrollmentNotEnrolled")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </ExploreFilterField>
+            ) : null}
+
+            <ExploreFilterField label={t("explore.sort")} className={isAuthenticated ? undefined : "sm:col-span-2 xl:col-span-1"}>
+              <Select value={sort} onValueChange={(value) => setSort(value as typeof sort)}>
+                <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.sort")}>
+                  <SelectValue placeholder={t("explore.sortNewest")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">{t("explore.sortNewest")}</SelectItem>
+                  <SelectItem value="oldest">{t("explore.sortOldest")}</SelectItem>
+                  <SelectItem value="popular">{t("explore.sortPopular")}</SelectItem>
+                  <SelectItem value="highest-rated">{t("explore.sortHighestRated")}</SelectItem>
+                  <SelectItem value="title">{t("explore.sortTitle")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </ExploreFilterField>
+          </div>
+
+          {hasActiveFilters ? (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
+              {activeFilterChips.map((chip) => (
+                <Badge
+                  key={chip.key}
+                  variant="secondary"
+                  className="h-8 max-w-full gap-1 rounded-full bg-background pl-3 pr-1.5 font-normal ring-1 ring-foreground/10"
+                >
+                  <span className="truncate">{chip.label}</span>
+                  <button
+                    type="button"
+                    className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label={t("explore.removeFilter")}
+                    onClick={chip.onClear}
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                </Badge>
+              ))}
+              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-3" onClick={clearFilters}>
+                {t("explore.clearFilters")}
+              </Button>
+            </div>
+          ) : null}
         </section>
 
         <section className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex size-9 items-center justify-center rounded-xl border border-border/60 bg-muted/40">
-                <Compass className="size-4 text-foreground/80" aria-hidden />
+            <div>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.15em] text-primary">
+                <span aria-hidden>{">_"}</span>
+                {t("explore.catalogTitle")}
               </span>
-              <div>
-                <h3 className="text-base font-semibold text-foreground">{t("explore.catalogTitle")}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {items.length} / {total}
-                </p>
-              </div>
+              <p className="mt-1 font-mono text-xs tabular-nums text-muted-foreground">
+                {t("explore.showingResults")} {items.length} / {total}
+              </p>
             </div>
           </div>
 
-          {isLoading ? <CourseListSkeleton rows={6} /> : null}
+          {isLoading ? <CourseCardGridSkeleton rows={6} /> : null}
           {isError ? (
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
               {formatError(error, "errors.unexpected")}
             </div>
           ) : null}
@@ -241,63 +445,50 @@ export function ExploreCoursesPage() {
           {!isLoading && !isError ? (
             items.length ? (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {items.map((course) => (
-                  <Card
-                    key={course.id}
-                    className="group flex flex-col overflow-hidden rounded-lg border-border/70 bg-card py-0 shadow-none transition-colors hover:border-border"
-                  >
-                    <div className="relative aspect-video overflow-hidden bg-muted/40">
-                      {course.coverImageUrl ? (
-                        <img
-                          src={toMediaUrl(course.coverImageUrl)}
-                          alt=""
-                          className="absolute inset-0 size-full object-cover"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                          <BookOpen className="size-8" aria-hidden />
-                        </div>
-                      )}
-                    </div>
+                {items.map((course) => {
+                  const isEnrolled = enrolledCourseIds.has(course.id);
+                  const showEnroll = canSelfEnrollInCourse({
+                    userId: meQuery.data?.id,
+                    instructorId: course.instructorId,
+                    courseStatus: course.status,
+                    isEnrolled
+                  });
+                  const priceLabel = isPaidCourse(course.priceCents)
+                    ? formatMoney(course.priceCents ?? 0, course.currency ?? "USD")
+                    : null;
 
-                    <CardHeader className="space-y-2 px-4 pb-2 pt-4">
-                      <CardTitle className="line-clamp-2 text-lg font-semibold leading-snug">{course.title}</CardTitle>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-muted-foreground">
-                        <span className="inline-flex items-center gap-1.5">
-                          <Users className="size-3.5" aria-hidden />
-                          {course.enrollmentCount ?? 0} {t("explore.enrolledLearners")}
-                        </span>
-                        <span>
-                          <Star className="mr-1 inline size-3.5 fill-current" aria-hidden />
-                          {course.ratingCount ? course.ratingAverage.toFixed(1) : "—"} ({course.ratingCount})
-                        </span>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-sm leading-relaxed">
-                        {course.description ?? t("explore.noDescription")}
-                      </CardDescription>
-                    </CardHeader>
-
-                    <CardFooter className="mt-auto flex flex-col gap-2 border-t border-border/60 bg-card px-4 py-4 sm:flex-row">
-                      {isAuthenticated ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-10 w-full rounded-md px-4 sm:flex-1"
-                          disabled={enrollMutation.isPending}
-                          type="button"
-                          onClick={() => void enrollMutation.mutateAsync(course.id)}
-                        >
-                          {enrollMutation.isPending ? t("explore.enrolling") : t("explore.enroll")}
-                        </Button>
-                      ) : null}
-                      <Button asChild size="sm" className="h-10 w-full rounded-md px-4 shadow-sm sm:flex-1">
-                        <Link to={`/courses/${course.id}`}>{t("explore.viewCourse")}</Link>
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
+                  return (
+                    <CourseCatalogCard
+                      key={course.id}
+                      course={course}
+                      href={`/courses/${course.id}`}
+                      viewLabel={t("explore.viewCourse")}
+                      noDescriptionLabel={t("explore.noDescription")}
+                      enrolledLearnersLabel={t("explore.enrolledLearners")}
+                      durationUnitLabel={t("courseStudio.courseDurationUnit")}
+                      metaSlot={
+                        priceLabel ? (
+                          <span className="text-xs font-semibold text-foreground">{priceLabel}</span>
+                        ) : undefined
+                      }
+                      secondaryAction={
+                        isAuthenticated && isEnrolled ? (
+                          <Button asChild variant="secondary" size="sm" className="h-10 flex-1 rounded-lg px-4">
+                            <Link to={getCourseLearnPath(course.id)}>{t("explore.continueLearning")}</Link>
+                          </Button>
+                        ) : showEnroll ? (
+                          <CourseEnrollButton
+                            courseId={course.id}
+                            priceCents={course.priceCents}
+                            currency={course.currency}
+                            variant="secondary"
+                            className="h-10 flex-1 rounded-lg px-4"
+                          />
+                        ) : undefined
+                      }
+                    />
+                  );
+                })}
               </div>
             ) : (
               <EmptyState
@@ -309,7 +500,7 @@ export function ExploreCoursesPage() {
                 action={
                   hasActiveFilters ? (
                     <Button type="button" variant="outline" size="sm" className="h-10 rounded-lg px-4" onClick={clearFilters}>
-                      {t("explore.clearSearch")}
+                      {t("explore.clearFilters")}
                     </Button>
                   ) : null
                 }

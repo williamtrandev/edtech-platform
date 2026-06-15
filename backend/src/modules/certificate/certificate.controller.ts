@@ -10,9 +10,18 @@ export class CertificateController {
     res.status(200).json({ success: true, data: certificates });
   };
 
-  verifyCertificate = async (req: Request, res: Response): Promise<void> => {
-    const certificate = await this.certificateService.verifyCertificate(req.params.verificationCode);
-    res.status(200).json({ success: true, data: certificate });
+  getSearchSuggestions = async (req: Request, res: Response): Promise<void> => {
+    const suggestions = await this.certificateService.getSearchSuggestions(
+      req.user,
+      String(req.query.q ?? ""),
+      Number(req.query.limit ?? 8)
+    );
+    res.status(200).json({ success: true, data: suggestions });
+  };
+
+  trackSearchTerm = async (req: Request, res: Response): Promise<void> => {
+    await this.certificateService.trackSearchTerm(req.user, String(req.body.term ?? ""));
+    res.status(204).send();
   };
 
   listCourseCertificates = async (req: Request, res: Response): Promise<void> => {
@@ -32,5 +41,13 @@ export class CertificateController {
   restoreCertificate = async (req: Request, res: Response): Promise<void> => {
     const certificate = await this.certificateService.restoreCertificate(req.user, req.params.certificateId);
     res.status(200).json({ success: true, data: certificate });
+  };
+
+  downloadCertificatePdf = async (req: Request, res: Response): Promise<void> => {
+    const pdf = await this.certificateService.createCertificatePdf(req.user, req.params.certificateId);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${pdf.filename}"`);
+    res.setHeader("Content-Length", pdf.buffer.length);
+    res.status(200).send(pdf.buffer);
   };
 }

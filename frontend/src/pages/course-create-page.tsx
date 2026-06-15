@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, BookOpenText, CheckCircle2, GripVertical, ListOrdered, Paperclip, PlayCircle, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { ArrowLeft, BookOpenText, CheckCircle2, ClipboardCheck, GripVertical, ListOrdered, Paperclip, PlayCircle, Trash2, Video } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -37,11 +37,13 @@ import {
   STUDIO_WORKSPACE_GRID
 } from "../lib/studio-layout";
 import { AppShell } from "../components/app-shell";
+import { CourseArchivedLessonsPanel } from "../components/course-archived-lessons-panel";
 import { CourseCreateAssignmentsStep, type PendingAssignment } from "../components/course-create-assignments-step";
 import { CourseCreateExamsStep, type PendingExam } from "../components/course-create-exams-step";
 import { CourseCreateStepper } from "../components/course-create-stepper";
 import { CourseCreateWizardFooter } from "../components/course-create-wizard-footer";
-import { CourseCoverFrame } from "../components/course-cover-frame";
+import { CourseLessonPreviewPanel } from "../components/course-lesson-preview-panel";
+import { CourseStudioCoverHero } from "../components/course-studio-cover-hero";
 import { CourseStatusBadge } from "../components/course-status-badge";
 import { CourseCoverUploader } from "../components/course-cover-uploader";
 import { FormField } from "../components/form-field";
@@ -49,9 +51,9 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { COURSE_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
-import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
+import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
 import {
   COURSE_CREATE_STEP,
@@ -59,9 +61,10 @@ import {
   getCourseCreateStepIndex,
   getNextCourseCreateStep,
   getPreviousCourseCreateStep,
+  isCourseCreateStepId,
   type CourseCreateStepId
 } from "../lib/course-create-wizard";
-import { parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { buildLessonContentForSubmit, parseLessonContent } from "../lib/lesson-content";
 import { assignmentService } from "../services/assignment.service";
 import { examService } from "../services/exam.service";
 import { createCourseFormSchema, CreateCourseFormValues, createLessonFormSchema, CreateLessonFormValues } from "../schemas/course.schema";
@@ -69,8 +72,9 @@ import { courseService, type Course, type Lesson } from "../services/course.serv
 import { uploadService, type UploadedFile } from "../services/upload.service";
 import { type I18nKey, useI18n } from "../i18n";
 
-function getNextLessonSortOrder(lessons: { sortOrder: number }[] | undefined) {
-  const maxSortOrder = lessons?.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0) ?? 0;
+function getNextLessonSortOrder(lessons: { sortOrder: number; archivedAt?: string | null }[] | undefined) {
+  const activeLessons = (lessons ?? []).filter((lesson) => !lesson.archivedAt);
+  const maxSortOrder = activeLessons.reduce((max, lesson) => Math.max(max, lesson.sortOrder), 0);
   return maxSortOrder + 1;
 }
 
@@ -84,34 +88,22 @@ type PendingLesson = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  progressWeight: number;
+  prerequisiteLessonId: string | null;
 };
-
-function buildLessonContent(values: CreateLessonFormValues, uploadedLessonFile: UploadedFile | null) {
-  const body = values.content.trim();
-  if (values.contentType === LESSON_CONTENT_TYPE.text) {
-    return serializeLessonContent({
-      version: 1,
-      kind: values.contentType,
-      body
-    });
-  }
-
-  return serializeLessonContent({
-    version: 1,
-    kind: values.contentType,
-    url: body,
-    fileName: uploadedLessonFile?.fileName,
-    mimeType: uploadedLessonFile?.mimeType,
-    size: uploadedLessonFile?.size
-  });
-}
 
 export function CourseCreatePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const courseIdFromUrl = searchParams.get("courseId");
+  const stepFromUrl = searchParams.get("step");
   const createCourseMutation = useCreateCourse();
   const [courseId, setCourseId] = useState<string | null>(courseIdFromUrl);
-  const [activeStep, setActiveStep] = useState<CourseCreateStepId>(COURSE_CREATE_STEP.details);
+  const [activeStep, setActiveStep] = useState<CourseCreateStepId>(() => {
+    if (isCourseCreateStepId(stepFromUrl)) {
+      return stepFromUrl;
+    }
+    return COURSE_CREATE_STEP.details;
+  });
   const [maxReachedStepIndex, setMaxReachedStepIndex] = useState(
     courseIdFromUrl ? COURSE_CREATE_STEPS.length - 1 : 0
   );
@@ -138,6 +130,7 @@ export function CourseCreatePage() {
   const createLessonMutation = useCreateLesson(courseId ?? "");
   const updateLessonMutation = useUpdateLesson(courseId ?? "");
   const deleteLessonMutation = useDeleteLesson(courseId ?? "");
+  const restoreLessonMutation = useRestoreLesson(courseId ?? "");
   const reorderLessonsMutation = useReorderLessons(courseId ?? "");
   const updateCourseMutation = useUpdateCourse(courseId ?? "");
 
@@ -155,6 +148,8 @@ export function CourseCreatePage() {
       requirements: "",
       outcomes: "",
       coverImageUrl: "",
+      priceCents: "",
+      currency: "USD",
       status: COURSE_STATUS.draft
     }
   });
@@ -166,7 +161,14 @@ export function CourseCreatePage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
-      sortOrder: 1
+      quizExamId: "",
+      liveMeetingUrl: "",
+      liveStartsAt: "",
+      liveInstructions: "",
+      liveDurationMinutes: "",
+      sortOrder: 1,
+      progressWeight: 1,
+      prerequisiteLessonId: null
     }
   });
 
@@ -190,11 +192,21 @@ export function CourseCreatePage() {
         title: lesson.title,
         contentType: lesson.contentType,
         content: lesson.content,
-        sortOrder: lesson.sortOrder
+        sortOrder: lesson.sortOrder,
+        progressWeight: lesson.progressWeight ?? 1,
+        prerequisiteLessonId: lesson.prerequisiteLessonId ?? null
       }));
   const nextLessonSortOrder = getNextLessonSortOrder(curriculumLessons);
   const isRestoringCourse = Boolean(courseId && courseQuery.isLoading);
   const lessons = curriculumLessons;
+  const selectedLesson = selectedLessonId ? lessons.find((lesson) => lesson.id === selectedLessonId) : undefined;
+  const archivedLessons = (lessonsQuery.data ?? []).filter((lesson) => lesson.archivedAt);
+  const editingLessonSortOrder = selectedLessonId
+    ? (lessons.find((lesson) => lesson.id === selectedLessonId)?.sortOrder ?? nextLessonSortOrder)
+    : nextLessonSortOrder;
+  const prerequisiteLessonOptions = lessons.filter(
+    (lesson) => lesson.id !== selectedLessonId && lesson.sortOrder < editingLessonSortOrder
+  );
   const isLessonSubmitPending = createLessonMutation.isPending || updateLessonMutation.isPending;
   const lessonSubmitLabel = updateLessonMutation.isPending
     ? t("courseDetail.savingLesson")
@@ -221,8 +233,29 @@ export function CourseCreatePage() {
       icon: Paperclip,
       label: t("lessonType.RESOURCE"),
       description: t("courseDetail.resourceTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.quiz,
+      icon: ClipboardCheck,
+      label: t("lessonType.QUIZ"),
+      description: t("courseDetail.quizTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.liveSession,
+      icon: Video,
+      label: t("lessonType.LIVE_SESSION"),
+      description: t("courseDetail.liveSessionTypeHint")
     }
   ];
+  const publishedExamOptions = useMemo(() => {
+    const saved = (examsQuery.data ?? []).filter(
+      (exam) => exam.status === EXAM_STATUS.published && exam.scope === EXAM_SCOPE.lesson
+    );
+    const pending = pendingExams
+      .filter((exam) => exam.payload.status === EXAM_STATUS.published && exam.payload.scope === EXAM_SCOPE.lesson)
+      .map((exam) => ({ id: exam.id, title: exam.payload.title }));
+    return [...pending, ...saved];
+  }, [examsQuery.data, pendingExams]);
   const publishChecks = [
     { label: t("courseDetail.publishRequirementTitle"), done: hasText(courseTitle) },
     { label: t("courseDetail.publishRequirementDescription"), done: hasText(courseDescription) && courseDescription.trim().length >= 10 },
@@ -239,15 +272,38 @@ export function CourseCreatePage() {
   const examCount = courseId ? (examsQuery.data?.length ?? 0) : pendingExams.length;
   const assignmentCount = courseId ? (assignmentsQuery.data?.length ?? 0) : pendingAssignments.length;
 
+  const syncWizardParams = (nextCourseId: string | null, stepId: CourseCreateStepId) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextCourseId) {
+      nextParams.set("courseId", nextCourseId);
+      nextParams.set("step", stepId);
+    } else {
+      nextParams.delete("courseId");
+      nextParams.delete("step");
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const setWizardStep = (stepId: CourseCreateStepId) => {
+    setActiveStep(stepId);
+    if (courseId) {
+      syncWizardParams(courseId, stepId);
+    }
+  };
+
   useEffect(() => {
     setCourseId(courseIdFromUrl);
     if (!courseIdFromUrl) {
       setActiveStep(COURSE_CREATE_STEP.details);
       setMaxReachedStepIndex(0);
-    } else {
-      setMaxReachedStepIndex(COURSE_CREATE_STEPS.length - 1);
+      return;
     }
-  }, [courseIdFromUrl]);
+
+    setMaxReachedStepIndex(COURSE_CREATE_STEPS.length - 1);
+    if (isCourseCreateStepId(stepFromUrl)) {
+      setActiveStep(stepFromUrl);
+    }
+  }, [courseIdFromUrl, stepFromUrl]);
 
   useEffect(() => {
     if (!courseQuery.data) {
@@ -269,7 +325,8 @@ export function CourseCreatePage() {
   }, [courseForm, courseQuery.data]);
 
   useEffect(() => {
-    setOrderedLessons(lessonsQuery.data ?? []);
+    const activeLessons = (lessonsQuery.data ?? []).filter((lesson) => !lesson.archivedAt);
+    setOrderedLessons(activeLessons);
   }, [lessonsQuery.data]);
 
   useEffect(() => {
@@ -297,6 +354,8 @@ export function CourseCreatePage() {
     requirements: values.requirements.trim(),
     outcomes: values.outcomes.trim(),
     coverImageUrl: values.coverImageUrl.trim(),
+    priceCents: values.priceCents === "" ? 0 : Number(values.priceCents),
+    currency: (values.currency ?? "USD").trim().toUpperCase(),
     status: values.status
   });
 
@@ -311,16 +370,16 @@ export function CourseCreatePage() {
       requirements: course.requirements ?? "",
       outcomes: course.outcomes ?? "",
       coverImageUrl: course.coverImageUrl ?? "",
+      priceCents: course.priceCents ?? 0,
+      currency: (course.currency ?? "USD").toUpperCase(),
       status: toEditableCourseStatus(course.status)
     });
   };
 
   const bindCourseToWizard = (course: Course) => {
     setCourseId(course.id);
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set("courseId", course.id);
-    setSearchParams(nextParams, { replace: true });
     resetCourseFormFromCourse(course);
+    syncWizardParams(course.id, activeStep);
   };
 
   const createCourseDraftFromForm = async (values: CreateCourseFormValues) => {
@@ -356,7 +415,9 @@ export function CourseCreatePage() {
         title: lesson.title,
         contentType: lesson.contentType,
         content: lesson.content,
-        sortOrder: lesson.sortOrder
+        sortOrder: lesson.sortOrder,
+        progressWeight: lesson.progressWeight,
+        prerequisiteLessonId: lesson.prerequisiteLessonId
       });
     }
 
@@ -471,7 +532,7 @@ export function CourseCreatePage() {
   const goToStep = (stepId: CourseCreateStepId) => {
     const index = getCourseCreateStepIndex(stepId);
     if (index <= maxReachedStepIndex) {
-      setActiveStep(stepId);
+      setWizardStep(stepId);
     }
   };
 
@@ -495,7 +556,7 @@ export function CourseCreatePage() {
 
       const nextIndex = getCourseCreateStepIndex(nextStep);
       setMaxReachedStepIndex((current) => Math.max(current, nextIndex));
-      setActiveStep(nextStep);
+      setWizardStep(nextStep);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("courseStudio.stepSaveFailed"));
     } finally {
@@ -506,14 +567,14 @@ export function CourseCreatePage() {
   const goToPreviousStep = () => {
     const previousStep = getPreviousCourseCreateStep(activeStep);
     if (previousStep) {
-      setActiveStep(previousStep);
+      setWizardStep(previousStep);
     }
   };
 
   const onSaveCourse = async (values: CreateCourseFormValues) => {
     if (!courseId) {
       toast.error(t("courseStudio.detailsIncomplete"));
-      setActiveStep(COURSE_CREATE_STEP.details);
+      setWizardStep(COURSE_CREATE_STEP.details);
       return;
     }
 
@@ -594,7 +655,7 @@ export function CourseCreatePage() {
 
   const onSubmitLesson = async (values: CreateLessonFormValues) => {
     const lessonId = selectedLessonId;
-    const content = buildLessonContent(values, uploadedLessonFile);
+    const content = buildLessonContentForSubmit(values, uploadedLessonFile);
 
     if (!courseId) {
       if (lessonId) {
@@ -605,7 +666,9 @@ export function CourseCreatePage() {
                   ...lesson,
                   title: values.title,
                   contentType: values.contentType,
-                  content
+                  content,
+                  progressWeight: values.progressWeight,
+                  prerequisiteLessonId: values.prerequisiteLessonId ?? null
                 }
               : lesson
           )
@@ -619,7 +682,9 @@ export function CourseCreatePage() {
             title: values.title,
             contentType: values.contentType,
             content,
-            sortOrder: nextLessonSortOrder
+            sortOrder: nextLessonSortOrder,
+            progressWeight: values.progressWeight,
+            prerequisiteLessonId: values.prerequisiteLessonId ?? null
           }
         ]);
         toast.success(t("courseDetail.lessonCreated"));
@@ -627,7 +692,14 @@ export function CourseCreatePage() {
           title: "",
           contentType: LESSON_CONTENT_TYPE.text,
           content: "",
-          sortOrder: nextLessonSortOrder + 1
+          quizExamId: "",
+          liveMeetingUrl: "",
+          liveStartsAt: "",
+          liveInstructions: "",
+          liveDurationMinutes: "",
+          sortOrder: nextLessonSortOrder + 1,
+          progressWeight: 1,
+          prerequisiteLessonId: null
         });
         setSelectedLessonId(null);
         setUploadedLessonFile(null);
@@ -645,7 +717,9 @@ export function CourseCreatePage() {
           payload: {
             title: values.title,
             contentType: values.contentType,
-            content
+            content,
+            progressWeight: values.progressWeight,
+            prerequisiteLessonId: values.prerequisiteLessonId ?? null
           }
         });
         toast.success(t("courseDetail.lessonUpdated"));
@@ -655,14 +729,23 @@ export function CourseCreatePage() {
         await createLessonMutation.mutateAsync({
           ...values,
           sortOrder: nextLessonSortOrder,
-          content
+          content,
+          progressWeight: values.progressWeight,
+          prerequisiteLessonId: values.prerequisiteLessonId ?? null
         });
         toast.success(t("courseDetail.lessonCreated"));
         lessonForm.reset({
           title: "",
           contentType: LESSON_CONTENT_TYPE.text,
           content: "",
-          sortOrder: nextLessonSortOrder + 1
+          quizExamId: "",
+          liveMeetingUrl: "",
+          liveStartsAt: "",
+          liveInstructions: "",
+          liveDurationMinutes: "",
+          sortOrder: nextLessonSortOrder + 1,
+          progressWeight: 1,
+          prerequisiteLessonId: null
         });
         lessonForm.clearErrors();
         setHasSubmittedLessonForm(false);
@@ -775,7 +858,14 @@ export function CourseCreatePage() {
       title: lesson.title,
       contentType: lesson.contentType,
       content: parsedContent.kind === LESSON_CONTENT_TYPE.text ? parsedContent.body ?? "" : parsedContent.url ?? "",
-      sortOrder: lesson.sortOrder
+      quizExamId: parsedContent.examId ?? "",
+      liveMeetingUrl: parsedContent.meetingUrl ?? "",
+      liveStartsAt: parsedContent.startsAt ? parsedContent.startsAt.slice(0, 16) : "",
+      liveInstructions: parsedContent.instructions ?? "",
+      liveDurationMinutes: parsedContent.durationMinutes ?? "",
+      sortOrder: lesson.sortOrder,
+      progressWeight: lesson.progressWeight ?? 1,
+      prerequisiteLessonId: lesson.prerequisiteLessonId ?? null
     });
   };
 
@@ -788,7 +878,14 @@ export function CourseCreatePage() {
       title: "",
       contentType: LESSON_CONTENT_TYPE.text,
       content: "",
-      sortOrder: nextLessonSortOrder
+      quizExamId: "",
+      liveMeetingUrl: "",
+      liveStartsAt: "",
+      liveInstructions: "",
+      liveDurationMinutes: "",
+      sortOrder: nextLessonSortOrder,
+      progressWeight: 1,
+      prerequisiteLessonId: null
     });
   };
 
@@ -803,7 +900,7 @@ export function CourseCreatePage() {
         onNewLesson();
       }
       setLessonPendingDelete(null);
-      toast.success(t("courseDetail.lessonDeleted"));
+      toast.success(t("courseDetail.lessonArchived"));
       return;
     }
 
@@ -819,9 +916,22 @@ export function CourseCreatePage() {
         onNewLesson();
       }
       setLessonPendingDelete(null);
-      toast.success(t("courseDetail.lessonDeleted"));
+      toast.success(t("courseDetail.lessonArchived"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonDeleteFailed"));
+      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonArchiveFailed"));
+    }
+  };
+
+  const onRestoreArchivedLesson = async (lessonId: string) => {
+    if (!courseId) {
+      return;
+    }
+
+    try {
+      await restoreLessonMutation.mutateAsync(lessonId);
+      toast.success(t("courseDetail.lessonRestored"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonRestoreFailed"));
     }
   };
 
@@ -838,26 +948,22 @@ export function CourseCreatePage() {
         </Button>
       }
     >
-      <div className="grid gap-5">
-        {courseId ? (
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-            <CourseCoverFrame src={coverImageUrl} className="min-h-0 max-h-[22rem]" emptyLabel={t("courseDetail.coverEmptyTitle")} />
-            <div className="grid gap-3 self-start">
-              <div className="rounded-xl bg-card ring-1 ring-foreground/10 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("courseDetail.status")}</span>
-                  <CourseStatusBadge status={courseStatus} label={t(`courseStatus.${courseStatus}` as I18nKey)} />
-                </div>
+      <div className="overflow-x-hidden space-y-8">
+        {courseId && courseQuery.data ? (
+          <CourseStudioCoverHero
+            title={courseTitle || courseQuery.data.title}
+            coverImageUrl={coverImageUrl}
+            coverEmptyLabel={t("courseDetail.coverEmptyTitle")}
+            status={courseStatus}
+            statusLabel={t(`courseStatus.${courseStatus}` as I18nKey)}
+            stats={
+              <div className="min-h-24 rounded-xl bg-background/80 px-3 py-3 ring-1 ring-foreground/10">
+                <ListOrdered className="mb-2 size-4 text-muted-foreground" aria-hidden />
+                <p className="truncate text-xl font-semibold tabular-nums">{lessonsQuery.isLoading ? "..." : lessons.length}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{t("courseDetail.metricLessons")}</p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-h-24 rounded-xl bg-card ring-1 ring-foreground/10 p-3">
-                  <ListOrdered className="mb-2 size-4 text-muted-foreground" aria-hidden />
-                  <p className="truncate text-xl font-semibold tabular-nums">{lessonsQuery.isLoading ? "..." : lessons.length}</p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">{t("courseDetail.metricLessons")}</p>
-                </div>
-              </div>
-            </div>
-          </section>
+            }
+          />
         ) : null}
 
         <CourseCreateStepper
@@ -961,6 +1067,31 @@ export function CourseCreatePage() {
                   </FormField>
                 </div>
 
+                <div className={cn(STUDIO_PANEL, "grid gap-3")}>
+                  <div>
+                    <h2 className="text-sm font-semibold">{t("courseDetail.coursePricing")}</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("courseDetail.coursePricingDescription")}</p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FormField
+                      id="course-price"
+                      label={t("courseDetail.coursePriceCents")}
+                      hint={t("courseDetail.coursePriceCentsHint")}
+                      error={courseForm.formState.errors.priceCents?.message}
+                    >
+                      <Input id="course-price" inputMode="numeric" min={0} type="number" placeholder="0" {...courseForm.register("priceCents")} />
+                    </FormField>
+                    <FormField
+                      id="course-currency"
+                      label={t("courseDetail.courseCurrency")}
+                      hint={t("courseDetail.courseCurrencyHint")}
+                      error={courseForm.formState.errors.currency?.message}
+                    >
+                      <Input id="course-currency" maxLength={3} placeholder="USD" {...courseForm.register("currency")} />
+                    </FormField>
+                  </div>
+                </div>
+
                 {courseId ? (
                   <FormField id="course-status" label={t("courseDetail.status")} error={courseForm.formState.errors.status?.message}>
                     <Controller
@@ -1000,7 +1131,8 @@ export function CourseCreatePage() {
         {activeStep === COURSE_CREATE_STEP.lessons ? (
         <section className="grid gap-4">
         <section className={STUDIO_WORKSPACE_GRID}>
-          <Card className="order-2 min-w-0 w-full">
+          <div className="order-2 grid min-w-0 gap-4">
+          <Card className="min-w-0 w-full rounded-2xl border-0 shadow-none ring-1 ring-foreground/10">
             <CardHeader className="border-b border-border pb-4">
               <CardTitle className={STUDIO_EDITOR_TITLE}>{selectedLessonId ? t("courseDetail.editLesson") : t("courseStudio.addLessons")}</CardTitle>
               <CardDescription>{selectedLessonId ? t("courseDetail.editingSelectedLesson") : t("courseStudio.addLessonsDescription")}</CardDescription>
@@ -1011,12 +1143,59 @@ export function CourseCreatePage() {
                   <Input id="new-lesson-title" placeholder={t("courseDetail.lessonTitlePlaceholder")} {...lessonForm.register("title")} />
                 </FormField>
 
+                {prerequisiteLessonOptions.length > 0 ? (
+                  <FormField
+                    id="new-lesson-prerequisite"
+                    label={t("courseDetail.prerequisiteLesson")}
+                    hint={t("courseDetail.prerequisiteHint")}
+                  >
+                    <Controller
+                      control={lessonForm.control}
+                      name="prerequisiteLessonId"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value ?? "__none__"}
+                          onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                        >
+                          <SelectTrigger id="new-lesson-prerequisite" className="w-full">
+                            <SelectValue placeholder={t("courseDetail.prerequisiteNone")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">{t("courseDetail.prerequisiteNone")}</SelectItem>
+                            {prerequisiteLessonOptions.map((lesson) => (
+                              <SelectItem key={lesson.id} value={lesson.id}>
+                                {lesson.sortOrder}. {lesson.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </FormField>
+                ) : null}
+
+                <FormField
+                  id="new-lesson-progress-weight"
+                  label={t("courseDetail.progressWeight")}
+                  hint={t("courseDetail.progressWeightHint")}
+                  error={getLessonError(lessonForm.formState.errors.progressWeight?.message)}
+                >
+                  <Input
+                    id="new-lesson-progress-weight"
+                    type="number"
+                    min={1}
+                    max={100}
+                    className="max-w-[8rem]"
+                    {...lessonForm.register("progressWeight", { valueAsNumber: true })}
+                  />
+                </FormField>
+
                 <FormField id="new-lesson-type" label={t("courseDetail.lessonType")} error={getLessonError(lessonForm.formState.errors.contentType?.message)}>
                   <Controller
                     control={lessonForm.control}
                     name="contentType"
                     render={({ field }) => (
-                      <div id="new-lesson-type" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="radiogroup" aria-label={t("courseDetail.lessonType")}>
+                      <div id="new-lesson-type" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" role="radiogroup" aria-label={t("courseDetail.lessonType")}>
                         {lessonTypeOptions.map((option) => {
                           const Icon = option.icon;
                           const active = field.value === option.value;
@@ -1033,6 +1212,11 @@ export function CourseCreatePage() {
                               onClick={() => {
                                 field.onChange(option.value);
                                 lessonForm.setValue("content", "", { shouldDirty: true });
+                                lessonForm.setValue("quizExamId", "", { shouldDirty: true });
+                                lessonForm.setValue("liveMeetingUrl", "", { shouldDirty: true });
+                                lessonForm.setValue("liveStartsAt", "", { shouldDirty: true });
+                                lessonForm.setValue("liveInstructions", "", { shouldDirty: true });
+                                lessonForm.setValue("liveDurationMinutes", "", { shouldDirty: true });
                                 setUploadedLessonFile(null);
                               }}
                             >
@@ -1134,6 +1318,85 @@ export function CourseCreatePage() {
                   </FormField>
                 ) : null}
 
+                {lessonContentType === LESSON_CONTENT_TYPE.quiz ? (
+                  <FormField
+                    id="new-lesson-quiz-exam"
+                    label={t("courseDetail.quizLinkedExam")}
+                    hint={t("courseDetail.quizLinkedExamHint")}
+                    error={getLessonError(lessonForm.formState.errors.quizExamId?.message)}
+                  >
+                    <Controller
+                      control={lessonForm.control}
+                      name="quizExamId"
+                      render={({ field }) => (
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <SelectTrigger id="new-lesson-quiz-exam" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                            <SelectValue placeholder={t("courseDetail.quizLinkedExamPlaceholder")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {publishedExamOptions.length ? (
+                              publishedExamOptions.map((exam) => (
+                                <SelectItem key={exam.id} value={exam.id}>
+                                  {exam.title}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="__none" disabled>
+                                {t("courseDetail.quizNoPublishedExams")}
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </FormField>
+                ) : null}
+
+                {lessonContentType === LESSON_CONTENT_TYPE.liveSession ? (
+                  <>
+                    <FormField
+                      id="new-lesson-live-url"
+                      label={t("courseDetail.liveSessionMeetingUrl")}
+                      hint={t("courseDetail.optional")}
+                      error={getLessonError(lessonForm.formState.errors.liveMeetingUrl?.message)}
+                    >
+                      <Input id="new-lesson-live-url" type="url" placeholder={t("courseDetail.liveSessionMeetingUrlPlaceholder")} {...lessonForm.register("liveMeetingUrl")} />
+                    </FormField>
+                    <FormField
+                      id="new-lesson-live-starts"
+                      label={t("courseDetail.liveSessionStartsAt")}
+                      hint={t("courseDetail.optional")}
+                      error={getLessonError(lessonForm.formState.errors.liveStartsAt?.message)}
+                    >
+                      <Input id="new-lesson-live-starts" type="datetime-local" {...lessonForm.register("liveStartsAt")} />
+                    </FormField>
+                    <FormField
+                      id="new-lesson-live-duration"
+                      label={t("courseDetail.liveSessionDurationMinutes")}
+                      hint={t("courseDetail.liveSessionDurationHint")}
+                      error={getLessonError(lessonForm.formState.errors.liveDurationMinutes?.message)}
+                    >
+                      <Input
+                        id="new-lesson-live-duration"
+                        inputMode="numeric"
+                        min={5}
+                        max={480}
+                        type="number"
+                        placeholder={t("courseDetail.liveSessionDurationPlaceholder")}
+                        {...lessonForm.register("liveDurationMinutes")}
+                      />
+                    </FormField>
+                    <FormField
+                      id="new-lesson-live-instructions"
+                      label={t("courseDetail.liveSessionInstructions")}
+                      hint={t("courseDetail.liveSessionInstructionsHint")}
+                      error={getLessonError(lessonForm.formState.errors.liveInstructions?.message)}
+                    >
+                      <TextareaField id="new-lesson-live-instructions" rows={5} placeholder={t("courseDetail.liveSessionInstructionsPlaceholder")} {...lessonForm.register("liveInstructions")} />
+                    </FormField>
+                  </>
+                ) : null}
+
                 <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
                   <span className="text-xs text-muted-foreground">
                     {selectedLessonId
@@ -1147,8 +1410,22 @@ export function CourseCreatePage() {
               </form>
             </CardContent>
           </Card>
+          {courseId ? (
+            <CourseLessonPreviewPanel
+              lesson={selectedLesson}
+              courseId={courseId}
+              title={t("courseDetail.lessonPreviewTitle")}
+              description={t("courseDetail.lessonPreviewDescription")}
+              emptyTitle={t("courseDetail.selectLesson")}
+              emptyDescription={t("courseDetail.lessonPreviewEmptyDescription")}
+              contentEmptyTitle={t("courseDetail.lessonContentEmptyTitle")}
+              contentEmptyDescription={t("courseDetail.lessonContentEmptyDescription")}
+              resumeVideoLabel={t("courseLearn.resumeVideo")}
+            />
+          ) : null}
+          </div>
 
-          <Card className={cn("order-1", STUDIO_LIST_STICKY)}>
+          <Card className={cn("order-1 rounded-2xl border-0 shadow-none ring-1 ring-foreground/10", STUDIO_LIST_STICKY)}>
             <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-4">
               <div>
                 <CardTitle className={STUDIO_EDITOR_TITLE}>{t("courseDetail.curriculum")}</CardTitle>
@@ -1205,7 +1482,7 @@ export function CourseCreatePage() {
                             size="sm"
                             className="size-8 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                             disabled={deleteLessonMutation.isPending}
-                            aria-label={t("courseDetail.deleteLesson")}
+                            aria-label={t("courseDetail.archiveLesson")}
                             onClick={(event) => {
                               event.stopPropagation();
                               setLessonPendingDelete(lesson);
@@ -1224,6 +1501,16 @@ export function CourseCreatePage() {
                 <p className="rounded-xl bg-muted/30 ring-1 ring-foreground/10 px-4 py-8 text-center text-sm text-muted-foreground">
                   {courseId ? t("courseDetail.noLessonsDescription") : t("courseStudio.addFirstLessonHint")}
                 </p>
+              ) : null}
+              {courseId ? (
+                <CourseArchivedLessonsPanel
+                  lessons={archivedLessons}
+                  isRestoring={restoreLessonMutation.isPending}
+                  restoringLessonId={restoreLessonMutation.variables ?? null}
+                  onRestore={(lessonId) => {
+                    void onRestoreArchivedLesson(lessonId);
+                  }}
+                />
               ) : null}
             </CardContent>
           </Card>
@@ -1349,9 +1636,9 @@ export function CourseCreatePage() {
       <AlertDialog open={Boolean(lessonPendingDelete)} onOpenChange={(open) => !open && setLessonPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("courseDetail.deleteLesson")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("courseDetail.archiveLesson")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("courseDetail.deleteLessonConfirm")}
+              {t("courseDetail.archiveLessonConfirm")}
               {lessonPendingDelete ? <span className="mt-2 block font-medium text-foreground">{lessonPendingDelete.title}</span> : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1365,7 +1652,7 @@ export function CourseCreatePage() {
                 void confirmDeleteLesson();
               }}
             >
-              {deleteLessonMutation.isPending ? t("courseDetail.lessonDeletePending") : t("courseDetail.deleteLesson")}
+              {deleteLessonMutation.isPending ? t("courseDetail.lessonArchivePending") : t("courseDetail.archiveLesson")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

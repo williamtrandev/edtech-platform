@@ -34,6 +34,19 @@ export const courseFacetsSchema = z.object({
   })
 });
 
+export const courseSearchSuggestionsSchema = z.object({
+  query: z.object({
+    q: z.string().trim().max(120).default(""),
+    limit: z.coerce.number().int().min(1).max(20).default(8)
+  })
+});
+
+export const courseSearchEventSchema = z.object({
+  body: z.object({
+    term: z.string().trim().min(1).max(120)
+  })
+});
+
 export const courseIdParamSchema = z.object({
   params: z.object({
     id: z.string().min(1)
@@ -47,6 +60,17 @@ export const lockCourseSchema = z.object({
   body: z.object({
     reason: z.string().trim().max(1000).optional()
   })
+});
+
+export const assignCourseInstructorSchema = z.object({
+  params: z.object({
+    id: z.string().min(1)
+  }),
+  body: z
+    .object({
+      instructorId: z.string().trim().min(1).max(200)
+    })
+    .strict()
 });
 
 export const courseEnrollmentsSchema = z.object({
@@ -73,6 +97,8 @@ export const createCourseSchema = z.object({
     requirements: requiredTrimmedString(1, 2000),
     outcomes: requiredTrimmedString(1, 2000),
     coverImageUrl: mediaUrlSchema,
+    priceCents: z.coerce.number().int().min(0).max(10_000_000).default(0),
+    currency: z.string().trim().length(3).default("USD"),
     status: courseStatusSchema.default("DRAFT")
   })
 });
@@ -91,6 +117,8 @@ export const updateCourseSchema = z.object({
     requirements: optionalNullableTrimmedString(2000),
     outcomes: optionalNullableTrimmedString(2000),
     coverImageUrl: mediaUrlSchema.nullable().optional(),
+    priceCents: z.coerce.number().int().min(0).max(10_000_000).optional(),
+    currency: z.string().trim().length(3).optional(),
     status: courseStatusSchema.optional()
   })
 });

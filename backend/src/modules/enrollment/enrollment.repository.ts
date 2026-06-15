@@ -1,6 +1,26 @@
 import { prisma } from "../../config/prisma";
 
 export class EnrollmentRepository {
+  async findEnrolledCourseIds(userId: string, courseIds: string[]) {
+    if (courseIds.length === 0) {
+      return [];
+    }
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        userId,
+        courseId: {
+          in: courseIds
+        }
+      },
+      select: {
+        courseId: true
+      }
+    });
+
+    return enrollments.map((entry) => entry.courseId);
+  }
+
   async findByUserAndCourse(userId: string, courseId: string) {
     return prisma.enrollment.findUnique({
       where: {

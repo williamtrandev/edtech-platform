@@ -1,7 +1,7 @@
 # System Features Progress
 
 Source: `system-feats.md`  
-Last updated: 2026-05-21
+Last updated: 2026-06-01
 
 Legend:
 
@@ -14,9 +14,10 @@ Legend:
 - [x] Basic LMS shell exists: course catalog, course detail, lesson content, enrollment, progress.
 - [x] Three roles exist: `USER`, `INSTRUCTOR`, `ADMIN`.
 - [x] Role-based routing exists for learner explore, instructor/admin course workspace, admin users.
+- [x] Sidebar navigation is scoped per role; admin no longer sees learner menus.
 - [x] Course workspace UI now differs by role: instructors see owned-course creation workspace, admins see review/management workspace.
 - [x] Frontend data hooks are centralized under `frontend/src/hooks` for easier feature control.
-- [~] Product still missing exam attempts/grading, assignments, certificates, notifications, and full analytics.
+- [~] Product still missing advanced analytics refinements and several workflow items; certificate PDF, notification preferences, and email queue are now in place.
 
 ## 2. Authentication / Account Flow
 
@@ -53,10 +54,10 @@ Legend:
 - [x] My Learning page lists enrolled courses.
 - [x] Enrollment action invalidates enrollment, course, and progress queries.
 - [x] Enrollment response includes initial progress snapshot (`0%` until first lesson completion).
-- [ ] Enrollment success notification not implemented.
-- [~] Enrollment keeps user on course detail and unlocks curriculum; dedicated learning page still missing.
-- [ ] Admin manual enrollment/removal not implemented.
-- [ ] Drop/cancel enrollment not implemented.
+- [x] Enrollment success notification implemented through in-app notifications.
+- [x] Dedicated learner learning page exists (`/courses/:courseId/learn`) and enrolled learners are redirected there from curriculum flow.
+- [x] Admin manual enrollment/removal implemented for course owner/admin.
+- [x] Drop/cancel enrollment implemented for learners.
 
 ## 5. Course Learning Flow
 
@@ -66,14 +67,14 @@ Legend:
 - [x] Lesson completion endpoint exists.
 - [x] Course progress percentage from completed lessons exists.
 - [x] My Progress page exists.
-- [~] Course detail doubles as management/detail/learning page; learner reader + nav added on curriculum tab.
+- [~] Course detail still contains learner reader fallback, but primary learner flow is dedicated `/learn` page.
 - [x] Learner lesson content panel with previous/next navigation on course detail.
 - [~] RESOURCE preview supports images/PDF/markdown/text where possible; unsupported files open externally.
-- [ ] Video watch progress/resume not implemented.
-- [ ] QUIZ and LIVE_SESSION lesson types not implemented.
-- [ ] Locked lesson/prerequisite logic not implemented.
-- [ ] Offline progress sync not implemented.
-- [ ] Deleted lesson recovery/archive is not implemented; delete is hard delete with reorder.
+- [x] Video watch progress/resume implemented (`watchPositionSeconds`) in learner `/learn` flow.
+- [x] QUIZ and LIVE_SESSION lesson types: enum + migration, studio authoring (link exam / live details), learner `/learn` quiz attempt panel + live session card.
+- [x] Lesson prerequisites: `Lesson.prerequisiteLessonId`, cycle validation on instructor update, learner unlock in `GET /lesson-progress/courses/:courseId/me/lessons`, progress writes blocked with `LESSON_LOCKED_PREREQUISITE`, learn curriculum lock UI + studio prerequisite picker.
+- [x] Offline progress sync: local queue for lesson completion/watch position, `POST /lesson-progress/sync` batch replay with idempotency, learn-page sync banner.
+- [x] Deleted lesson recovery/archive: `Lesson.archivedAt`, `DELETE /lessons/:id` archives (keeps progress), `POST /lessons/:id/restore`, learners see active lessons only, studio archived panel + restore.
 
 ## 6. Instructor Course Management Flow
 
@@ -84,7 +85,9 @@ Legend:
 - [x] Instructor can upload cover image, lesson files, lesson videos.
 - [x] Instructor can reorder lessons with drag-and-drop.
 - [x] Reorder uses debounced/silent update behavior in UI.
-- [x] Course status supports `DRAFT`, `PUBLISHED`, `ARCHIVED`.
+- [x] Course status supports `DRAFT`, `PUBLISHED`, `ARCHIVED`, `LOCKED`.
+- [x] Admin can lock/unlock invalid courses via `POST/DELETE /courses/:id/locks` with optional reason; restores prior status on unlock.
+- [x] Locked courses hidden from learner explore/enrollment; instructor read-only until admin unlocks.
 - [x] Instructor/admin can view enrolled students for course.
 - [x] Admin can manage existing courses.
 - [x] Instructor workspace list defaults to owned courses; admin workspace can review all courses.
@@ -92,64 +95,65 @@ Legend:
 - [x] Publish validation blocks missing title, cover, required metadata, outcomes, requirements, or lesson.
 - [x] Category, level, language, outcomes, requirements can be created/edited.
 - [x] Publish is blocked when course has no lessons.
-- [ ] Course preview flow not separated.
-- [ ] Course analytics are not implemented beyond learner count/progress basics.
-- [ ] Course owner assignment not implemented.
-- [ ] Archive impact warning/audit not implemented.
+- [x] Course preview flow: `/courses/:courseId/preview` (+ lesson) for course owner/admin, amber banner, no progress writes, fresh-learner prerequisite simulation, CTA on course studio.
+- [x] Course analytics on studio course detail (`GET /courses/:id/analytics`: completion/engagement, exam/assignment stats, at-risk learners, certificate history).
+- [x] Course owner assignment: admin `PUT /courses/:id/instructors`, studio owner picker on course detail.
+- [x] Archive impact warning/audit: `GET /courses/:id/archive-impact`, confirm dialog impact summary, `COURSE_ARCHIVED` audit stores impact snapshot.
 - [x] Course review workflow implemented.
 
 - [x] Exam model/schema implemented with course ownership and status lifecycle.
 - [x] Exam authoring supports metadata CRUD, archive, and question authoring for single-choice, multi-choice, and free-text questions.
 - [x] Exam attempt lifecycle supports start, answer capture, idempotent submit, auto-grading worker, and graded results UI.
-- [ ] Exam timer and timeout auto-submit not implemented.
-- [x] Answer autosave API (`PATCH /exam-attempts/:attemptId/answers`) implemented; frontend autosave UX not wired yet.
+- [x] Exam timer and timeout auto-submit implemented in learner exam UI.
+- [x] Answer autosave API and debounced frontend autosave UX implemented.
 - [x] Auto-grading for single/multi choice via BullMQ `exam-grading` worker.
 - [x] Manual grading API (`PATCH /exam-attempts/:attemptId/grading`) for instructor/admin.
+- [x] Manual grading UI implemented: instructor/admin can list exam attempts, inspect answers, filter by status, and save score.
 - [x] Exam submit requires `Idempotency-Key` and caches duplicate submit response in Redis.
-- [ ] Anti-cheat events not implemented.
-- [~] Grading worker exists; retry/dead-letter admin UI not implemented.
+- [x] Anti-cheat integrity events: client tab/focus/reconnect logging, server submit events, instructor integrity log and attempt flags.
+- [x] Grading worker exists; admin failed-job inbox with retry batch, discard, and dead-letter move on `/jobs`.
 
 ## 8. Assignment Flow
 
-- [ ] Assignment model/schema not implemented.
-- [ ] Assignment creation/publishing not implemented.
-- [ ] Student submission flow not implemented.
-- [ ] Assignment file upload tied to submissions not implemented.
-- [ ] Late submission logic not implemented.
-- [ ] Instructor grading/feedback not implemented.
-- [ ] Rubric support not implemented.
-- [ ] Grade history/audit not implemented.
+- [x] Assignment model/schema implemented.
+- [x] Assignment creation/publishing/archive implemented for instructor owner/admin.
+- [x] Student submission flow implemented for enrolled learners.
+- [x] Assignment attachment upload picker wired (`LessonUploadField` + upload service).
+- [x] Late submission flag set when `submittedAt > dueAt`.
+- [x] Instructor grading/feedback implemented.
+- [x] Rubric support: criteria on assignment (`PUT /assignments/:assignmentId/rubric-criteria`), per-criterion grading, learner rubric breakdown.
+- [x] Grade history timeline for learners (`GET /learner-analytics/courses/:courseId/me` + sidebar on course learn page).
 
 ## 9. Progress Tracking Flow
 
 - [x] Lesson completion stored per user/lesson.
 - [x] Course progress percentage is calculated server-side from lesson counts.
 - [x] Progress permission checks use enrollment or owner/admin access.
-- [~] Progress currently uses lesson completion only.
+- [x] Progress uses weighted lessons, exams, and assignments with completion criteria.
 - [~] Student dashboard exists; per-lesson progress API added (`GET /lesson-progress/courses/:courseId/me/lessons`).
-- [ ] Weighted progress not implemented.
-- [ ] Course completion criteria not implemented.
-- [ ] Exam/assignment inputs not implemented.
-- [ ] Instructor analytics for inactive students/drop-off not implemented.
-- [ ] Progress recalculation rules for removed lessons/grade changes not implemented.
+- [x] Weighted progress implemented (lessons + exams + assignments segments).
+- [x] Course completion criteria: lessons-only or full requirements (lessons + passed exams + submitted assignments).
+- [x] Certificate auto-issue hooks on lesson complete, exam graded, assignment submit.
+- [x] Instructor at-risk learner insights in `GET /courses/:id/analytics` (inactive, stalled, low progress).
+- [x] Progress recalculation on lesson removal: completed lessons capped to current total; issued certificates are not auto-revoked when requirements change.
 
 ## 10. Certificate Flow
 
-- [ ] Certificate model/schema not implemented.
-- [ ] Auto-issue after completion not implemented.
-- [ ] Certificate PDF generation not implemented.
-- [ ] Public verification page not implemented.
-- [ ] Certificate revoke/restore not implemented.
-- [ ] Certificate audit/history not implemented.
+- [x] Certificate model/schema implemented.
+- [x] Certificate PDF generation implemented (`GET /certificates/:certificateId/pdf`) with Redis cache and BullMQ `certificate-pdf` worker.
+- [x] Public verification page implemented.
+- [x] Certificate revoke/restore implemented for course owner/admin with audit entries.
+- [x] Certificate issue notification implemented; certificate history timeline in course analytics UI.
+- [x] Certificate issue audited (`CERTIFICATE_ISSUED`).
 
 ## 11. Notification Flow
 
-- [ ] Notification model/schema not implemented.
-- [ ] In-app notification center not implemented.
-- [ ] Enrollment success notification not implemented.
-- [ ] Course/exam/assignment/certificate notifications not implemented.
-- [ ] Email notification queue not implemented.
-- [ ] User notification preferences not implemented.
+- [x] Notification model/schema implemented.
+- [x] In-app notification center implemented in authenticated layout.
+- [x] Enrollment success notification implemented.
+- [x] Assignment graded, certificate issued, exam submit/graded, and course published notifications implemented in-app.
+- [x] User notification preferences implemented in account settings (`GET/PATCH /notifications/preferences`).
+- [x] Email notification queue implemented with typed templates and SMTP/Resend/log providers.
 
 ## 12. Admin User Management Flow
 
@@ -159,42 +163,42 @@ Legend:
 - [x] Admin can assign roles on create.
 - [~] Role labels are localized.
 - [x] User search/filter exists by email/ID and role.
-- [ ] User detail page missing.
+- [x] User detail page implemented (`/users/:id`).
 - [x] Role update for existing users exists in UI/API flow.
 - [x] Suspend/reactivate exists with `ACTIVE`/`SUSPENDED` user status.
 - [x] Last admin protection exists for role downgrade/delete.
-- [~] Admin role/status updates are audited; full admin action audit UI missing.
+- [x] Admin role/status updates are audited; audit log UI covers grade, enrollment, and certificate actions.
 
 ## 13. Audit Flow
 
 - [x] Audit log model/schema exists.
 - [x] Role/status change audit implemented for admin user updates.
 - [x] Course publish/archive audit implemented.
-- [ ] Grade/certificate/admin override audit not implemented.
-- [ ] Append-only audit rules not implemented.
+- [x] Grade/certificate/admin override audit implemented (manual/auto exam grade, assignment grade, manager enrollment, certificates).
+- [x] Append-only audit rules enforced in Prisma client (`auditLog` update/delete/upsert blocked).
 - [x] Audit UI implemented for admin audit log browsing/filtering.
 
 ## 14. Analytics Flow
 
 - [~] Basic learner count appears on course/explore cards.
 - [~] Basic course progress appears for current user.
-- [~] Analytics queue scaffold exists, but no real aggregation payloads.
-- [ ] Student analytics beyond progress not implemented.
-- [ ] Instructor course analytics not implemented.
-- [ ] Admin platform analytics not implemented.
-- [ ] Queue failure rate / analytics dashboard not implemented.
+- [x] Analytics queue refreshes platform overview snapshot into Redis (`platform-overview` job every 5 minutes).
+- [x] Student learning analytics (`GET /learner-analytics/me`: summary, exams/assignments, study streak, grade history, recent activity; My Progress UI).
+- [x] Instructor course analytics on course detail (`GET /courses/:id/analytics`).
+- [~] Basic platform analytics page implemented for admin (`/analytics`).
+- [x] Queue failure rate shown on admin `/jobs` per queue (`failed / (completed + failed)`).
 
 ## 15. Background Job Flow
 
 - [x] BullMQ/Redis base queue scaffold exists.
 - [x] Analytics worker scaffold exists.
-- [~] Worker logging exists but uses console in job files and needs logger alignment.
-- [ ] Email sending jobs not implemented.
+- [x] Worker logging uses shared Winston logger in job workers.
+- [~] Email notification job queue implemented with worker, retry/backoff, and Resend/log delivery.
 - [x] Exam grading jobs implemented (`exam-grading` queue + worker).
-- [ ] Certificate PDF jobs not implemented.
-- [ ] Notification delivery jobs not implemented.
-- [ ] File cleanup jobs not implemented.
-- [ ] Dead-letter/admin retry UI not implemented.
+- [x] Certificate PDF jobs implemented (`certificate-pdf` queue, warm on issue/restore, cache invalidation on revoke).
+- [~] In-app notification delivery is synchronous; queued email delivery implemented via BullMQ worker.
+- [x] File cleanup jobs implemented (`file-cleanup` queue, orphan `/uploads` scan, daily cron 04:00, 24h grace).
+- [x] Job monitoring UI on admin `/jobs` with paginated failed-job inbox, retry batch, discard, and dead-letter queue move.
 
 ## 16. Search & Discovery Flow
 
@@ -212,7 +216,8 @@ Legend:
 - [x] View published courses: `USER`, `INSTRUCTOR`, `ADMIN`, guest.
 - [x] View draft courses: instructor owner/admin via detail/workspace.
 - [x] Create course: instructor.
-- [x] Edit/archive course: owner/admin.
+- [x] Edit/archive course: owner/admin (blocked while locked except admin unlock).
+- [x] Lock/unlock course moderation: admin only.
 - [x] View enrolled students: owner/admin.
 - [x] Create/edit/reorder/delete lessons: owner/admin.
 - [x] View own progress: user.
@@ -220,10 +225,10 @@ Legend:
 - [~] Admin create course differs from spec: current product blocks admin creation.
 - [x] Lesson access requires enrollment or owner/admin access.
 - [x] Exam permissions implemented for metadata/list/archive/questions and learner attempts.
-- [ ] Assignments permissions not implemented.
-- [ ] Certificate permissions not implemented.
-- [ ] Notifications permissions not implemented.
-- [ ] Audit/job monitoring permissions not implemented.
+- [x] Assignments permissions implemented for owner/admin management and enrolled learner submission.
+- [x] Certificate permissions implemented for current-user list and public verification.
+- [x] Notifications permissions implemented for current-user-only access.
+- [x] Audit/job monitoring permissions: admin-only via auth middleware + service checks.
 
 ## 18. Recommended Priorities Status
 
@@ -236,7 +241,7 @@ Legend:
 - [x] Enrollment
 - [x] Lesson learning (course detail learner reader + prev/next)
 - [x] Lesson completion
-- [~] My Learning dashboard
+- [x] My Learning dashboard with resume lesson deep links (`continueLessonId` on enrollment progress).
 
 ### Phase 2 - Instructor Studio
 
@@ -250,54 +255,54 @@ Legend:
 
 - [x] Exam creation
 - [x] Exam taking
-- [~] Auto-save (API only)
+- [x] Auto-save
 - [x] Submit exam
-- [x] Manual grading (API)
-- [ ] Assignment creation
-- [ ] Assignment submission
-- [ ] Assignment grading
+- [x] Manual grading (API + UI)
+- [x] Assignment creation
+- [x] Assignment submission
+- [x] Assignment grading
 
 ### Phase 4 - Progress & Certificate
 
-- [ ] Weighted progress
-- [ ] Course completion
-- [ ] Certificate auto-issue
-- [ ] Certificate PDF
-- [ ] Certificate verification page
+- [x] Weighted progress
+- [x] Course completion based on lesson completion only.
+- [x] Certificate auto-issue
+- [x] Certificate PDF
+- [x] Certificate verification page
 
 ### Phase 5 - Admin & Reliability
 
 - [~] User management
 - [x] Role change
 - [x] Audit logs
-- [ ] Queue dashboard
-- [ ] Notification management
-- [ ] Platform analytics
+- [x] Queue dashboard
+- [x] Notification management
+- [x] Platform analytics
 
 ### Phase 6 - Advanced Features
 
-- [ ] Anti-cheat logs
+- [x] Anti-cheat logs (exam attempt integrity events API + instructor UI)
 - [x] Course review workflow
-- [ ] Live session
-- [ ] Discussion/comments
+- [x] Live session
+- [x] Discussion/comments
 - [x] Rating/review
-- [ ] Learning path
-- [ ] Payment support
+- [x] Learning path
+- [x] Payment support
 
 ## 19. Constants / Domain Model
 
 - [x] `USER_ROLE`: `USER`, `INSTRUCTOR`, `ADMIN`.
 - [x] `COURSE_STATUS`: `DRAFT`, `PUBLISHED`, `ARCHIVED`.
-- [~] `LESSON_CONTENT_TYPE`: `TEXT`, `VIDEO`, `RESOURCE`; missing `QUIZ`, `LIVE_SESSION`.
+- [x] `LESSON_CONTENT_TYPE`: `TEXT`, `VIDEO`, `RESOURCE`, `QUIZ`, `LIVE_SESSION`.
 - [x] `EXAM_STATUS`, `EXAM_QUESTION_TYPE`, `EXAM_ATTEMPT_STATUS` implemented in constants/schema.
-- [ ] `ASSIGNMENT_SUBMISSION_STATUS` not implemented.
-- [ ] `CERTIFICATE_STATUS` not implemented.
-- [ ] `NOTIFICATION_TYPE` not implemented.
+- [x] `ASSIGNMENT_SUBMISSION_STATUS` implemented.
+- [x] `CERTIFICATE_STATUS` implemented.
+- [x] `NOTIFICATION_TYPE` implemented.
 
 ## Next Suggested Work
 
-1. Wire exam answer autosave in UI; add exam timer + timeout auto-submit.
-2. Instructor UI for manual grading of free-text attempts.
-3. Greenfield assignment module (schema + API + learner/instructor UI).
-4. Notification model + delivery queue hooked to enroll/grade events.
-5. Add append-only audit hardening and wider audit coverage.
+1. [x] Wire production SMTP credentials (`EMAIL_PROVIDER=SMTP`, `SMTP_*`, `EMAIL_FROM`, `APP_PUBLIC_URL`). Admin Jobs page shows delivery status; see `backend/.env.example`.
+2. [x] Per-lesson progress weights (`Lesson.progressWeight`, weighted course progress).
+3. [x] Append-only audit hardening and wider grade/admin audit coverage (`AUDIT_ACTION` constants, auto-grade + manager enrollment audit, audit log UI filters).
+4. [x] Queue certificate PDF generation (async worker; request returns 503 while processing).
+5. [x] Assignment direct upload picker on course learn page (Supabase storage + optional URL fallback).

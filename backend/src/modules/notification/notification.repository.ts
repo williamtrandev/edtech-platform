@@ -1,5 +1,11 @@
-import { Prisma } from "@prisma/client";
+import { NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
+
+export type PlatformNotificationFilters = {
+  search?: string;
+  type?: NotificationType;
+  unreadOnly?: boolean;
+};
 
 type NotificationPreferenceData = Partial<
   Pick<
@@ -116,5 +122,107 @@ export class NotificationRepository {
       },
       data: { readAt: new Date() }
     });
+  }
+
+  async findManyForPlatform(page: number, limit: number, filters: PlatformNotificationFilters = {}) {
+    const skip = (page - 1) * limit;
+    const q = filters.search?.trim();
+    const where: Prisma.NotificationWhereInput = {
+      ...(filters.type ? { type: filters.type } : {}),
+      ...(filters.unreadOnly ? { readAt: null } : {}),
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: "insensitive" } },
+              { body: { contains: q, mode: "insensitive" } },
+              { userId: { contains: q, mode: "insensitive" } },
+              { user: { email: { contains: q, mode: "insensitive" } } }
+            ]
+          }
+        : {})
+    };
+
+    const platformSelect = {
+      ...this.notificationSelect,
+      user: {
+        select: {
+          id: true,
+          email: true
+        }
+      }
+    } satisfies Prisma.NotificationSelect;
+
+    const [items, total, unreadTotal] = await prisma.$transaction([
+      prisma.notification.findMany({
+        where,
+        select: platformSelect,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit
+      }),
+      prisma.notification.count({ where }),
+      prisma.notification.count({
+        where: {
+          readAt: null
+        }
+      })
+    ]);
+
+    return { items, total, unreadTotal };
+  }
+
+  async getPlatformSummary() {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [total, unreadTotal, last24Hours, byTypeRows] = await prisma.$transaction([
+      prisma.notification.count(),
+      prisma.notification.count({
+        where: {
+          readAt: null
+        }
+      }),
+      prisma.notification.count({
+        where: {
+          createdAt: {
+            gte: twentyFourHoursAgo
+          }
+        }
+      }),
+      prisma.notification.groupBy({
+        by: ["type"],
+        orderBy: {
+          type: "asc"
+        },
+        _count: {
+          id: true
+        }
+      })
+    ]);
+
+    const byType = Object.fromEntries(
+      byTypeRows.map((row) => {
+        const count =
+          typeof row._count === "object" && row._count && "id" in row._count ? row._count.id ?? 0 : 0;
+        return [row.type, count];
+      })
+    );
+
+    return {
+      total,
+      unreadTotal,
+      last24Hours,
+      byType
+    };
+  }
+
+  async findUserEmailById(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true
+      }
+    });
+
+    return user?.email ?? null;
   }
 }

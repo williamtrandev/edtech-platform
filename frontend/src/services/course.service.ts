@@ -20,8 +20,14 @@ export type Course = {
   coverImageUrl?: string | null;
   ratingAverage: number;
   ratingCount: number;
+  priceCents?: number;
+  currency?: string;
   status: CourseStatus;
   instructorId: string;
+  instructor?: {
+    id: string;
+    email: string;
+  };
   enrollmentCount?: number;
   lockReason?: string | null;
   lockedAt?: string | null;
@@ -72,6 +78,83 @@ export type CourseFacets = {
   }>;
 };
 
+export type CourseSearchSuggestion = {
+  term: string;
+  score: number;
+};
+
+export type LearnerInsightStatus = "INACTIVE" | "STALLED" | "LOW_PROGRESS";
+
+export type CourseLearnerInsight = {
+  userId: string;
+  email: string;
+  enrolledAt: string;
+  completedLessons: number;
+  totalLessons: number;
+  progressPercent: number;
+  lastActivityAt: string | null;
+  status: LearnerInsightStatus;
+};
+
+export type CourseCertificateHistoryEvent = {
+  id: string;
+  certificateId: string;
+  type: "ISSUED" | "REVOKED" | "RESTORED";
+  occurredAt: string;
+  learnerEmail: string;
+  actorEmail: string | null;
+  verificationCode?: string;
+};
+
+export type CourseAnalytics = {
+  courseId: string;
+  enrollmentCount: number;
+  lessonCount: number;
+  completedLessonCount: number;
+  activeLearnerCount: number;
+  completionRate: number;
+  engagementRate: number;
+  certificatesIssued: number;
+  examCount: number;
+  examAttemptCount: number;
+  gradedExamAttemptCount: number;
+  assignmentCount: number;
+  assignmentSubmissionCount: number;
+  lateAssignmentSubmissionCount: number;
+  ratingAverage: number;
+  ratingCount: number;
+  completionCriteria: {
+    type: "ALL_LESSONS_COMPLETED" | "FULL_COURSE_REQUIREMENTS";
+    lessonCount: number;
+    examCount: number;
+    assignmentCount: number;
+  };
+  learnerInsights: {
+    inactiveCount: number;
+    stalledCount: number;
+    lowProgressCount: number;
+    items: CourseLearnerInsight[];
+  };
+  certificateHistory: CourseCertificateHistoryEvent[];
+};
+
+export type CourseArchiveImpactCounts = {
+  enrollments: number;
+  lessons: number;
+  publishedExams: number;
+  publishedAssignments: number;
+  activeCertificates: number;
+  inProgressExamAttempts: number;
+  submittedAssignmentSubmissions: number;
+};
+
+export type CourseArchiveImpact = {
+  courseId: string;
+  courseTitle: string;
+  courseStatus: CourseStatus;
+  impact: CourseArchiveImpactCounts;
+};
+
 export type CourseListParams = {
   status?: CourseStatus;
   page?: number;
@@ -115,6 +198,9 @@ export type Lesson = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  progressWeight: number;
+  prerequisiteLessonId: string | null;
+  archivedAt?: string | null;
 };
 
 export type CreateCoursePayload = {
@@ -127,6 +213,8 @@ export type CreateCoursePayload = {
   requirements: string;
   outcomes: string;
   coverImageUrl: string;
+  priceCents?: number;
+  currency?: string;
   status: EditableCourseStatus;
 };
 
@@ -140,6 +228,8 @@ export type UpdateCoursePayload = {
   requirements?: string | null;
   outcomes?: string | null;
   coverImageUrl?: string | null;
+  priceCents?: number;
+  currency?: string;
   status?: EditableCourseStatus;
 };
 
@@ -149,12 +239,16 @@ export type CreateLessonPayload = {
   contentType: LessonContentType;
   content: string;
   sortOrder: number;
+  progressWeight?: number;
+  prerequisiteLessonId?: string | null;
 };
 
 export type UpdateLessonPayload = {
   title: string;
   contentType: LessonContentType;
   content: string;
+  progressWeight?: number;
+  prerequisiteLessonId?: string | null;
 };
 
 export const courseService = {
@@ -191,8 +285,22 @@ export const courseService = {
     const response = await httpClient.put<ApiResponse<Course>>(`/courses/${id}`, payload);
     return response.data.data;
   },
+  async assignCourseInstructor(id: string, instructorId: string): Promise<Course> {
+    const response = await httpClient.put<ApiResponse<Course>>(`/courses/${id}/instructors`, { instructorId });
+    return response.data.data;
+  },
   async getCourseById(id: string): Promise<Course> {
     const response = await httpClient.get<ApiResponse<Course>>(`/courses/${id}`);
+    return response.data.data;
+  },
+
+  async getCourseAnalytics(courseId: string): Promise<CourseAnalytics> {
+    const response = await httpClient.get<ApiResponse<CourseAnalytics>>(`/courses/${courseId}/analytics`);
+    return response.data.data;
+  },
+
+  async getCourseArchiveImpact(courseId: string): Promise<CourseArchiveImpact> {
+    const response = await httpClient.get<ApiResponse<CourseArchiveImpact>>(`/courses/${courseId}/archive-impact`);
     return response.data.data;
   },
 
@@ -269,5 +377,23 @@ export const courseService = {
   async deleteLesson(lessonId: string): Promise<Lesson> {
     const response = await httpClient.delete<ApiResponse<Lesson>>(`/lessons/${lessonId}`);
     return response.data.data;
+  },
+  async restoreLesson(lessonId: string): Promise<Lesson> {
+    const response = await httpClient.post<ApiResponse<Lesson>>(`/lessons/${lessonId}/restore`);
+    return response.data.data;
+  },
+  async getCourseSearchSuggestions(query: string, limit = 8): Promise<CourseSearchSuggestion[]> {
+    const response = await httpClient.get<ApiResponse<CourseSearchSuggestion[]>>("/courses/search-suggestions", {
+      params: {
+        q: query,
+        limit
+      }
+    });
+    return response.data.data;
+  },
+  async trackCourseSearch(term: string): Promise<void> {
+    await httpClient.post("/courses/search-events", {
+      term
+    });
   }
 };

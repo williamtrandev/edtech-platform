@@ -1,20 +1,26 @@
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AppError } from "../../common/errors/app-error";
+import { assertCanBeEnrolledByManager, assertCanSelfEnroll } from "../../common/auth/enrollment-access";
 import { assertCourseInstructor } from "../../common/auth/course-access";
-import { COURSE_STATUS, NOTIFICATION_TYPE, USER_ROLE, USER_STATUS } from "../../common/constants/business";
+import { COURSE_STATUS, NOTIFICATION_TYPE, USER_STATUS } from "../../common/constants/business";
+import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
+import { AuditRepository } from "../audit/audit.repository";
 import { CourseRepository } from "../course/course.repository";
 import { NotificationService } from "../notification/notification.service";
-import { ProgressRepository } from "../progress/progress.repository";
+import { CourseProgressService } from "../progress/course-progress.service";
 import { UserRepository } from "../user/user.repository";
+import { CoursePaymentRepository } from "../course-payment/course-payment.repository";
 import { EnrollmentRepository } from "./enrollment.repository";
 
 export class EnrollmentService {
   constructor(
     private readonly enrollmentRepository: EnrollmentRepository,
     private readonly courseRepository: CourseRepository,
-    private readonly progressRepository: ProgressRepository,
+    private readonly courseProgressService: CourseProgressService,
     private readonly userRepository: UserRepository,
-    private readonly notificationService?: NotificationService
+    private readonly notificationService?: NotificationService,
+    private readonly coursePaymentRepository?: CoursePaymentRepository,
+    private readonly auditRepository?: AuditRepository
   ) {}
 
   async listMyEnrollments(user: Express.UserClaims | undefined) {
@@ -22,7 +28,8 @@ export class EnrollmentService {
       throw new AppError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    return this.enrollmentRepository.findByUser(user.id);
+    const enrollments = await this.enrollmentRepository.findByUser(user.id);
+    return this.withProgressSnapshots(enrollments, user.id);
   }
 
   async createEnrollment(user: Express.UserClaims | undefined, payload: { courseId: string }) {
@@ -41,6 +48,20 @@ export class EnrollmentService {
 
     if (course.status !== COURSE_STATUS.published) {
       throw new AppError("Course is not open for enrollment", 409, "COURSE_NOT_PUBLISHED");
+    }
+
+    const actor = await this.userRepository.findById(user.id);
+    if (!actor) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
+
+    assertCanSelfEnroll({ id: actor.id, status: actor.status }, { instructorId: course.instructorId });
+
+    if (course.priceCents > 0) {
+      const payment = await this.coursePaymentRepository?.findCompletedByUserAndCourse(user.id, payload.courseId);
+      if (!payment) {
+        throw new AppError("Complete payment before enrolling", 402, "PAYMENT_REQUIRED");
+      }
     }
 
     try {
@@ -106,8 +127,21 @@ export class EnrollmentService {
       throw new AppError("User is suspended", 409, "USER_SUSPENDED");
     }
 
+    assertCanBeEnrolledByManager({ id: learner.id, status: learner.status }, { instructorId: course.instructorId });
+
     try {
       const enrollment = await this.enrollmentRepository.create(learner.id, courseId);
+      await this.auditRepository?.create({
+        actor: { connect: { id: user.id } },
+        action: AUDIT_ACTION.enrollmentCreatedByManager,
+        entityType: AUDIT_ENTITY_TYPE.enrollment,
+        entityId: enrollment.id,
+        metadata: {
+          courseId,
+          userId: learner.id,
+          userEmail: learner.email
+        }
+      });
       await this.notificationService?.createNotification({
         userId: learner.id,
         type: NOTIFICATION_TYPE.enrollmentSuccess,
@@ -148,21 +182,71 @@ export class EnrollmentService {
       throw new AppError("Enrollment not found", 404, "ENROLLMENT_NOT_FOUND");
     }
 
-    return this.enrollmentRepository.deleteByUserAndCourse(targetUserId, courseId);
+    const deleted = await this.enrollmentRepository.deleteByUserAndCourse(targetUserId, courseId);
+    await this.auditRepository?.create({
+      actor: { connect: { id: user.id } },
+      action: AUDIT_ACTION.enrollmentRemovedByManager,
+      entityType: AUDIT_ENTITY_TYPE.enrollment,
+      entityId: enrollment.id,
+      metadata: {
+        courseId,
+        userId: targetUserId
+      }
+    });
+
+    return deleted;
+  }
+
+  private toProgressPayload(
+    snapshot: Awaited<ReturnType<CourseProgressService["getSnapshot"]>>,
+    continueLessonId: string | null
+  ) {
+    return {
+      courseId: snapshot.courseId,
+      totalLessons: snapshot.totalLessons,
+      completedLessons: snapshot.completedLessons,
+      totalExams: snapshot.totalExams,
+      passedExams: snapshot.passedExams,
+      totalAssignments: snapshot.totalAssignments,
+      submittedAssignments: snapshot.submittedAssignments,
+      percentage: snapshot.percentage,
+      isComplete: snapshot.isComplete,
+      completionCriteria: snapshot.completionCriteria,
+      breakdown: snapshot.breakdown,
+      continueLessonId
+    };
   }
 
   private async withProgressSnapshot<T extends { courseId: string }>(enrollment: T, userId: string, courseId: string) {
-    const totalLessons = await this.progressRepository.countCourseLessons(courseId);
-    const completedLessons = await this.progressRepository.countCompletedCourseLessons(userId, courseId);
+    const [snapshot, continueLessonId] = await Promise.all([
+      this.courseProgressService.getSnapshot(userId, courseId),
+      this.courseProgressService.getContinueLessonId(userId, courseId)
+    ]);
 
     return {
       ...enrollment,
-      progress: {
-        courseId,
-        totalLessons,
-        completedLessons,
-        percentage: totalLessons === 0 ? 0 : Math.round((completedLessons / totalLessons) * 100)
-      }
+      progress: this.toProgressPayload(snapshot, continueLessonId)
     };
+  }
+
+  private async withProgressSnapshots<T extends { courseId: string }>(enrollments: T[], userId: string) {
+    if (enrollments.length === 0) {
+      return enrollments;
+    }
+
+    const snapshots = await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const [snapshot, continueLessonId] = await Promise.all([
+          this.courseProgressService.getSnapshot(userId, enrollment.courseId),
+          this.courseProgressService.getContinueLessonId(userId, enrollment.courseId)
+        ]);
+        return {
+          ...enrollment,
+          progress: this.toProgressPayload(snapshot, continueLessonId)
+        };
+      })
+    );
+
+    return snapshots;
   }
 }

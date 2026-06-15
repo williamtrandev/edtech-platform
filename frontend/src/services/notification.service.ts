@@ -28,6 +28,38 @@ export type NotificationListResponse = {
   };
 };
 
+export type PlatformNotification = Notification & {
+  user: {
+    id: string;
+    email: string;
+  };
+};
+
+export type PlatformNotificationListResponse = {
+  items: PlatformNotification[];
+  unreadTotal: number;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+};
+
+export type PlatformNotificationSummary = {
+  total: number;
+  unreadTotal: number;
+  last24Hours: number;
+  byType: Partial<Record<NotificationType, number>>;
+};
+
+export type PlatformNotificationListParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: NotificationType;
+  unreadOnly?: boolean;
+};
+
 export type NotificationPreferences = {
   id: string;
   userId: string;
@@ -79,6 +111,22 @@ export const notificationService = {
   },
   async markAllRead(): Promise<{ updatedCount: number }> {
     const response = await httpClient.patch<ApiResponse<{ updatedCount: number }>>("/notifications/read-all");
+    return response.data.data;
+  },
+  async getPlatformNotifications(params: PlatformNotificationListParams = {}): Promise<PlatformNotificationListResponse> {
+    const response = await httpClient.get<ApiResponse<PlatformNotificationListResponse>>("/notifications/platform", {
+      params: {
+        ...(params.page ? { page: params.page } : {}),
+        ...(params.limit ? { limit: params.limit } : {}),
+        ...(params.search?.trim() ? { search: params.search.trim() } : {}),
+        ...(params.type ? { type: params.type } : {}),
+        ...(params.unreadOnly ? { unreadOnly: true } : {})
+      }
+    });
+    return response.data.data;
+  },
+  async getPlatformSummary(): Promise<PlatformNotificationSummary> {
+    const response = await httpClient.get<ApiResponse<PlatformNotificationSummary>>("/notifications/platform/summary");
     return response.data.data;
   }
 };

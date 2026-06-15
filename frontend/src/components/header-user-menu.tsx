@@ -65,14 +65,14 @@ export function HeaderUserMenu({ email, role }: HeaderUserMenuProps) {
         aria-haspopup="menu"
         className={cn(
           "inline-flex h-9 max-w-[12rem] cursor-pointer items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors",
-          "hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-          open && "bg-muted/70"
+          "hover:bg-background/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          open && "bg-background/80 ring-1 ring-foreground/10"
         )}
         onClick={() => setOpen((value) => !value)}
       >
         <span
           aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-full bg-foreground text-[11px] font-semibold tracking-tight text-background"
+          className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-semibold tracking-tight text-primary-foreground ring-1 ring-primary/25"
         >
           {initials}
         </span>
@@ -91,9 +91,9 @@ export function HeaderUserMenu({ email, role }: HeaderUserMenuProps) {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-border/70 bg-popover p-1.5 shadow-lg"
+          className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-border/70 bg-popover p-1.5 shadow-lg ring-1 ring-foreground/5"
         >
-          <div className="rounded-lg bg-muted/40 px-3 py-2.5">
+          <div className="rounded-lg bg-muted/40 px-3 py-2.5 ring-1 ring-foreground/5">
             <p className="truncate text-sm font-medium text-foreground">{displayEmail}</p>
             {role ? (
               <p className="mt-0.5 text-xs text-muted-foreground">{t(`role.${role}` as I18nKey)}</p>

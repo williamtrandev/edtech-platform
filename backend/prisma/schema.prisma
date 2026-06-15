@@ -26,10 +26,29 @@ enum CourseStatus {
   LOCKED
 }
 
+enum LearningPathStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CoursePaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  MOCK
+}
+
 enum LessonContentType {
   VIDEO
   TEXT
   RESOURCE
+  QUIZ
+  LIVE_SESSION
 }
 
 enum ExamStatus {
@@ -38,16 +57,32 @@ enum ExamStatus {
   ARCHIVED
 }
 
+enum ExamScope {
+  LESSON
+  COURSE
+}
+
 enum ExamQuestionType {
   SINGLE_CHOICE
   MULTIPLE_CHOICE
   FREE_TEXT
+  CODE
 }
 
 enum ExamAttemptStatus {
   IN_PROGRESS
   SUBMITTED
   GRADED
+}
+
+enum ExamAttemptEventType {
+  TAB_HIDDEN
+  TAB_VISIBLE
+  WINDOW_BLUR
+  WINDOW_FOCUS
+  RECONNECT
+  TIMER_EXPIRED
+  MANUAL_SUBMIT
 }
 
 enum AssignmentStatus {
@@ -87,12 +122,15 @@ model User {
   enrollments            Enrollment[]
   lessonProgress         LessonProgress[]
   auditLogs              AuditLog[]              @relation("AuditActor")
-  courseReviews          CourseReview[]
-  examAttempts           ExamAttempt[]
+  courseReviews             CourseReview[]
+  courseDiscussionComments  CourseDiscussionComment[]
+  examAttempts              ExamAttempt[]
   assignmentSubmissions  AssignmentSubmission[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
   certificates           Certificate[]
+  learningPathsCreated   LearningPath[]   @relation("LearningPathCreator")
+  coursePayments         CoursePayment[]
 }
 
 model AuditLog {
@@ -178,6 +216,8 @@ model Course {
   coverImageUrl   String?
   ratingAverage   Float        @default(0)
   ratingCount     Int          @default(0)
+  priceCents      Int          @default(0)
+  currency        String       @default("USD")
   status          CourseStatus @default(DRAFT)
   instructorId    String
   lockReason      String?
@@ -193,9 +233,12 @@ model Course {
   lessons      Lesson[]
   exams        Exam[]
   enrollments  Enrollment[]
-  reviews      CourseReview[]
-  assignments  Assignment[]
+  reviews             CourseReview[]
+  discussionComments  CourseDiscussionComment[]
+  assignments         Assignment[]
   certificates Certificate[]
+  learningPathCourses LearningPathCourse[]
+  coursePayments      CoursePayment[]
 
   @@index([status])
   @@index([instructorId])
@@ -214,12 +257,30 @@ model Assignment {
   updatedAt     DateTime         @updatedAt
   archivedAt    DateTime?
 
-  course      Course                 @relation(fields: [courseId], references: [id])
-  submissions AssignmentSubmission[]
+  course         Course                      @relation(fields: [courseId], references: [id])
+  submissions    AssignmentSubmission[]
+  rubricCriteria AssignmentRubricCriterion[]
 
   @@index([courseId])
   @@index([status])
   @@index([dueAt])
+}
+
+model AssignmentRubricCriterion {
+  id           String   @id @default(cuid())
+  assignmentId String
+  title        String
+  description  String?
+  maxPoints    Int
+  sortOrder    Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment Assignment              @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  scores     AssignmentRubricScore[]
+
+  @@unique([assignmentId, sortOrder])
+  @@index([assignmentId])
 }
 
 model AssignmentSubmission {
@@ -237,8 +298,9 @@ model AssignmentSubmission {
   createdAt     DateTime                   @default(now())
   updatedAt     DateTime                   @updatedAt
 
-  assignment Assignment @relation(fields: [assignmentId], references: [id])
-  user       User       @relation(fields: [userId], references: [id])
+  assignment   Assignment              @relation(fields: [assignmentId], references: [id])
+  user         User                    @relation(fields: [userId], references: [id])
+  rubricScores AssignmentRubricScore[]
 
   @@unique([assignmentId, userId])
   @@index([assignmentId])
@@ -246,9 +308,27 @@ model AssignmentSubmission {
   @@index([status])
 }
 
+model AssignmentRubricScore {
+  id           String   @id @default(cuid())
+  submissionId String
+  criterionId  String
+  points       Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submission AssignmentSubmission    @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  criterion  AssignmentRubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, criterionId])
+  @@index([submissionId])
+  @@index([criterionId])
+}
+
 model Exam {
   id              String     @id @default(cuid())
   courseId        String
+  lessonId        String?
+  scope           ExamScope  @default(COURSE)
   title           String
   description     String?
   status          ExamStatus @default(DRAFT)
@@ -259,10 +339,13 @@ model Exam {
   archivedAt      DateTime?
 
   course    Course         @relation(fields: [courseId], references: [id])
+  lesson    Lesson?        @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   questions ExamQuestion[]
   attempts  ExamAttempt[]
 
   @@index([courseId])
+  @@index([lessonId])
+  @@index([courseId, scope])
   @@index([status])
 }
 
@@ -273,6 +356,7 @@ model ExamQuestion {
   prompt         String
   options        Json?
   correctAnswers Json?
+  codeConfig     Json?
   explanation    String?
   points         Int              @default(1)
   sortOrder      Int
@@ -300,9 +384,10 @@ model ExamAttempt {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  exam    Exam         @relation(fields: [examId], references: [id])
-  user    User         @relation(fields: [userId], references: [id])
-  answers ExamAnswer[]
+  exam             Exam                        @relation(fields: [examId], references: [id])
+  user             User                        @relation(fields: [userId], references: [id])
+  answers          ExamAnswer[]
+  integrityEvents  ExamAttemptIntegrityEvent[]
 
   @@unique([userId, examId, attemptNumber])
   @@index([examId])
@@ -310,13 +395,29 @@ model ExamAttempt {
   @@index([status])
 }
 
+model ExamAttemptIntegrityEvent {
+  id            String               @id @default(cuid())
+  attemptId     String
+  type          ExamAttemptEventType
+  clientEventId String?
+  metadata      Json?
+  createdAt     DateTime             @default(now())
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, clientEventId])
+  @@index([attemptId])
+  @@index([attemptId, type])
+}
+
 model ExamAnswer {
-  id         String   @id @default(cuid())
-  attemptId  String
-  questionId String
-  answer     Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  attemptId      String
+  questionId     String
+  answer         Json?
+  gradingResult  Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   attempt  ExamAttempt  @relation(fields: [attemptId], references: [id])
   question ExamQuestion @relation(fields: [questionId], references: [id])
@@ -342,21 +443,51 @@ model CourseReview {
   @@index([userId])
 }
 
-model Lesson {
-  id          String            @id @default(cuid())
-  courseId    String
-  title       String
-  contentType LessonContentType
-  content     String
-  sortOrder   Int
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+model CourseDiscussionComment {
+  id        String   @id @default(cuid())
+  courseId  String
+  lessonId  String?
+  userId    String
+  parentId  String?
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  course   Course           @relation(fields: [courseId], references: [id])
-  progress LessonProgress[]
+  user     User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson   Lesson?                   @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  parent   CourseDiscussionComment?  @relation("DiscussionReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  CourseDiscussionComment[] @relation("DiscussionReplies")
+
+  @@index([courseId, lessonId])
+  @@index([parentId])
+  @@index([userId])
+}
+
+model Lesson {
+  id                   String            @id @default(cuid())
+  courseId             String
+  title                String
+  contentType          LessonContentType
+  content              String
+  sortOrder            Int
+  progressWeight       Int               @default(1)
+  prerequisiteLessonId String?
+  archivedAt           DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  course             Course           @relation(fields: [courseId], references: [id])
+  prerequisiteLesson Lesson?          @relation("LessonPrerequisite", fields: [prerequisiteLessonId], references: [id], onDelete: SetNull)
+  dependentLessons   Lesson[]         @relation("LessonPrerequisite")
+  progress           LessonProgress[]
+  discussionComments CourseDiscussionComment[]
+  exams              Exam[]
 
   @@unique([courseId, sortOrder])
   @@index([courseId])
+  @@index([prerequisiteLessonId])
+  @@index([courseId, archivedAt])
 }
 
 model Enrollment {
@@ -374,12 +505,13 @@ model Enrollment {
 }
 
 model LessonProgress {
-  id          String   @id @default(cuid())
-  userId      String
-  lessonId    String
-  isCompleted Boolean  @default(true)
-  completedAt DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  userId               String
+  lessonId             String
+  isCompleted          Boolean  @default(true)
+  watchPositionSeconds Int      @default(0)
+  completedAt          DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   user   User   @relation(fields: [userId], references: [id])
   lesson Lesson @relation(fields: [lessonId], references: [id])
@@ -387,4 +519,58 @@ model LessonProgress {
   @@unique([userId, lessonId])
   @@index([userId])
   @@index([lessonId])
+}
+
+model LearningPath {
+  id            String             @id @default(cuid())
+  title         String
+  description   String?
+  coverImageUrl String?
+  status        LearningPathStatus @default(DRAFT)
+  createdById   String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  archivedAt    DateTime?
+
+  createdBy User                 @relation("LearningPathCreator", fields: [createdById], references: [id])
+  courses   LearningPathCourse[]
+
+  @@index([status])
+  @@index([createdById])
+}
+
+model LearningPathCourse {
+  id             String @id @default(cuid())
+  learningPathId String
+  courseId       String
+  sortOrder      Int
+
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([learningPathId, courseId])
+  @@unique([learningPathId, sortOrder])
+  @@index([courseId])
+}
+
+model CoursePayment {
+  id             String              @id @default(cuid())
+  userId         String
+  courseId       String
+  amountCents    Int
+  currency       String              @default("USD")
+  status         CoursePaymentStatus @default(PENDING)
+  provider       PaymentProvider     @default(MOCK)
+  providerRef    String?
+  idempotencyKey String
+  createdAt      DateTime            @default(now())
+  completedAt    DateTime?
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, courseId])
+  @@index([courseId])
+  @@index([status])
 }

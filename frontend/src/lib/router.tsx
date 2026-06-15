@@ -2,16 +2,25 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AdminUsersGate, CoursesWorkspaceGate, HomeRedirect, InstructorCreateCourseGate, LearnerWorkspaceGate, PublicOnly, RequireAuth } from "../components/route-guards";
 import { AccountSettingsPage } from "../pages/account-settings-page";
 import { AuditLogsPage } from "../pages/audit-logs-page";
-import { CertificateVerifyPage } from "../pages/certificate-verify-page";
 import { CourseCreatePage } from "../pages/course-create-page";
 import { CourseDetailPage } from "../pages/course-detail-page";
+import { CourseCompletedPage } from "../pages/course-completed-page";
+import { CourseLearnPage } from "../pages/course-learn-page";
 import { CoursesPage } from "../pages/courses-page";
 import { EmailConfirmedPage } from "../pages/email-confirmed-page";
 import { ExploreCoursesPage } from "../pages/explore-courses-page";
+import { LearningPathDetailPage } from "../pages/learning-path-detail-page";
+import { LearningPathsPage } from "../pages/learning-paths-page";
+import { LearningPathsStudioPage } from "../pages/learning-paths-studio-page";
 import { ForgotPasswordPage } from "../pages/forgot-password-page";
+import { JobsPage } from "../pages/jobs-page";
+import { NotificationManagementPage } from "../pages/notification-management-page";
 import { LoginPage } from "../pages/login-page";
 import { MyLearningPage } from "../pages/my-learning-page";
+import { MyCertificatesPage } from "../pages/my-certificates-page";
 import { MyProgressPage } from "../pages/my-progress-page";
+import { NotFoundPage } from "../pages/not-found-page";
+import { PlatformAnalyticsPage } from "../pages/platform-analytics-page";
 import { RegisterPage } from "../pages/register-page";
 import { ResetPasswordPage } from "../pages/reset-password-page";
 import { UserDetailPage } from "../pages/user-detail-page";
@@ -44,10 +53,6 @@ export const router = createBrowserRouter([
     element: <EmailConfirmedPage />
   },
   {
-    path: "/certificates/verify/:verificationCode",
-    element: <CertificateVerifyPage />
-  },
-  {
     path: "/",
     element: <HomeRedirect />
   },
@@ -56,12 +61,40 @@ export const router = createBrowserRouter([
     element: <ExploreCoursesPage />
   },
   {
+    path: "/learning-paths",
+    element: <LearningPathsPage />
+  },
+  {
+    path: "/learning-paths/:pathId",
+    element: <LearningPathDetailPage />
+  },
+  {
     path: "/courses/:courseId",
     element: <CourseDetailPage />
   },
   {
     element: <RequireAuth />,
     children: [
+      {
+        path: "/courses/:courseId/learn",
+        element: <CourseLearnPage />
+      },
+      {
+        path: "/courses/:courseId/learn/:lessonId",
+        element: <CourseLearnPage />
+      },
+      {
+        path: "/courses/:courseId/completed",
+        element: <CourseCompletedPage />
+      },
+      {
+        path: "/courses/:courseId/preview",
+        element: <CourseLearnPage />
+      },
+      {
+        path: "/courses/:courseId/preview/:lessonId",
+        element: <CourseLearnPage />
+      },
       {
         path: "/dashboard",
         element: <LearnerWorkspaceGate />,
@@ -79,6 +112,16 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <MyProgressPage />
+          }
+        ]
+      },
+      {
+        path: "/my-certificates",
+        element: <RequireAuth />,
+        children: [
+          {
+            index: true,
+            element: <MyCertificatesPage />
           }
         ]
       },
@@ -111,6 +154,19 @@ export const router = createBrowserRouter([
                 element: <CourseCreatePage />
               }
             ]
+          },
+          {
+            path: "learning-paths",
+            children: [
+              {
+                index: true,
+                element: <LearningPathsStudioPage />
+              },
+              {
+                path: ":pathId",
+                element: <LearningPathsStudioPage />
+              }
+            ]
           }
         ]
       },
@@ -137,11 +193,41 @@ export const router = createBrowserRouter([
             element: <AuditLogsPage />
           }
         ]
+      },
+      {
+        path: "/analytics",
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <PlatformAnalyticsPage />
+          }
+        ]
+      },
+      {
+        path: "/jobs",
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <JobsPage />
+          }
+        ]
+      },
+      {
+        path: "/notifications",
+        element: <AdminUsersGate />,
+        children: [
+          {
+            index: true,
+            element: <NotificationManagementPage />
+          }
+        ]
       }
     ]
   },
   {
     path: "*",
-    element: <Navigate to="/" replace />
+    element: <NotFoundPage />
   }
 ]);

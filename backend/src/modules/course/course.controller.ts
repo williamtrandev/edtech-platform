@@ -35,6 +35,11 @@ export class CourseController {
     res.status(200).json({ success: true, data: enrollments });
   };
 
+  getCourseAnalytics = async (req: Request, res: Response): Promise<void> => {
+    const analytics = await this.courseService.getCourseAnalytics(req.user, req.params.id);
+    res.status(200).json({ success: true, data: analytics });
+  };
+
   getCourseById = async (req: Request, res: Response): Promise<void> => {
     const course = await this.courseService.getCourseById(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });
@@ -50,6 +55,16 @@ export class CourseController {
     res.status(200).json({ success: true, data: course });
   };
 
+  assignCourseInstructor = async (req: Request, res: Response): Promise<void> => {
+    const course = await this.courseService.assignCourseInstructor(req.user, req.params.id, req.body.instructorId);
+    res.status(200).json({ success: true, data: course });
+  };
+
+  getCourseArchiveImpact = async (req: Request, res: Response): Promise<void> => {
+    const impact = await this.courseService.getCourseArchiveImpact(req.user, req.params.id);
+    res.status(200).json({ success: true, data: impact });
+  };
+
   archiveCourse = async (req: Request, res: Response): Promise<void> => {
     const course = await this.courseService.archiveCourse(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });
@@ -63,5 +78,17 @@ export class CourseController {
   unlockCourse = async (req: Request, res: Response): Promise<void> => {
     const course = await this.courseService.unlockCourse(req.user, req.params.id);
     res.status(200).json({ success: true, data: course });
+  };
+
+  getSearchSuggestions = async (req: Request, res: Response): Promise<void> => {
+    const query = typeof req.query.q === "string" ? req.query.q : "";
+    const limit = Number(req.query.limit ?? 8);
+    const suggestions = await this.courseService.getSearchSuggestions(query, limit);
+    res.status(200).json({ success: true, data: suggestions });
+  };
+
+  trackSearchTerm = async (req: Request, res: Response): Promise<void> => {
+    await this.courseService.trackSearchTerm(req.body.term);
+    res.status(204).send();
   };
 }

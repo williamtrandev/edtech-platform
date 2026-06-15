@@ -6,11 +6,41 @@ type ApiResponse<T> = {
   data: T;
 };
 
+export type EnrollmentProgress = {
+  courseId: string;
+  totalLessons: number;
+  completedLessons: number;
+  totalExams: number;
+  passedExams: number;
+  totalAssignments: number;
+  submittedAssignments: number;
+  percentage: number;
+  isComplete: boolean;
+  completionCriteria: {
+    type: "ALL_LESSONS_COMPLETED" | "FULL_COURSE_REQUIREMENTS";
+    lessonCount: number;
+    examCount: number;
+    assignmentCount: number;
+  };
+  breakdown: {
+    lessonsPercent: number;
+    examsPercent: number;
+    assignmentsPercent: number;
+    weights: {
+      lessons: number;
+      exams: number;
+      assignments: number;
+    };
+  };
+  continueLessonId?: string | null;
+};
+
 export type Enrollment = {
   id: string;
   userId: string;
   courseId: string;
   enrolledAt: string;
+  progress?: EnrollmentProgress;
   course?: {
     id: string;
     title: string;

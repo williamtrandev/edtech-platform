@@ -5,7 +5,7 @@ export class ExamController {
   constructor(private readonly examService: ExamService) {}
 
   listCourseExams = async (req: Request, res: Response): Promise<void> => {
-    const exams = await this.examService.listCourseExams(req.user, req.params.id);
+    const exams = await this.examService.listCourseExams(req.user, req.params.id, req.query);
     res.status(200).json({ success: true, data: exams });
   };
 
