@@ -12,7 +12,17 @@ export type CodeQuestionGrade = {
   total: number;
   passed: number;
   allPassed: boolean;
-  results: Array<{ name: string; passed: boolean; hidden: boolean }>;
+  results: Array<{
+    name: string;
+    passed: boolean;
+    hidden: boolean;
+    stdout?: string;
+    stderr?: string;
+    compileError?: string | null;
+    timedOut?: boolean;
+    input?: string;
+    expectedOutput?: string;
+  }>;
 };
 
 /** Normalizes output for comparison: CRLF, trailing spaces per line, and trailing blank lines. */
@@ -46,7 +56,16 @@ export class CodeGradingService {
         if (ok) {
           passed += 1;
         }
-        results.push({ name: test.name, passed: ok, hidden: test.hidden });
+        results.push({
+          name: test.name,
+          passed: ok,
+          hidden: test.hidden,
+          stdout: run.stdout,
+          stderr: run.stderr,
+          compileError: run.compileError,
+          timedOut: run.timedOut,
+          ...(test.hidden ? {} : { input: test.input, expectedOutput: test.expectedOutput })
+        });
       }
 
       return {

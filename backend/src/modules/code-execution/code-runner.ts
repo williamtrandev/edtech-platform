@@ -7,11 +7,14 @@ import { logger } from "../../config/logger";
  * SQL is intentionally absent: Piston has no reliable SQL runtime, so SQL
  * questions fall back to manual grading.
  */
+// Languages mapped to Piston runtime names/aliases.
+// Omit languages whose Piston package is broken or unavailable in this environment;
+// they fall back to manual grading automatically.
 const PISTON_LANGUAGE: Record<string, string[]> = {
   python: ["python", "python3"],
   javascript: ["javascript", "node-javascript"],
   typescript: ["typescript"],
-  go: ["go"],
+  // go: disabled — go 1.16.2 Piston package produces excessive stderr and fails every run
   rust: ["rust"],
   java: ["java"],
   cpp: ["c++", "cpp"],
@@ -42,7 +45,9 @@ const executeResponseSchema = z.object({
     stdout: z.string().default(""),
     stderr: z.string().default(""),
     code: z.number().nullable().default(null),
-    signal: z.string().nullable().default(null)
+    signal: z.string().nullable().default(null),
+    status: z.string().nullable().default(null),
+    message: z.string().nullable().default(null)
   }),
   compile: z
     .object({
@@ -142,12 +147,22 @@ export async function runCode(params: { language: string; source: string; stdin:
 
   const parsed = executeResponseSchema.parse(await response.json());
   const compileError = parsed.compile && parsed.compile.code !== 0 && parsed.compile.stderr ? parsed.compile.stderr : null;
+  const timedOut = parsed.run.signal === "SIGKILL" && parsed.run.status !== "EL";
+
+  // Piston-internal "Sandbox keeper" messages are noise to learners — replace with a clean message.
+  const SANDBOX_KEEPER_MSG = "Sandbox keeper received fatal signal";
+  let stderr = parsed.run.stderr;
+  if (parsed.run.status === "EL") {
+    stderr = "Output limit exceeded. Your program produced too much output.";
+  } else if (stderr.includes(SANDBOX_KEEPER_MSG)) {
+    stderr = "Execution failed. The sandbox process was terminated unexpectedly.";
+  }
 
   return {
     stdout: parsed.run.stdout,
-    stderr: parsed.run.stderr,
+    stderr,
     exitCode: parsed.run.code,
-    timedOut: parsed.run.signal === "SIGKILL",
+    timedOut,
     compileError
   };
 }

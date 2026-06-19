@@ -49,6 +49,7 @@ enum LessonContentType {
   RESOURCE
   QUIZ
   LIVE_SESSION
+  CODE_EXERCISE
 }
 
 enum ExamStatus {

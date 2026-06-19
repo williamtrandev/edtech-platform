@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, BookOpenText, CheckCircle2, ClipboardCheck, GripVertical, ListOrdered, Paperclip, PlayCircle, Trash2, Video } from "lucide-react";
+import { ArrowLeft, BookOpenText, CheckCircle2, ClipboardCheck, GripVertical, ListOrdered, Paperclip, PlayCircle, Plus, Terminal, Trash2, Video, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
@@ -51,7 +51,7 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { CODE_QUESTION_LANGUAGES, COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
 import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
@@ -64,7 +64,8 @@ import {
   isCourseCreateStepId,
   type CourseCreateStepId
 } from "../lib/course-create-wizard";
-import { buildLessonContentForSubmit, parseLessonContent } from "../lib/lesson-content";
+import { buildLessonContentForSubmit, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { CodeEditor } from "../components/code-editor";
 import { assignmentService } from "../services/assignment.service";
 import { examService } from "../services/exam.service";
 import { createCourseFormSchema, CreateCourseFormValues, createLessonFormSchema, CreateLessonFormValues } from "../schemas/course.schema";
@@ -111,6 +112,7 @@ export function CourseCreatePage() {
   const [isUploadingLessonFile, setIsUploadingLessonFile] = useState(false);
   const [uploadedLessonFile, setUploadedLessonFile] = useState<UploadedFile | null>(null);
   const [hasSubmittedLessonForm, setHasSubmittedLessonForm] = useState(false);
+  const [codeTests, setCodeTests] = useState<Array<{ name: string; input: string; expectedOutput: string }>>([]);
   const [orderedLessons, setOrderedLessons] = useState<Lesson[]>([]);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [draggingLessonId, setDraggingLessonId] = useState<string | null>(null);
@@ -245,6 +247,12 @@ export function CourseCreatePage() {
       icon: Video,
       label: t("lessonType.LIVE_SESSION"),
       description: t("courseDetail.liveSessionTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.codeExercise,
+      icon: Terminal,
+      label: t("lessonType.CODE_EXERCISE"),
+      description: t("courseDetail.codeExerciseTypeHint")
     }
   ];
   const publishedExamOptions = useMemo(() => {
@@ -655,7 +663,26 @@ export function CourseCreatePage() {
 
   const onSubmitLesson = async (values: CreateLessonFormValues) => {
     const lessonId = selectedLessonId;
-    const content = buildLessonContentForSubmit(values, uploadedLessonFile);
+
+    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
+      const validTests = codeTests.filter((test) => test.name.trim() && test.input.trim() && test.expectedOutput.trim());
+      if (validTests.length === 0) {
+        toast.error(t("validation.lessonCodeTestsRequired"));
+        return;
+      }
+    }
+
+    const content =
+      values.contentType === LESSON_CONTENT_TYPE.codeExercise
+        ? serializeLessonContent({
+            version: 1,
+            kind: LESSON_CONTENT_TYPE.codeExercise,
+            language: values.codeLanguage,
+            starterCode: values.codeStarterCode,
+            instructions: values.codeInstructions,
+            codeTests: codeTests.filter((test) => test.name.trim() || test.input.trim() || test.expectedOutput.trim())
+          })
+        : buildLessonContentForSubmit(values, uploadedLessonFile);
 
     if (!courseId) {
       if (lessonId) {
@@ -697,12 +724,16 @@ export function CourseCreatePage() {
           liveStartsAt: "",
           liveInstructions: "",
           liveDurationMinutes: "",
+          codeLanguage: "",
+          codeStarterCode: "",
+          codeInstructions: "",
           sortOrder: nextLessonSortOrder + 1,
           progressWeight: 1,
           prerequisiteLessonId: null
         });
         setSelectedLessonId(null);
         setUploadedLessonFile(null);
+        setCodeTests([]);
       }
 
       lessonForm.clearErrors();
@@ -743,6 +774,9 @@ export function CourseCreatePage() {
           liveStartsAt: "",
           liveInstructions: "",
           liveDurationMinutes: "",
+          codeLanguage: "",
+          codeStarterCode: "",
+          codeInstructions: "",
           sortOrder: nextLessonSortOrder + 1,
           progressWeight: 1,
           prerequisiteLessonId: null
@@ -751,6 +785,7 @@ export function CourseCreatePage() {
         setHasSubmittedLessonForm(false);
         setSelectedLessonId(null);
         setUploadedLessonFile(null);
+        setCodeTests([]);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t(lessonId ? "courseDetail.lessonSaveFailed" : "courseDetail.lessonCreateFailed"));
@@ -853,6 +888,7 @@ export function CourseCreatePage() {
           }
         : null
     );
+    setCodeTests(parsedContent.kind === LESSON_CONTENT_TYPE.codeExercise ? (parsedContent.codeTests ?? []) : []);
     lessonForm.clearErrors();
     lessonForm.reset({
       title: lesson.title,
@@ -863,6 +899,9 @@ export function CourseCreatePage() {
       liveStartsAt: parsedContent.startsAt ? parsedContent.startsAt.slice(0, 16) : "",
       liveInstructions: parsedContent.instructions ?? "",
       liveDurationMinutes: parsedContent.durationMinutes ?? "",
+      codeLanguage: parsedContent.language ?? "",
+      codeStarterCode: parsedContent.starterCode ?? "",
+      codeInstructions: parsedContent.instructions ?? "",
       sortOrder: lesson.sortOrder,
       progressWeight: lesson.progressWeight ?? 1,
       prerequisiteLessonId: lesson.prerequisiteLessonId ?? null
@@ -873,6 +912,7 @@ export function CourseCreatePage() {
     setSelectedLessonId(null);
     setHasSubmittedLessonForm(false);
     setUploadedLessonFile(null);
+    setCodeTests([]);
     lessonForm.clearErrors();
     lessonForm.reset({
       title: "",
@@ -883,6 +923,9 @@ export function CourseCreatePage() {
       liveStartsAt: "",
       liveInstructions: "",
       liveDurationMinutes: "",
+      codeLanguage: "",
+      codeStarterCode: "",
+      codeInstructions: "",
       sortOrder: nextLessonSortOrder,
       progressWeight: 1,
       prerequisiteLessonId: null
@@ -1394,6 +1437,136 @@ export function CourseCreatePage() {
                     >
                       <TextareaField id="new-lesson-live-instructions" rows={5} placeholder={t("courseDetail.liveSessionInstructionsPlaceholder")} {...lessonForm.register("liveInstructions")} />
                     </FormField>
+                  </>
+                ) : null}
+
+                {lessonContentType === LESSON_CONTENT_TYPE.codeExercise ? (
+                  <>
+                    <FormField
+                      id="new-lesson-code-language"
+                      label={t("courseDetail.codeExerciseLanguage")}
+                      error={getLessonError(lessonForm.formState.errors.codeLanguage?.message)}
+                    >
+                      <Controller
+                        control={lessonForm.control}
+                        name="codeLanguage"
+                        render={({ field }) => (
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                            <SelectTrigger id="new-lesson-code-language" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                              <SelectValue placeholder={t("courseDetail.codeExerciseLanguagePlaceholder")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CODE_QUESTION_LANGUAGES.map((lang) => (
+                                <SelectItem key={lang} value={lang}>
+                                  {t(`codeLanguage.${lang}` as Parameters<typeof t>[0])}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </FormField>
+
+                    <FormField
+                      id="new-lesson-code-instructions"
+                      label={t("courseDetail.codeExerciseInstructions")}
+                      hint={t("courseDetail.codeExerciseInstructionsHint")}
+                    >
+                      <TextareaField
+                        id="new-lesson-code-instructions"
+                        rows={3}
+                        placeholder={t("courseDetail.codeExerciseInstructionsPlaceholder")}
+                        {...lessonForm.register("codeInstructions")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      id="new-lesson-code-starter"
+                      label={t("courseDetail.codeExerciseStarterCode")}
+                      hint={t("courseDetail.codeExerciseStarterCodeHint")}
+                    >
+                      <Controller
+                        control={lessonForm.control}
+                        name="codeStarterCode"
+                        render={({ field }) => (
+                          <CodeEditor
+                            language={lessonForm.watch("codeLanguage") ?? "javascript"}
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            height={200}
+                          />
+                        )}
+                      />
+                    </FormField>
+
+                    <div className="grid gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{t("courseDetail.codeExerciseTests")}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1.5 rounded-md px-2.5 text-xs shadow-none"
+                          onClick={() => setCodeTests((prev) => [...prev, { name: "", input: "", expectedOutput: "" }])}
+                        >
+                          <Plus className="size-3" />
+                          {t("courseDetail.codeExerciseAddTest")}
+                        </Button>
+                      </div>
+                      {codeTests.length > 0 ? (
+                        <div className="grid gap-3">
+                          {codeTests.map((test, idx) => (
+                            <div key={idx} className="relative rounded-lg border border-border bg-secondary/30 p-3">
+                              <button
+                                type="button"
+                                className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                                onClick={() => setCodeTests((prev) => prev.filter((_, i) => i !== idx))}
+                                aria-label="Remove test"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                              <div className="grid gap-2">
+                                <div>
+                                  <label className="mb-1 block text-xs text-muted-foreground">{t("courseDetail.codeExerciseTestName")}</label>
+                                  <Input
+                                    className="h-8 text-xs shadow-none"
+                                    placeholder={t("courseDetail.codeExerciseTestNamePlaceholder")}
+                                    value={test.name}
+                                    onChange={(e) => setCodeTests((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="mb-1 block text-xs text-muted-foreground">{t("courseDetail.codeExerciseTestInput")}</label>
+                                    <TextareaField
+                                      rows={3}
+                                      className="text-xs font-mono"
+                                      placeholder={t("courseDetail.codeExerciseTestInputPlaceholder")}
+                                      value={test.input}
+                                      onChange={(e) => setCodeTests((prev) => prev.map((item, i) => (i === idx ? { ...item, input: e.target.value } : item)))}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-xs text-muted-foreground">{t("courseDetail.codeExerciseTestOutput")}</label>
+                                    <TextareaField
+                                      rows={3}
+                                      className="text-xs font-mono"
+                                      placeholder={t("courseDetail.codeExerciseTestOutputPlaceholder")}
+                                      value={test.expectedOutput}
+                                      onChange={(e) => setCodeTests((prev) => prev.map((item, i) => (i === idx ? { ...item, expectedOutput: e.target.value } : item)))}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+                          No test cases yet. Add at least one to save this exercise.
+                        </p>
+                      )}
+                    </div>
                   </>
                 ) : null}
 

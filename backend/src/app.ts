@@ -9,6 +9,7 @@ import { platformAnalyticsRouter } from "./modules/analytics/platform-analytics.
 import { assignmentRouter } from "./modules/assignment/assignment.route";
 import { assignmentSubmissionRouter } from "./modules/assignment-submission/assignment-submission.route";
 import { certificateRouter } from "./modules/certificate/certificate.route";
+import { codeRunRouter } from "./modules/code-run/code-run.route";
 import { courseRouter } from "./modules/course/course.route";
 import { enrollmentRouter } from "./modules/enrollment/enrollment.route";
 import { examQuestionRouter } from "./modules/exam-question/exam-question.route";
@@ -49,6 +50,7 @@ export function createApp() {
   app.use("/exams", examRouter);
   app.use("/exam-attempts", examAttemptRouter);
   app.use("/exam-questions", examQuestionRouter);
+  app.use("/code-exercises", codeRunRouter);
   app.use("/jobs", jobRouter);
   app.use("/learner-analytics", learnerAnalyticsRouter);
   app.use("/live-sessions", liveSessionRouter);

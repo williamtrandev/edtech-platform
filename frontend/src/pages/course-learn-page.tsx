@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2, Lock, X } from "lucide-react";
+import { ArrowLeft, BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Eye, FileText, GraduationCap, ListChecks, Loader2, Lock, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -360,7 +360,7 @@ export function CourseLearnPage() {
       lastLessonId={lastLesson?.id}
       assignmentsLabel={t("courseLearn.assignmentsTitle")}
       onOpenAssignments={openAssignmentsLesson}
-      className="h-full"
+      className="min-h-0 flex-1"
     />
   );
 
@@ -384,7 +384,7 @@ export function CourseLearnPage() {
 
   return (
     <AppShell immersive title={course.title} subtitle={isPreviewMode ? t("coursePreview.subtitle") : t("courseLearn.subtitle")}>
-      <div className="flex min-h-[calc(100dvh-3.5rem)] flex-col bg-muted/20">
+      <div className="flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden bg-muted/20 lg:h-[calc(100dvh-4.25rem)]">
         {isPreviewMode ? (
           <div className="shrink-0 border-b border-amber-300/60 bg-amber-50 px-3 py-2 dark:border-amber-900/60 dark:bg-amber-950/40 sm:px-4" role="status">
             <div className="flex items-start gap-2.5">
@@ -425,25 +425,39 @@ export function CourseLearnPage() {
                 </Button>
               </div>
             ) : null}
-            {showPendingAssignmentsBanner ? (
-              <div className="flex flex-col gap-3 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-amber-950 dark:text-amber-100">
-                  {t("courseLearn.pendingAssignmentsBanner").replace("{count}", String(pendingAssignmentCount))}
-                </p>
-                {lastLesson && isLastLessonUnlocked ? (
-                  <Button type="button" size="sm" className="h-9 shrink-0 rounded-xl shadow-none" onClick={openAssignmentsLesson}>
-                    {t("courseLearn.openAssignments")}
-                  </Button>
+            {showPendingAssignmentsBanner || showPendingExamsBanner ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border/70 bg-muted/30 px-3.5 py-2.5">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <ListChecks className="size-4 text-primary" aria-hidden />
+                  {t("courseLearn.requirementsTitle")}
+                </span>
+                {showPendingAssignmentsBanner ? (
+                  <button
+                    type="button"
+                    onClick={openAssignmentsLesson}
+                    disabled={!lastLesson || !isLastLessonUnlocked}
+                    className="group inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background px-2.5 py-1 text-xs font-medium text-foreground shadow-sm transition-colors enabled:hover:border-primary/40 enabled:hover:bg-primary/5 disabled:cursor-default disabled:opacity-70"
+                  >
+                    <FileText className="size-3.5 text-muted-foreground" aria-hidden />
+                    {t("courseLearn.assignmentsRemaining").replace("{count}", String(pendingAssignmentCount))}
+                    {lastLesson && isLastLessonUnlocked ? (
+                      <ChevronRight className="size-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                    ) : null}
+                  </button>
                 ) : null}
-              </div>
-            ) : null}
-            {showPendingExamsBanner ? (
-              <div className="flex flex-col gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-foreground">{t("courseLearn.pendingExamsBanner").replace("{count}", String(pendingExamCount))}</p>
-                {pendingQuizLessonId ? (
-                  <Button type="button" size="sm" className="h-9 shrink-0 rounded-xl shadow-none" onClick={openExamLesson}>
-                    {t("courseLearn.openExam")}
-                  </Button>
+                {showPendingExamsBanner ? (
+                  <button
+                    type="button"
+                    onClick={openExamLesson}
+                    disabled={!pendingQuizLessonId}
+                    className="group inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background px-2.5 py-1 text-xs font-medium text-foreground shadow-sm transition-colors enabled:hover:border-primary/40 enabled:hover:bg-primary/5 disabled:cursor-default disabled:opacity-70"
+                  >
+                    <GraduationCap className="size-3.5 text-muted-foreground" aria-hidden />
+                    {t("courseLearn.examsRemaining").replace("{count}", String(pendingExamCount))}
+                    {pendingQuizLessonId ? (
+                      <ChevronRight className="size-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                    ) : null}
+                  </button>
                 ) : null}
               </div>
             ) : null}
@@ -451,48 +465,46 @@ export function CourseLearnPage() {
         ) : null}
 
         <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)]">
-          <aside className="hidden min-h-0 border-r border-border/60 bg-background lg:block">
-            <div className="sticky top-0 flex max-h-[calc(100dvh-3.5rem-3rem)] flex-col overflow-hidden">
-              <div className="space-y-3 border-b border-border/60 px-4 py-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("courseLearn.curriculum")}</p>
-                  <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                    {completedLessons}/{totalLessons}
-                  </span>
-                </div>
-                {!isPreviewMode ? (
-                  <CourseProgressBar
-                    percentage={progressPercentage}
-                    completedLessons={completedLessons}
-                    totalLessons={totalLessons}
-                    passedExams={passedExams}
-                    totalExams={totalExams}
-                    submittedAssignments={submittedAssignments}
-                    totalAssignments={totalAssignments}
-                  />
-                ) : null}
+          <aside className="hidden min-h-0 flex-col border-r border-border/60 bg-background lg:flex">
+            <div className="shrink-0 space-y-3 border-b border-border/60 px-4 py-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("courseLearn.curriculum")}</p>
+                <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                  {completedLessons}/{totalLessons}
+                </span>
               </div>
-
-              {lessonsQuery.isLoading ? (
-                <div className="space-y-2 px-3 py-3">
-                  {Array.from({ length: 8 }).map((_, index) => (
-                    <div key={index} className="h-9 animate-pulse rounded-xl bg-muted/50" aria-hidden />
-                  ))}
-                </div>
-              ) : lessons.length ? (
-                <>
-                  <div className="min-h-0 flex-1 overflow-y-auto py-2">{curriculumPanel}</div>
-                  {!isPreviewMode ? <CourseGradeTimeline courseId={courseId} enabled={canLearn} className="shrink-0 px-2" /> : null}
-                </>
-              ) : (
-                <div className="p-4">
-                  <EmptyState icon={BookOpenText} title={t("courseLearn.noLessonsTitle")} description={t("courseLearn.noLessonsDescription")} />
-                </div>
-              )}
+              {!isPreviewMode ? (
+                <CourseProgressBar
+                  percentage={progressPercentage}
+                  completedLessons={completedLessons}
+                  totalLessons={totalLessons}
+                  passedExams={passedExams}
+                  totalExams={totalExams}
+                  submittedAssignments={submittedAssignments}
+                  totalAssignments={totalAssignments}
+                />
+              ) : null}
             </div>
+
+            {lessonsQuery.isLoading ? (
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <div key={index} className="h-9 animate-pulse rounded-xl bg-muted/50" aria-hidden />
+                ))}
+              </div>
+            ) : lessons.length ? (
+              <>
+                {curriculumPanel}
+                {!isPreviewMode ? <CourseGradeTimeline courseId={courseId} enabled={canLearn} className="shrink-0 border-t border-border/60 px-2 py-2" /> : null}
+              </>
+            ) : (
+              <div className="min-h-0 flex-1 p-4">
+                <EmptyState icon={BookOpenText} title={t("courseLearn.noLessonsTitle")} description={t("courseLearn.noLessonsDescription")} />
+              </div>
+            )}
           </aside>
 
-          <div className="flex min-w-0 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-col">
             {selectedLesson ? (
               <>
                 <div className="min-h-0 flex-1 overflow-y-auto">
@@ -619,74 +631,73 @@ export function CourseLearnPage() {
                   </div>
                 </div>
 
-                <footer className="sticky bottom-0 z-10 shrink-0 border-t border-border/60 bg-background/95 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:px-6 lg:px-8">
-                  <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-10 rounded-xl shadow-none"
-                        disabled={!previousUnlockedLesson || isNavigationLocked}
-                        aria-disabled={!previousUnlockedLesson || isNavigationLocked}
-                        onClick={() => {
-                          if (previousUnlockedLesson) {
-                            handleSelectLesson(previousUnlockedLesson.id);
-                          }
-                        }}
-                      >
-                        <ChevronLeft className="mr-1 size-4" aria-hidden />
-                        {t("courseLearn.previousLesson")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-10 rounded-xl shadow-none"
-                        disabled={!nextUnlockedLesson || isNavigationLocked}
-                        aria-disabled={!nextUnlockedLesson || isNavigationLocked}
-                        onClick={() => {
-                          if (nextUnlockedLesson) {
-                            handleSelectLesson(nextUnlockedLesson.id);
-                          }
-                        }}
-                      >
-                        {t("courseLearn.nextLesson")}
-                        <ChevronRight className="ml-1 size-4" aria-hidden />
-                      </Button>
-                    </div>
+                <footer className="shrink-0 border-t border-border/60 bg-background/95 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/85 sm:px-6 lg:px-8">
+                  <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-10 rounded-xl px-3 text-muted-foreground shadow-none hover:text-foreground"
+                      disabled={!previousUnlockedLesson || isNavigationLocked}
+                      aria-disabled={!previousUnlockedLesson || isNavigationLocked}
+                      onClick={() => {
+                        if (previousUnlockedLesson) {
+                          handleSelectLesson(previousUnlockedLesson.id);
+                        }
+                      }}
+                    >
+                      <ChevronLeft className="mr-1 size-4" aria-hidden />
+                      {t("courseLearn.previousLesson")}
+                    </Button>
 
-                    {!isPreviewMode && !isLessonCompleted && !isLessonLocked && !isQuizLesson ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-10 min-w-[10rem] rounded-xl font-medium shadow-none"
-                        disabled={isCompletingSelectedLesson || isNavigationLocked}
-                        onClick={() => void handleCompleteAndContinue()}
-                      >
-                        {isCompletingSelectedLesson ? (
-                          <>
-                            <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
-                            {t("courseLearn.savingProgress")}
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="mr-2 size-4" aria-hidden />
-                            {lessons[selectedLessonIndex + 1] ? t("courseLearn.completeAndContinue") : t("courseLearn.markComplete")}
-                          </>
-                        )}
-                      </Button>
-                    ) : !isPreviewMode && isLessonCompleted && nextUnlockedLesson && !isNavigationLocked ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-10 min-w-[10rem] rounded-xl font-medium shadow-none"
-                        onClick={() => handleSelectLesson(nextUnlockedLesson.id)}
-                      >
-                        {t("courseLearn.nextLesson")}
-                        <ChevronRight className="ml-1.5 size-4" aria-hidden />
-                      </Button>
-                    ) : null}
+                    <div className="flex items-center gap-3">
+                      <span className="hidden text-xs font-medium tabular-nums text-muted-foreground sm:inline">
+                        {selectedLessonIndex + 1} / {lessons.length}
+                      </span>
+
+                      {!isPreviewMode && !isLessonCompleted && !isLessonLocked && !isQuizLesson ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-10 min-w-[11rem] rounded-xl font-medium shadow-none"
+                          disabled={isCompletingSelectedLesson || isNavigationLocked}
+                          onClick={() => void handleCompleteAndContinue()}
+                        >
+                          {isCompletingSelectedLesson ? (
+                            <>
+                              <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                              {t("courseLearn.savingProgress")}
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="mr-2 size-4" aria-hidden />
+                              {nextUnlockedLesson ? t("courseLearn.completeAndContinue") : t("courseLearn.markComplete")}
+                            </>
+                          )}
+                        </Button>
+                      ) : !isPreviewMode && isLessonCompleted && nextUnlockedLesson && !isNavigationLocked ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-10 min-w-[11rem] rounded-xl font-medium shadow-none"
+                          onClick={() => handleSelectLesson(nextUnlockedLesson.id)}
+                        >
+                          {t("courseLearn.nextLesson")}
+                          <ChevronRight className="ml-1.5 size-4" aria-hidden />
+                        </Button>
+                      ) : isPreviewMode && nextUnlockedLesson ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-10 min-w-[11rem] rounded-xl font-medium shadow-none"
+                          onClick={() => handleSelectLesson(nextUnlockedLesson.id)}
+                        >
+                          {t("courseLearn.nextLesson")}
+                          <ChevronRight className="ml-1.5 size-4" aria-hidden />
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </footer>
               </>
@@ -721,8 +732,8 @@ export function CourseLearnPage() {
                   />
                 </div>
               ) : null}
-              <div className="min-h-0 flex-1 overflow-y-auto py-2">{curriculumPanel}</div>
-              {!isPreviewMode ? <CourseGradeTimeline courseId={courseId} enabled={canLearn} className="shrink-0 px-2" /> : null}
+              {curriculumPanel}
+              {!isPreviewMode ? <CourseGradeTimeline courseId={courseId} enabled={canLearn} className="shrink-0 border-t border-border/60 px-2 py-2" /> : null}
             </div>
           </div>
         ) : null}

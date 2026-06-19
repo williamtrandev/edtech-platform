@@ -1,4 +1,5 @@
-import { CheckCircle2, ClipboardCheck, ClipboardList, Lock } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { CheckCircle2, ClipboardCheck, ClipboardList, Lock, Terminal } from "lucide-react";
 import { LESSON_CONTENT_TYPE } from "../constants/business";
 import { cn } from "@/lib/utils";
 import type { LessonUnlockMeta } from "../lib/lesson-unlock";
@@ -32,16 +33,16 @@ export function CourseLearnCurriculum({
   className
 }: CourseLearnCurriculumProps) {
   const showAssignmentsEntry = assignmentCount > 0 && lastLessonId && assignmentsLabel && onOpenAssignments;
+  const activeRef = useRef<HTMLLIElement | null>(null);
+
+  // Keep the active lesson visible when the selection changes (e.g. via prev/next nav).
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedLessonId]);
 
   return (
     <nav aria-label="Course lessons" className={cn("flex h-full min-h-0 flex-col", className)}>
-      <div className="flex items-center gap-2 px-3 pb-2 pt-1">
-        <span className="font-mono text-[11px] font-semibold text-primary" aria-hidden>
-          {">_"}
-        </span>
-        <span className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted-foreground">curriculum</span>
-      </div>
-      <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto px-1">
+      <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto px-1 py-2">
         {lessons.map((lesson, index) => {
           const progress = lessonProgressById.get(lesson.id);
           const unlock = lessonUnlockById.get(lesson.id);
@@ -51,9 +52,10 @@ export function CourseLearnCurriculum({
           const isLastLesson = lesson.id === lastLessonId;
           const hasAssignmentsOnLesson = isLastLesson && assignmentCount > 0;
           const isQuizLesson = lesson.contentType === LESSON_CONTENT_TYPE.quiz;
+          const isCodeLesson = lesson.contentType === LESSON_CONTENT_TYPE.codeExercise;
 
           return (
-            <li key={lesson.id}>
+            <li key={lesson.id} ref={isSelected ? activeRef : undefined}>
               <button
                 type="button"
                 title={
@@ -98,6 +100,8 @@ export function CourseLearnCurriculum({
                 </span>
                 {hasAssignmentsOnLesson ? (
                   <ClipboardList className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                ) : isCodeLesson ? (
+                  <Terminal className="size-3.5 shrink-0 text-primary/80" aria-hidden />
                 ) : isQuizLesson ? (
                   <ClipboardCheck className="size-3.5 shrink-0 text-primary/80" aria-hidden />
                 ) : null}

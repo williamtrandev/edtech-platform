@@ -16,7 +16,8 @@ const LANGS = [
   "bash",
   "json",
   "html",
-  "css"
+  "css",
+  "markdown"
 ] as const;
 
 const THEMES = { light: "github-light", dark: "github-dark-default" } as const;
@@ -27,6 +28,7 @@ const LANG_ALIASES: Record<string, string> = {
   ts: "typescript",
   sh: "bash",
   shell: "bash",
+  md: "markdown",
   "c++": "cpp"
 };
 
@@ -51,7 +53,8 @@ function getHighlighter(): Promise<HighlighterCore> {
         bash,
         json,
         html,
-        css
+        css,
+        markdown
       ] = await Promise.all([
         import("@shikijs/core"),
         import("@shikijs/engine-javascript"),
@@ -68,12 +71,13 @@ function getHighlighter(): Promise<HighlighterCore> {
         import("@shikijs/langs/bash"),
         import("@shikijs/langs/json"),
         import("@shikijs/langs/html"),
-        import("@shikijs/langs/css")
+        import("@shikijs/langs/css"),
+        import("@shikijs/langs/markdown")
       ]);
 
       return createHighlighterCore({
         themes: [light.default, dark.default],
-        langs: [python, javascript, typescript, go, rust, java, cpp, sql, bash, json, html, css].map(
+        langs: [python, javascript, typescript, go, rust, java, cpp, sql, bash, json, html, css, markdown].map(
           (module) => module.default
         ),
         engine: createJavaScriptRegexEngine({ forgiving: true })

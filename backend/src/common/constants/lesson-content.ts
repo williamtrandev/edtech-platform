@@ -3,10 +3,13 @@ export const LESSON_CONTENT_TYPE = {
   text: "TEXT",
   resource: "RESOURCE",
   quiz: "QUIZ",
-  liveSession: "LIVE_SESSION"
+  liveSession: "LIVE_SESSION",
+  codeExercise: "CODE_EXERCISE"
 } as const;
 
 export type LessonContentType = (typeof LESSON_CONTENT_TYPE)[keyof typeof LESSON_CONTENT_TYPE];
+
+export type LessonCodeTest = { name: string; input: string; expectedOutput: string };
 
 export const LESSON_CONTENT_ERROR_CODE = {
   invalidContent: "LESSON_CONTENT_INVALID",
@@ -29,6 +32,9 @@ export type LessonContentPayload = {
   startsAt?: string;
   instructions?: string;
   durationMinutes?: number;
+  language?: string;
+  starterCode?: string;
+  codeTests?: LessonCodeTest[];
 };
 
 export function parseLessonContentPayload(content: string, contentType: LessonContentType): LessonContentPayload {
@@ -38,6 +44,9 @@ export function parseLessonContentPayload(content: string, contentType: LessonCo
       return {
         version: 1,
         kind: parsed.kind,
+        language: parsed.language,
+        starterCode: parsed.starterCode,
+        codeTests: Array.isArray(parsed.codeTests) ? parsed.codeTests : undefined,
         body: parsed.body,
         url: parsed.url,
         fileName: parsed.fileName,

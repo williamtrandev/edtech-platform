@@ -33,7 +33,8 @@ const LESSON_CODE_LANGUAGES = [
   { text: "Bash", value: "bash" },
   { text: "JSON", value: "json" },
   { text: "HTML", value: "markup" },
-  { text: "CSS", value: "css" }
+  { text: "CSS", value: "css" },
+  { text: "Markdown", value: "markdown" }
 ];
 
 /**

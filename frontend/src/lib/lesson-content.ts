@@ -13,6 +13,9 @@ export type LessonContentPayload = {
   startsAt?: string;
   instructions?: string;
   durationMinutes?: number;
+  language?: string;
+  starterCode?: string;
+  codeTests?: Array<{ name: string; input: string; expectedOutput: string }>;
 };
 
 export function serializeLessonContent(payload: LessonContentPayload) {
@@ -134,7 +137,10 @@ export function parseLessonContent(content: string, contentType: LessonContentTy
         meetingUrl: parsed.meetingUrl,
         startsAt: parsed.startsAt,
         instructions: parsed.instructions,
-        durationMinutes: parsed.durationMinutes
+        durationMinutes: parsed.durationMinutes,
+        language: parsed.language,
+        starterCode: parsed.starterCode,
+        codeTests: Array.isArray(parsed.codeTests) ? parsed.codeTests : undefined
       };
     }
   } catch {
