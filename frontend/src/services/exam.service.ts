@@ -107,7 +107,17 @@ export type CodeGradingResult = {
   total: number;
   passed: number;
   allPassed: boolean;
-  results: Array<{ name: string; passed: boolean; hidden: boolean }>;
+  results: Array<{
+    name: string;
+    passed: boolean;
+    hidden: boolean;
+    stdout?: string;
+    stderr?: string;
+    compileError?: string | null;
+    timedOut?: boolean;
+    input?: string;
+    expectedOutput?: string;
+  }>;
 };
 
 export type ExamAttemptAnswer = {
@@ -306,6 +316,16 @@ export const examService = {
     const response = await httpClient.get<ApiResponse<ExamIntegrityEventsResponse>>(
       `/exam-attempts/${attemptId}/integrity-events`
     );
+    return response.data.data;
+  },
+  /** Runs the learner's code for a CODE question against its public sample tests (practice preview). */
+  async runCodeQuestion(questionId: string, code: string): Promise<CodeGradingResult> {
+    const response = await httpClient.post<ApiResponse<CodeGradingResult>>(`/code-exercises/${questionId}/run`, { code });
+    return response.data.data;
+  },
+  /** Runs a lesson CODE_EXERCISE against its sample tests. */
+  async runLessonCode(lessonId: string, code: string): Promise<CodeGradingResult> {
+    const response = await httpClient.post<ApiResponse<CodeGradingResult>>(`/code-exercises/lessons/${lessonId}/run`, { code });
     return response.data.data;
   }
 };

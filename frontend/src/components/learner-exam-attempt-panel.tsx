@@ -8,8 +8,10 @@ import { useExamIntegrityMonitor } from "../hooks/use-exam-integrity-monitor";
 import { useExamAttempt, useSaveExamAttemptAnswers, useStartExamAttempt, useSubmitExamAttempt } from "../hooks/use-exams";
 import { useI18n, type I18nKey } from "../i18n";
 import { formatExamRemainingTime } from "../lib/exam-remaining-time";
+import { STUDIO_STAT } from "../lib/studio-layout";
 import { cn } from "@/lib/utils";
-import type { Exam } from "../services/exam.service";
+import { examService } from "../services/exam.service";
+import type { CodeGradingResult, Exam } from "../services/exam.service";
 import type { ExamAttemptSession } from "../services/exam.service";
 import { CodeExercise } from "./code-exercise";
 import { TextareaField } from "./textarea-field";
@@ -32,6 +34,8 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
   const [attemptAnswersDirty, setAttemptAnswersDirty] = useState(false);
   const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
   const [examNow, setExamNow] = useState(() => Date.now());
+  const [codeRunResults, setCodeRunResults] = useState<Record<string, CodeGradingResult>>({});
+  const [runningQuestionId, setRunningQuestionId] = useState<string | null>(null);
 
   const attemptAutosaveVersionRef = useRef(0);
   const attemptAutosaveTimerRef = useRef<number | null>(null);
@@ -207,6 +211,22 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
     }));
   };
 
+  const onRunCode = async (questionId: string) => {
+    const code = attemptAnswers[questionId];
+    if (typeof code !== "string") {
+      return;
+    }
+    setRunningQuestionId(questionId);
+    try {
+      const result = await examService.runCodeQuestion(questionId, code);
+      setCodeRunResults((current) => ({ ...current, [questionId]: result }));
+    } catch (error) {
+      toast.error(formatError(error, "examAttempt.codeRunFailed"));
+    } finally {
+      setRunningQuestionId((current) => (current === questionId ? null : current));
+    }
+  };
+
   const onToggleAttemptAnswer = (questionId: string, optionId: string) => {
     setAttemptAnswersDirty(true);
     setAttemptAnswers((current) => {
@@ -251,43 +271,41 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
 
   return (
     <div className="grid gap-4">
-      <Card className="shadow-none">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">{exam.title}</CardTitle>
-              {exam.description ? <CardDescription className="mt-1">{exam.description}</CardDescription> : null}
-            </div>
-            <Badge variant={exam.status === EXAM_STATUS.published ? "default" : "secondary"} className="rounded-md">
-              {t(`examStatus.${exam.status}` as I18nKey)}
-            </Badge>
+      <div className="rounded-xl bg-muted/30 px-4 py-4 ring-1 ring-foreground/10 sm:px-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold tracking-tight">{exam.title}</h3>
+            {exam.description ? <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{exam.description}</p> : null}
           </div>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-border bg-card px-3 py-3">
-            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examDuration")}</p>
+          <Badge variant={exam.status === EXAM_STATUS.published ? "default" : "secondary"} className="rounded-md">
+            {t(`examStatus.${exam.status}` as I18nKey)}
+          </Badge>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className={STUDIO_STAT}>
+            <p className="text-xs text-muted-foreground">{t("courseDetail.examDuration")}</p>
             <p className="mt-1 text-sm font-semibold tabular-nums">
               {exam.durationMinutes ? `${exam.durationMinutes} ${t("courseDetail.examMinutes")}` : "—"}
             </p>
           </div>
-          <div className="rounded-lg border border-border bg-card px-3 py-3">
-            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.examPassingScore")}</p>
+          <div className={STUDIO_STAT}>
+            <p className="text-xs text-muted-foreground">{t("courseDetail.examPassingScore")}</p>
             <p className="mt-1 text-sm font-semibold tabular-nums">
               {exam.passingScore !== null && exam.passingScore !== undefined ? `${exam.passingScore}%` : "—"}
             </p>
           </div>
-          <div className="rounded-lg border border-border bg-card px-3 py-3">
-            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{t("courseDetail.questions")}</p>
+          <div className={STUDIO_STAT}>
+            <p className="text-xs text-muted-foreground">{t("courseDetail.questions")}</p>
             <p className="mt-1 text-sm font-semibold tabular-nums">{exam.questionCount ?? 0}</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {canStart ? (
         <div className="flex justify-end">
           <Button
             type="button"
-            className="h-10 rounded-md shadow-none"
+            className="h-10 rounded-xl shadow-none"
             disabled={startExamAttemptMutation.isPending}
             onClick={() => void onStartExam()}
           >
@@ -403,6 +421,9 @@ export function LearnerExamAttemptPanel({ courseId, exam, canAttempt, onAttemptG
                         instructions={question.codeConfig?.instructions}
                         sampleTests={question.codeConfig?.sampleTests ?? []}
                         result={activeExamSession.attempt.answers.find((item) => item.questionId === question.id)?.gradingResult ?? null}
+                        onRun={() => void onRunCode(question.id)}
+                        isRunning={runningQuestionId === question.id}
+                        runResult={codeRunResults[question.id] ?? null}
                       />
                     ) : question.type === EXAM_QUESTION_TYPE.freeText ? (
                       <TextareaField

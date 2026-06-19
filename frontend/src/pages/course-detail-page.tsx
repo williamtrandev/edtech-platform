@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Download, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Search, Send, ShieldCheck, Star, Target, Trash2, Users, Video } from "lucide-react";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Download, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Plus, Search, Send, ShieldCheck, Star, Target, Terminal, Trash2, Users, Video, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -55,9 +55,11 @@ import { CourseArchivedLessonsPanel } from "../components/course-archived-lesson
 import { CourseArchiveImpactSummary } from "../components/course-archive-impact-summary";
 import { CourseAnalyticsInsights } from "../components/course-analytics-insights";
 import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
+import { CodeEditor } from "../components/code-editor";
 import { CourseCoverFrame } from "../components/course-cover-frame";
 import { CourseDetailLearnerHero } from "../components/course-detail-learner-hero";
 import { CourseDetailLearnerTabs } from "../components/course-detail-learner-tabs";
+import { CourseDetailLearnerExamsSection } from "../components/course-detail-learner-exams-section";
 import { CourseLessonPreviewPanel } from "../components/course-lesson-preview-panel";
 import { CourseStudioCoverHero } from "../components/course-studio-cover-hero";
 import { LearnerLessonContent } from "../components/learner-lesson-content";
@@ -68,7 +70,7 @@ import { FormField } from "../components/form-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { TextareaField } from "../components/textarea-field";
-import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_SCOPE, EXAM_STATUS, EXAM_SUBMIT_REASON, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
+import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, CODE_QUESTION_LANGUAGES, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_SCOPE, EXAM_STATUS, EXAM_SUBMIT_REASON, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
 import { ExamScopeFields } from "../components/exam-scope-fields";
 import { ExamIntegrityEventsPanel } from "../components/exam-integrity-events-panel";
 import {
@@ -117,6 +119,7 @@ import type { AssignmentRubricCriterionInput } from "../lib/assignment-rubric";
 import { sumRubricMaxPoints, sumRubricPoints, toRubricCriterionInputs } from "../lib/assignment-rubric";
 import { getCourseLearnPath, getCoursePreviewPath } from "../lib/course-learn-path";
 import { canSelfEnrollInCourse, isEnrolledStudentExperience, showOwnerCannotSelfEnrollHint } from "../lib/enrollment-access";
+import { filterExamsByScope } from "../lib/exam-scope";
 import { downloadBlob } from "../lib/download-file";
 import { certificateService } from "../services/certificate.service";
 import { createAssignmentFormSchema, createAssignmentGradeFormSchema, createAssignmentSubmissionFormSchema, createExamAttemptGradeFormSchema, createExamFormSchema, createExamQuestionFormSchema, createLessonFormSchema, AssignmentFormValues, AssignmentGradeFormValues, AssignmentSubmissionFormValues, CreateLessonFormValues, ExamAttemptGradeFormValues, ExamFormValues, ExamQuestionFormValues, updateCourseFormSchema, UpdateCourseFormValues } from "../schemas/course.schema";
@@ -171,6 +174,9 @@ function hasRenderableLessonContent(lesson: Lesson) {
   }
   if (parsed.kind === LESSON_CONTENT_TYPE.liveSession) {
     return Boolean(parsed.meetingUrl?.trim() || parsed.startsAt?.trim() || parsed.instructions?.trim());
+  }
+  if (parsed.kind === LESSON_CONTENT_TYPE.codeExercise) {
+    return Boolean(parsed.language?.trim());
   }
   return false;
 }
@@ -275,6 +281,7 @@ export function CourseDetailPage() {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [draggingLessonId, setDraggingLessonId] = useState<string | null>(null);
   const [hasSubmittedLessonForm, setHasSubmittedLessonForm] = useState(false);
+  const [codeTests, setCodeTests] = useState<Array<{ name: string; input: string; expectedOutput: string }>>([]);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null);
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [examPendingArchive, setExamPendingArchive] = useState<Exam | null>(null);
@@ -284,6 +291,8 @@ export function CourseDetailPage() {
   const [examAttemptPage, setExamAttemptPage] = useState(1);
   const [examAttemptStatusFilter, setExamAttemptStatusFilter] = useState<"ALL" | (typeof EXAM_ATTEMPT_STATUS)[keyof typeof EXAM_ATTEMPT_STATUS]>(EXAM_ATTEMPT_STATUS.submitted);
   const [activeExamSession, setActiveExamSession] = useState<ExamAttemptSession | null>(null);
+  const [startingExamId, setStartingExamId] = useState<string | null>(null);
+  const examWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const [attemptAnswers, setAttemptAnswers] = useState<Record<string, string | string[]>>({});
   const [attemptAnswersDirty, setAttemptAnswersDirty] = useState(false);
   const [lastAutosavedAt, setLastAutosavedAt] = useState<string | null>(null);
@@ -385,6 +394,10 @@ export function CourseDetailPage() {
   const reviews = courseReviewsQuery.data?.items ?? [];
   const myReview = meQuery.data?.id ? reviews.find((review) => review.userId === meQuery.data.id) : undefined;
   const exams = courseExamsQuery.data ?? [];
+  const learnerCourseExams = useMemo(
+    () => filterExamsByScope(exams, EXAM_SCOPE.course).filter((exam) => exam.status === EXAM_STATUS.published),
+    [exams]
+  );
   const selectedExam = selectedExamId ? exams.find((exam) => exam.id === selectedExamId) : undefined;
   const examQuestions = examQuestionsQuery.data ?? [];
   const examAttempts = examAttemptsQuery.data?.items ?? [];
@@ -784,6 +797,14 @@ export function CourseDetailPage() {
       return;
     }
 
+    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
+      const validTests = codeTests.filter((test) => test.name.trim() && test.input.trim() && test.expectedOutput.trim());
+      if (validTests.length === 0) {
+        toast.error(t("validation.lessonCodeTestsRequired"));
+        return;
+      }
+    }
+
     const content =
       values.contentType === LESSON_CONTENT_TYPE.text
         ? serializeLessonContent({
@@ -800,7 +821,16 @@ export function CourseDetailPage() {
               mimeType: uploadedLessonFile?.mimeType,
               size: uploadedLessonFile?.size
             })
-          : buildLessonContentFromForm(values);
+          : values.contentType === LESSON_CONTENT_TYPE.codeExercise
+            ? serializeLessonContent({
+                version: 1,
+                kind: LESSON_CONTENT_TYPE.codeExercise,
+                language: values.codeLanguage,
+                starterCode: values.codeStarterCode,
+                instructions: values.codeInstructions,
+                codeTests: codeTests.filter((test) => test.name.trim() || test.input.trim() || test.expectedOutput.trim())
+              })
+            : buildLessonContentFromForm(values);
 
     try {
       if (lessonId) {
@@ -827,12 +857,16 @@ export function CourseDetailPage() {
           liveStartsAt: "",
           liveInstructions: "",
           liveDurationMinutes: "",
+          codeLanguage: "",
+          codeStarterCode: "",
+          codeInstructions: "",
           sortOrder: sortOrder + 1
         });
         form.clearErrors();
         setHasSubmittedLessonForm(false);
         setSelectedLessonId(null);
         setUploadedLessonFile(null);
+        setCodeTests([]);
       }
     } catch (e) {
       toast.error(formatError(e, lessonId ? "courseDetail.lessonSaveFailed" : "courseDetail.lessonCreateFailed"));
@@ -1285,6 +1319,7 @@ export function CourseDetailPage() {
   };
 
   const onStartExamAttempt = async (examId: string) => {
+    setStartingExamId(examId);
     try {
       const session = await startExamAttemptMutation.mutateAsync(examId);
       setActiveExamSession(session);
@@ -1298,8 +1333,13 @@ export function CourseDetailPage() {
         return acc;
       }, {});
       setAttemptAnswers(nextAnswers);
+      window.requestAnimationFrame(() => {
+        examWorkspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (e) {
       toast.error(formatError(e, "courseDetail.examStartFailed"));
+    } finally {
+      setStartingExamId(null);
     }
   };
 
@@ -1510,6 +1550,7 @@ export function CourseDetailPage() {
         : null
     );
     form.clearErrors();
+    setCodeTests(parsedContent.kind === LESSON_CONTENT_TYPE.codeExercise ? (parsedContent.codeTests ?? []) : []);
     form.reset({
       title: lesson.title,
       contentType: lesson.contentType,
@@ -1519,6 +1560,9 @@ export function CourseDetailPage() {
       liveStartsAt: parsedContent.startsAt ? parsedContent.startsAt.slice(0, 16) : "",
       liveInstructions: parsedContent.instructions ?? "",
       liveDurationMinutes: parsedContent.durationMinutes ?? "",
+      codeLanguage: parsedContent.language ?? "",
+      codeStarterCode: parsedContent.starterCode ?? "",
+      codeInstructions: parsedContent.instructions ?? "",
       sortOrder: lesson.sortOrder
     });
   };
@@ -1527,6 +1571,7 @@ export function CourseDetailPage() {
     setSelectedLessonId(null);
     setHasSubmittedLessonForm(false);
     setUploadedLessonFile(null);
+    setCodeTests([]);
     form.clearErrors();
     form.reset({
       title: "",
@@ -1537,6 +1582,9 @@ export function CourseDetailPage() {
       liveStartsAt: "",
       liveInstructions: "",
       liveDurationMinutes: "",
+      codeLanguage: "",
+      codeStarterCode: "",
+      codeInstructions: "",
       sortOrder: nextLessonSortOrder
     });
   };
@@ -1643,6 +1691,12 @@ export function CourseDetailPage() {
       icon: Video,
       label: t("lessonType.LIVE_SESSION"),
       description: t("courseDetail.liveSessionTypeHint")
+    },
+    {
+      value: LESSON_CONTENT_TYPE.codeExercise,
+      icon: Terminal,
+      label: t("lessonType.CODE_EXERCISE"),
+      description: t("courseDetail.codeExerciseTypeHint")
     }
   ];
   const publishedExamOptions = exams.filter((exam) => exam.status === EXAM_STATUS.published);
@@ -1672,7 +1726,7 @@ export function CourseDetailPage() {
   const getLessonError = (message?: string) => (hasSubmittedLessonForm ? message : undefined);
   const tabItems: { id: CourseDetailTab; label: I18nKey; count?: number; managerOnly?: boolean }[] = [
     { id: "curriculum", label: "courseDetail.tabCurriculum", count: lessons.length },
-    { id: "exams", label: "courseDetail.tabExams", count: exams.length },
+    { id: "exams", label: "courseDetail.tabExams", count: !canAccessCourseWorkspace && isEnrolledStudent && isCoursePublished ? learnerCourseExams.length : exams.length },
     { id: "assignments", label: "courseDetail.tabAssignments", count: assignments.length },
     { id: "reviews", label: "courseDetail.reviews", count: courseQuery.data?.ratingCount ?? 0 },
     { id: "learners", label: "courseDetail.tabLearners", count: enrollmentsTotal, managerOnly: true },
@@ -1705,6 +1759,7 @@ export function CourseDetailPage() {
     : [];
   const hasLongMetadata = Boolean(courseQuery.data?.requirements || courseQuery.data?.outcomes);
   const isLearnerCatalogView = !canAccessCourseWorkspace;
+  const isLearnerExamsView = isLearnerCatalogView && isEnrolledStudent && isCoursePublished;
   const learnerCount = isLearnerCatalogView
     ? (courseQuery.data?.enrollmentCount ?? 0)
     : enrollmentsTotal;
@@ -2583,6 +2638,136 @@ export function CourseDetailPage() {
                       </>
                     ) : null}
 
+                    {lessonContentType === LESSON_CONTENT_TYPE.codeExercise ? (
+                      <>
+                        <FormField
+                          id="lesson-code-language"
+                          label={t("courseDetail.codeExerciseLanguage")}
+                          error={getLessonError(form.formState.errors.codeLanguage?.message)}
+                        >
+                          <Controller
+                            control={form.control}
+                            name="codeLanguage"
+                            render={({ field }) => (
+                              <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                                <SelectTrigger id="lesson-code-language" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                                  <SelectValue placeholder={t("courseDetail.codeExerciseLanguagePlaceholder")} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {CODE_QUESTION_LANGUAGES.map((lang) => (
+                                    <SelectItem key={lang} value={lang}>
+                                      {t(`codeLanguage.${lang}` as Parameters<typeof t>[0])}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </FormField>
+
+                        <FormField
+                          id="lesson-code-instructions"
+                          label={t("courseDetail.codeExerciseInstructions")}
+                          hint={t("courseDetail.codeExerciseInstructionsHint")}
+                        >
+                          <TextareaField
+                            id="lesson-code-instructions"
+                            rows={3}
+                            placeholder={t("courseDetail.codeExerciseInstructionsPlaceholder")}
+                            {...form.register("codeInstructions")}
+                          />
+                        </FormField>
+
+                        <FormField
+                          id="lesson-code-starter"
+                          label={t("courseDetail.codeExerciseStarterCode")}
+                          hint={t("courseDetail.codeExerciseStarterCodeHint")}
+                        >
+                          <Controller
+                            control={form.control}
+                            name="codeStarterCode"
+                            render={({ field }) => (
+                              <CodeEditor
+                                language={form.watch("codeLanguage") ?? "javascript"}
+                                value={field.value ?? ""}
+                                onChange={field.onChange}
+                                height={200}
+                              />
+                            )}
+                          />
+                        </FormField>
+
+                        <div className="grid gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{t("courseDetail.codeExerciseTests")}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1.5 rounded-md px-2.5 text-xs shadow-none"
+                              onClick={() => setCodeTests((prev) => [...prev, { name: "", input: "", expectedOutput: "" }])}
+                            >
+                              <Plus className="size-3" />
+                              {t("courseDetail.codeExerciseAddTest")}
+                            </Button>
+                          </div>
+                          {codeTests.length > 0 ? (
+                            <div className="grid gap-3">
+                              {codeTests.map((test, idx) => (
+                                <div key={idx} className="relative rounded-lg border border-border bg-secondary/30 p-3">
+                                  <button
+                                    type="button"
+                                    className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                                    onClick={() => setCodeTests((prev) => prev.filter((_, i) => i !== idx))}
+                                    aria-label="Remove test"
+                                  >
+                                    <X className="size-3.5" />
+                                  </button>
+                                  <div className="grid gap-2">
+                                    <div>
+                                      <label className="mb-1 block text-xs text-muted-foreground">{t("courseDetail.codeExerciseTestName")}</label>
+                                      <Input
+                                        className="h-8 text-xs shadow-none"
+                                        placeholder={t("courseDetail.codeExerciseTestNamePlaceholder")}
+                                        value={test.name}
+                                        onChange={(e) => setCodeTests((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))}
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="mb-1 block text-xs text-muted-foreground">{t("courseDetail.codeExerciseTestInput")}</label>
+                                        <TextareaField
+                                          rows={3}
+                                          className="text-xs font-mono"
+                                          placeholder={t("courseDetail.codeExerciseTestInputPlaceholder")}
+                                          value={test.input}
+                                          onChange={(e) => setCodeTests((prev) => prev.map((item, i) => (i === idx ? { ...item, input: e.target.value } : item)))}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="mb-1 block text-xs text-muted-foreground">{t("courseDetail.codeExerciseTestOutput")}</label>
+                                        <TextareaField
+                                          rows={3}
+                                          className="text-xs font-mono"
+                                          placeholder={t("courseDetail.codeExerciseTestOutputPlaceholder")}
+                                          value={test.expectedOutput}
+                                          onChange={(e) => setCodeTests((prev) => prev.map((item, i) => (i === idx ? { ...item, expectedOutput: e.target.value } : item)))}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+                              No test cases yet. Add at least one to save this exercise.
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    ) : null}
+
                     <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
                       <span className="text-xs text-muted-foreground">
                         {selectedLessonId ? t("courseDetail.editingSelectedLesson") : `${t("courseDetail.nextLessonOrder")} #${nextLessonSortOrder}`}
@@ -2615,7 +2800,27 @@ export function CourseDetailPage() {
           </section>
         ) : null}
 
-        {activeTab === "exams" ? (
+        {activeTab === "exams" && isLearnerExamsView ? (
+          <CourseDetailLearnerExamsSection
+            exams={learnerCourseExams}
+            activeExamSession={activeExamSession}
+            startingExamId={startingExamId}
+            attemptAnswers={attemptAnswers}
+            examRemainingSeconds={examRemainingSeconds}
+            examAutosaveLabel={examAutosaveLabel}
+            isSubmitting={submitExamAttemptMutation.isPending}
+            workspaceRef={examWorkspaceRef}
+            scrollToWorkspace={() => {
+              examWorkspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            onStartExam={(examId) => void onStartExamAttempt(examId)}
+            onChangeAttemptAnswer={onChangeAttemptAnswer}
+            onToggleAttemptAnswer={onToggleAttemptAnswer}
+            onSubmitAttempt={() => void onSubmitAttempt()}
+          />
+        ) : null}
+
+        {activeTab === "exams" && !isLearnerExamsView ? (
           <section className={cn(canAccessCourseWorkspace ? STUDIO_WORKSPACE_GRID : "grid gap-4")}>
             <Card className={cn("", canAccessCourseWorkspace ? STUDIO_LIST_STICKY : undefined)}>
               <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
@@ -2723,13 +2928,13 @@ export function CourseDetailPage() {
                                   type="button"
                                   size="sm"
                                   className="h-9 rounded-md shadow-none"
-                                  disabled={startExamAttemptMutation.isPending || exam.status !== EXAM_STATUS.published || (exam.questionCount ?? 0) < 1}
+                                  disabled={(startingExamId !== null && startingExamId !== exam.id) || exam.status !== EXAM_STATUS.published || (exam.questionCount ?? 0) < 1}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     void onStartExamAttempt(exam.id);
                                   }}
                                 >
-                                  {startExamAttemptMutation.isPending ? t("courseDetail.startingExam") : t("courseDetail.startExam")}
+                                  {startingExamId === exam.id ? t("courseDetail.startingExam") : t("courseDetail.startExam")}
                                 </Button>
                               ) : (
                                 <Button asChild type="button" size="sm" className="h-9 rounded-md shadow-none">
@@ -3266,7 +3471,7 @@ export function CourseDetailPage() {
               </div>
             ) : null}
 
-            {!canManageCourse && !canReviewCourse && activeExamSession ? (
+            {!canManageCourse && !canReviewCourse && !isLearnerExamsView && activeExamSession ? (
               <Card>
                 <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
                   <div>

@@ -65,7 +65,8 @@ export function createLessonFormSchema(t: Translate) {
           LESSON_CONTENT_TYPE.text,
           LESSON_CONTENT_TYPE.resource,
           LESSON_CONTENT_TYPE.quiz,
-          LESSON_CONTENT_TYPE.liveSession
+          LESSON_CONTENT_TYPE.liveSession,
+          LESSON_CONTENT_TYPE.codeExercise
         ])
         .default(LESSON_CONTENT_TYPE.text),
       content: z.string().default(""),
@@ -81,9 +82,23 @@ export function createLessonFormSchema(t: Translate) {
         .min(LESSON_PROGRESS_WEIGHT.min, t("validation.lessonProgressWeightMin"))
         .max(LESSON_PROGRESS_WEIGHT.max, t("validation.lessonProgressWeightMax"))
         .default(LESSON_PROGRESS_WEIGHT.default),
-      prerequisiteLessonId: z.string().nullable().optional()
+      prerequisiteLessonId: z.string().nullable().optional(),
+      codeLanguage: z.string().optional(),
+      codeStarterCode: z.string().optional(),
+      codeInstructions: z.string().optional()
     })
     .superRefine((values, context) => {
+      if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
+        if (!values.codeLanguage?.trim()) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["codeLanguage"],
+            message: t("validation.lessonCodeLanguageRequired")
+          });
+        }
+        return;
+      }
+
       if (values.contentType === LESSON_CONTENT_TYPE.quiz) {
         if (!values.quizExamId?.trim()) {
           context.addIssue({

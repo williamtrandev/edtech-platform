@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { LESSON_CONTENT_TYPE } from "../constants/business";
 import { useI18n } from "../i18n";
 import { parseLessonContent } from "../lib/lesson-content";
 import { highlightLessonHtml } from "../lib/lesson-highlight";
 import { toMediaUrl } from "../lib/media-url";
 import type { Lesson } from "../services/course.service";
+import { examService, type CodeGradingResult } from "../services/exam.service";
+import { CodeExercise } from "./code-exercise";
 import { LearnerLiveSessionLesson } from "./learner-live-session-lesson";
 import { LearnerQuizLesson } from "./learner-quiz-lesson";
 
@@ -45,6 +48,67 @@ function LessonHtmlArticle({ html }: { html: string }) {
   }, [html]);
 
   return <article className={LESSON_PROSE_CLASS} dangerouslySetInnerHTML={{ __html: rendered }} />;
+}
+
+/** Practice coding exercise embedded in a lesson; runs vs sample tests and auto-completes on all-pass. */
+function LessonCodeExercise({
+  lessonId,
+  language,
+  starterCode,
+  instructions,
+  sampleTests,
+  canComplete,
+  onComplete
+}: {
+  lessonId: string;
+  language: string;
+  starterCode?: string;
+  instructions?: string | null;
+  sampleTests: Array<{ name: string; input: string; expectedOutput: string }>;
+  canComplete: boolean;
+  onComplete?: () => void;
+}) {
+  const { t } = useI18n();
+  const [code, setCode] = useState(starterCode ?? "");
+  const [isRunning, setIsRunning] = useState(false);
+  const [runResult, setRunResult] = useState<CodeGradingResult | null>(null);
+  const completedRef = useRef(false);
+
+  useEffect(() => {
+    setCode(starterCode ?? "");
+    setRunResult(null);
+    completedRef.current = false;
+  }, [lessonId, starterCode]);
+
+  const onRun = async () => {
+    setIsRunning(true);
+    try {
+      const result = await examService.runLessonCode(lessonId, code);
+      setRunResult(result);
+      if (result.allPassed && canComplete && !completedRef.current) {
+        completedRef.current = true;
+        onComplete?.();
+        toast.success(t("courseLearn.codeExerciseSolved"));
+      }
+    } catch {
+      toast.error(t("examAttempt.codeRunFailed"));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  return (
+    <CodeExercise
+      language={language}
+      value={code}
+      onChange={setCode}
+      instructions={instructions}
+      sampleTests={sampleTests}
+      onRun={() => void onRun()}
+      isRunning={isRunning}
+      runResult={runResult}
+    />
+  );
 }
 
 function LessonVideoPlayer({
@@ -214,6 +278,20 @@ export function LearnerLessonContent({
         statusUpcomingLabel={t("liveSessions.statusUpcoming")}
         statusEndedLabel={t("liveSessions.statusEnded")}
         statusUnscheduledLabel={t("liveSessions.statusUnscheduled")}
+      />
+    );
+  }
+
+  if (parsed.kind === LESSON_CONTENT_TYPE.codeExercise && parsed.language) {
+    return (
+      <LessonCodeExercise
+        lessonId={lesson.id}
+        language={parsed.language}
+        starterCode={parsed.starterCode}
+        instructions={parsed.instructions}
+        sampleTests={parsed.codeTests ?? []}
+        canComplete={canAutoComplete}
+        onComplete={onAutoComplete}
       />
     );
   }

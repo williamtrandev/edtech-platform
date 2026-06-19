@@ -216,6 +216,17 @@
     background: transparent;
   }
 
+  /* Light theme: consume the light Shiki vars (default). */
+  .lesson-prose .shiki,
+  .lesson-prose .shiki span {
+    color: var(--shiki-light);
+    background-color: var(--shiki-light-bg);
+    font-style: var(--shiki-light-font-style);
+    font-weight: var(--shiki-light-font-weight);
+    text-decoration: var(--shiki-light-text-decoration);
+  }
+
+  /* Dark theme override. */
   .dark .lesson-prose .shiki,
   .dark .lesson-prose .shiki span {
     color: var(--shiki-dark) !important;

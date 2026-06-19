@@ -93,20 +93,23 @@ function lessonId(courseIndex: number, lessonIndex: number): string {
   return `${courseId(courseIndex)}-lesson-${padded(lessonIndex, 2)}`;
 }
 
-function examId(courseIndex: number): string {
-  return `${courseId(courseIndex)}-exam-01`;
+/** Number of published exams per seeded course. A course is only complete (and earns a certificate) when ALL are passed. */
+const EXAMS_PER_COURSE = Math.max(1, Number(process.env.SEED_EXAMS_PER_COURSE) || 2);
+
+function examId(courseIndex: number, examNumber = 1): string {
+  return `${courseId(courseIndex)}-exam-${padded(examNumber, 2)}`;
 }
 
-function questionId(courseIndex: number, questionIndex: number): string {
-  return `${examId(courseIndex)}-question-${padded(questionIndex, 2)}`;
+function questionId(courseIndex: number, examNumber: number, questionIndex: number): string {
+  return `${examId(courseIndex, examNumber)}-question-${padded(questionIndex, 2)}`;
 }
 
-function attemptId(courseIndex: number, learnerIndex: number): string {
-  return `${examId(courseIndex)}-attempt-${padded(learnerIndex)}`;
+function attemptId(courseIndex: number, examNumber: number, learnerIndex: number): string {
+  return `${examId(courseIndex, examNumber)}-attempt-${padded(learnerIndex)}`;
 }
 
-function answerId(courseIndex: number, learnerIndex: number, questionIndex: number): string {
-  return `${attemptId(courseIndex, learnerIndex)}-answer-${padded(questionIndex, 2)}`;
+function answerId(courseIndex: number, examNumber: number, learnerIndex: number, questionIndex: number): string {
+  return `${attemptId(courseIndex, examNumber, learnerIndex)}-answer-${padded(questionIndex, 2)}`;
 }
 
 function assignmentId(courseIndex: number, assignmentIndex: number): string {
@@ -294,16 +297,15 @@ const CODE_EXERCISES: SeedCodeExercise[] = [
     ]
   },
   {
-    language: "go",
-    prompt: "Backend (Go): read two integers and print their sum.",
-    instructions: "Read two whitespace-separated integers from standard input and print their sum.",
-    starterCode:
-      'package main\n\nimport "fmt"\n\nfunc main() {\n\tvar a, b int\n\tfmt.Scan(&a, &b)\n\t// TODO: print their sum\n\tfmt.Println(0)\n}\n',
-    solutionCode: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tvar a, b int\n\tfmt.Scan(&a, &b)\n\tfmt.Println(a + b)\n}\n',
+    language: "python",
+    prompt: "Backend (Python): read a list of numbers and print the maximum.",
+    instructions: "Read space-separated integers from standard input and print the largest one.",
+    starterCode: "nums = list(map(int, input().split()))\n# TODO: print the maximum value\nprint(0)\n",
+    solutionCode: "nums = list(map(int, input().split()))\nprint(max(nums))\n",
     tests: [
-      { name: "adds small", input: "2 3", expectedOutput: "5", hidden: false },
-      { name: "adds tens", input: "10 20", expectedOutput: "30", hidden: false },
-      { name: "hidden zero sum", input: "-5 5", expectedOutput: "0", hidden: true }
+      { name: "max of three", input: "3 1 4", expectedOutput: "4", hidden: false },
+      { name: "max with negative", input: "-5 2 0", expectedOutput: "2", hidden: false },
+      { name: "hidden single element", input: "42", expectedOutput: "42", hidden: true }
     ]
   },
   {
@@ -319,43 +321,34 @@ const CODE_EXERCISES: SeedCodeExercise[] = [
 ];
 
 async function upsertCourseExamData(courseIndex: number, questionsPerExam: number): Promise<void> {
-  await prisma.exam.upsert({
-    where: { id: examId(courseIndex) },
-    create: {
-      id: examId(courseIndex),
-      courseId: courseId(courseIndex),
-      title: `Final check: ${buildTitle(courseIndex)}`,
-      description: "Seeded exam for testing learner attempt UI and instructor question authoring.",
-      status: ExamStatus.PUBLISHED,
-      durationMinutes: 30,
-      passingScore: 70
-    },
-    update: {
-      title: `Final check: ${buildTitle(courseIndex)}`,
-      description: "Seeded exam for testing learner attempt UI and instructor question authoring.",
-      status: ExamStatus.PUBLISHED,
-      archivedAt: null,
-      durationMinutes: 30,
-      passingScore: 70
-    }
-  });
+  for (let examNumber = 1; examNumber <= EXAMS_PER_COURSE; examNumber += 1) {
+    const examTitle =
+      EXAMS_PER_COURSE > 1 ? `Module ${examNumber} exam: ${buildTitle(courseIndex)}` : `Final check: ${buildTitle(courseIndex)}`;
 
-  for (let questionIndex = 1; questionIndex <= questionsPerExam; questionIndex += 1) {
-    const type = questionIndex === questionsPerExam ? ExamQuestionType.FREE_TEXT : ExamQuestionType.SINGLE_CHOICE;
-    await prisma.examQuestion.upsert({
-      where: { id: questionId(courseIndex, questionIndex) },
+    await prisma.exam.upsert({
+      where: { id: examId(courseIndex, examNumber) },
       create: {
-        id: questionId(courseIndex, questionIndex),
-        examId: examId(courseIndex),
-        type,
-        prompt: buildQuestionPrompt(courseIndex, questionIndex),
-        options: type === ExamQuestionType.FREE_TEXT ? [] : buildQuestionOptions(courseIndex, questionIndex),
-        correctAnswers: type === ExamQuestionType.FREE_TEXT ? [] : ["A"],
-        explanation: type === ExamQuestionType.FREE_TEXT ? "Manual grading required." : "Seed answer uses the documented pattern.",
-        points: type === ExamQuestionType.FREE_TEXT ? 3 : 1,
-        sortOrder: questionIndex
+        id: examId(courseIndex, examNumber),
+        courseId: courseId(courseIndex),
+        title: examTitle,
+        description: "Seeded exam for testing learner attempt UI and instructor question authoring.",
+        status: ExamStatus.PUBLISHED,
+        durationMinutes: 30,
+        passingScore: 70
       },
       update: {
+        title: examTitle,
+        description: "Seeded exam for testing learner attempt UI and instructor question authoring.",
+        status: ExamStatus.PUBLISHED,
+        archivedAt: null,
+        durationMinutes: 30,
+        passingScore: 70
+      }
+    });
+
+    for (let questionIndex = 1; questionIndex <= questionsPerExam; questionIndex += 1) {
+      const type = questionIndex === questionsPerExam ? ExamQuestionType.FREE_TEXT : ExamQuestionType.SINGLE_CHOICE;
+      const questionFields = {
         type,
         prompt: buildQuestionPrompt(courseIndex, questionIndex),
         options: type === ExamQuestionType.FREE_TEXT ? [] : buildQuestionOptions(courseIndex, questionIndex),
@@ -363,43 +356,44 @@ async function upsertCourseExamData(courseIndex: number, questionsPerExam: numbe
         explanation: type === ExamQuestionType.FREE_TEXT ? "Manual grading required." : "Seed answer uses the documented pattern.",
         points: type === ExamQuestionType.FREE_TEXT ? 3 : 1,
         sortOrder: questionIndex
-      }
+      };
+      await prisma.examQuestion.upsert({
+        where: { id: questionId(courseIndex, examNumber, questionIndex) },
+        create: { id: questionId(courseIndex, examNumber, questionIndex), examId: examId(courseIndex, examNumber), ...questionFields },
+        update: questionFields
+      });
+    }
+
+    // CODE question: public config in `codeConfig`, secret (solution + hidden tests) in `correctAnswers`.
+    // Exercise language differs per exam so a multi-exam course spans languages.
+    const codeQuestionIndex = questionsPerExam + 1;
+    const exercise = CODE_EXERCISES[(courseIndex + examNumber - 2) % CODE_EXERCISES.length];
+    const codeConfig: Prisma.InputJsonValue = {
+      language: exercise.language,
+      starterCode: exercise.starterCode,
+      instructions: exercise.instructions,
+      sampleTests: exercise.tests.filter((test) => !test.hidden).map(({ name, input, expectedOutput }) => ({ name, input, expectedOutput }))
+    };
+    const codeSecret: Prisma.InputJsonValue = {
+      solutionCode: exercise.solutionCode,
+      tests: exercise.tests
+    };
+    const codeQuestionFields = {
+      type: ExamQuestionType.CODE,
+      prompt: exercise.prompt,
+      options: [] as Prisma.InputJsonValue,
+      correctAnswers: codeSecret,
+      codeConfig,
+      explanation: "Auto-graded by running your code against the test cases.",
+      points: 5,
+      sortOrder: codeQuestionIndex
+    };
+    await prisma.examQuestion.upsert({
+      where: { id: questionId(courseIndex, examNumber, codeQuestionIndex) },
+      create: { id: questionId(courseIndex, examNumber, codeQuestionIndex), examId: examId(courseIndex, examNumber), ...codeQuestionFields },
+      update: codeQuestionFields
     });
   }
-
-  // CODE question: public config in `codeConfig`, secret (solution + hidden tests) in `correctAnswers`.
-  // Each course gets one exercise cycled from the multi-language library.
-  const codeQuestionIndex = questionsPerExam + 1;
-  const exercise = CODE_EXERCISES[(courseIndex - 1) % CODE_EXERCISES.length];
-  const codeConfig: Prisma.InputJsonValue = {
-    language: exercise.language,
-    starterCode: exercise.starterCode,
-    instructions: exercise.instructions,
-    sampleTests: exercise.tests.filter((test) => !test.hidden).map(({ name, input, expectedOutput }) => ({ name, input, expectedOutput }))
-  };
-  const codeSecret: Prisma.InputJsonValue = {
-    solutionCode: exercise.solutionCode,
-    tests: exercise.tests
-  };
-  const codeQuestionFields = {
-    type: ExamQuestionType.CODE,
-    prompt: exercise.prompt,
-    options: [] as Prisma.InputJsonValue,
-    correctAnswers: codeSecret,
-    codeConfig,
-    explanation: "Auto-graded by running your code against the test cases.",
-    points: 5,
-    sortOrder: codeQuestionIndex
-  };
-  await prisma.examQuestion.upsert({
-    where: { id: questionId(courseIndex, codeQuestionIndex) },
-    create: {
-      id: questionId(courseIndex, codeQuestionIndex),
-      examId: examId(courseIndex),
-      ...codeQuestionFields
-    },
-    update: codeQuestionFields
-  });
 }
 
 async function upsertCourseAssignmentData(courseIndex: number, assignmentsPerCourse: number): Promise<void> {
@@ -503,6 +497,30 @@ async function upsertCourses(courseCount: number, lessonsPerCourse: number, ques
         sortOrder: lessonIndex + 1
       })),
       skipDuplicates: true
+    });
+
+    // Practice CODE_EXERCISE lesson (all sample tests visible; auto-completes on all-pass).
+    const codeLessonExercise = CODE_EXERCISES[(index - 1) % CODE_EXERCISES.length];
+    const codeLessonContent = JSON.stringify({
+      version: 1,
+      kind: LessonContentType.CODE_EXERCISE,
+      language: codeLessonExercise.language,
+      starterCode: codeLessonExercise.starterCode,
+      instructions: codeLessonExercise.instructions,
+      codeTests: codeLessonExercise.tests
+        .filter((test) => !test.hidden)
+        .map(({ name, input, expectedOutput }) => ({ name, input, expectedOutput }))
+    });
+    const codeLessonFields = {
+      title: `Practice: ${codeLessonExercise.language} exercise`,
+      contentType: LessonContentType.CODE_EXERCISE,
+      content: codeLessonContent,
+      sortOrder: lessonsPerCourse + 1
+    };
+    await prisma.lesson.upsert({
+      where: { id: lessonId(index, lessonsPerCourse + 1) },
+      create: { id: lessonId(index, lessonsPerCourse + 1), courseId: courseId(index), ...codeLessonFields },
+      update: codeLessonFields
     });
 
     await upsertCourseExamData(index, questionsPerExam);
@@ -628,50 +646,53 @@ async function seedExamAttempts(courseCount: number, learnerCount: number, attem
   for (let courseIndex = 1; courseIndex <= courseCount; courseIndex += 1) {
     for (let offset = 0; offset < attemptsPerCourse; offset += 1) {
       const learnerIndex = ((courseIndex * 7 + offset * 3) % learnerCount) + 1;
-      const attempt = await prisma.examAttempt.upsert({
-        where: {
-          userId_examId_attemptNumber: {
-            userId: learnerId(learnerIndex),
-            examId: examId(courseIndex),
-            attemptNumber: 1
-          }
-        },
-        create: {
-          id: attemptId(courseIndex, learnerIndex),
-          userId: learnerId(learnerIndex),
-          examId: examId(courseIndex),
-          attemptNumber: 1,
-          status: ExamAttemptStatus.SUBMITTED,
-          submittedAt: new Date()
-        },
-        update: {
-          status: ExamAttemptStatus.SUBMITTED,
-          submittedAt: new Date()
-        }
-      });
 
-      for (let questionIndex = 1; questionIndex <= questionsPerExam; questionIndex += 1) {
-        const isFreeText = questionIndex === questionsPerExam;
-        await prisma.examAnswer.upsert({
+      for (let examNumber = 1; examNumber <= EXAMS_PER_COURSE; examNumber += 1) {
+        const attempt = await prisma.examAttempt.upsert({
           where: {
-            attemptId_questionId: {
-              attemptId: attempt.id,
-              questionId: questionId(courseIndex, questionIndex)
+            userId_examId_attemptNumber: {
+              userId: learnerId(learnerIndex),
+              examId: examId(courseIndex, examNumber),
+              attemptNumber: 1
             }
           },
           create: {
-            id: answerId(courseIndex, learnerIndex, questionIndex),
-            attemptId: attempt.id,
-            questionId: questionId(courseIndex, questionIndex),
-            answer: isFreeText ? `Seed learner ${padded(learnerIndex)} written answer.` : "A"
+            id: attemptId(courseIndex, examNumber, learnerIndex),
+            userId: learnerId(learnerIndex),
+            examId: examId(courseIndex, examNumber),
+            attemptNumber: 1,
+            status: ExamAttemptStatus.SUBMITTED,
+            submittedAt: new Date()
           },
           update: {
-            answer: isFreeText ? `Seed learner ${padded(learnerIndex)} written answer.` : "A"
+            status: ExamAttemptStatus.SUBMITTED,
+            submittedAt: new Date()
           }
         });
-      }
 
-      created += 1;
+        for (let questionIndex = 1; questionIndex <= questionsPerExam; questionIndex += 1) {
+          const isFreeText = questionIndex === questionsPerExam;
+          await prisma.examAnswer.upsert({
+            where: {
+              attemptId_questionId: {
+                attemptId: attempt.id,
+                questionId: questionId(courseIndex, examNumber, questionIndex)
+              }
+            },
+            create: {
+              id: answerId(courseIndex, examNumber, learnerIndex, questionIndex),
+              attemptId: attempt.id,
+              questionId: questionId(courseIndex, examNumber, questionIndex),
+              answer: isFreeText ? `Seed learner ${padded(learnerIndex)} written answer.` : "A"
+            },
+            update: {
+              answer: isFreeText ? `Seed learner ${padded(learnerIndex)} written answer.` : "A"
+            }
+          });
+        }
+
+        created += 1;
+      }
     }
   }
 
@@ -732,6 +753,7 @@ async function main(): Promise<void> {
   writeLine("Seed courses complete.");
   writeLine(`Courses: ${courseCount}`);
   writeLine(`Lessons/course: ${lessonsPerCourse}`);
+  writeLine(`Exams/course: ${EXAMS_PER_COURSE}`);
   writeLine(`Questions/exam: ${questionsPerExam}`);
   writeLine(`Assignments/course: ${assignmentsPerCourse}`);
   writeLine(`Learners: ${learnerCount}`);

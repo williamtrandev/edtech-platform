@@ -126,7 +126,8 @@ export const LESSON_CONTENT_TYPE = {
   video: "VIDEO",
   resource: "RESOURCE",
   quiz: "QUIZ",
-  liveSession: "LIVE_SESSION"
+  liveSession: "LIVE_SESSION",
+  codeExercise: "CODE_EXERCISE"
 } as const;
 
 export type LessonContentType = (typeof LESSON_CONTENT_TYPE)[keyof typeof LESSON_CONTENT_TYPE];
