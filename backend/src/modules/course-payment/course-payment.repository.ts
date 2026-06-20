@@ -1,4 +1,4 @@
-import { CoursePaymentStatus, Prisma } from "@prisma/client";
+import { CoursePaymentStatus, PaymentProvider, Prisma } from "@prisma/client";
 import { COURSE_PAYMENT_STATUS } from "../../common/constants/payment";
 import { prisma } from "../../config/prisma";
 
@@ -11,10 +11,14 @@ const coursePaymentSelect = {
   status: true,
   provider: true,
   providerRef: true,
+  metadata: true,
   idempotencyKey: true,
   createdAt: true,
-  completedAt: true
+  completedAt: true,
+  failedAt: true
 } satisfies Prisma.CoursePaymentSelect;
+
+type PaymentMetadata = Record<string, unknown>;
 
 export class CoursePaymentRepository {
   async findByUserAndIdempotencyKey(userId: string, idempotencyKey: string) {
@@ -58,7 +62,9 @@ export class CoursePaymentRepository {
     amountCents: number;
     currency: string;
     idempotencyKey: string;
+    provider: PaymentProvider;
     providerRef?: string | null;
+    metadata?: Prisma.InputJsonValue;
   }) {
     return prisma.coursePayment.create({
       data: {
@@ -67,19 +73,57 @@ export class CoursePaymentRepository {
         amountCents: data.amountCents,
         currency: data.currency,
         idempotencyKey: data.idempotencyKey,
+        provider: data.provider,
         providerRef: data.providerRef ?? null,
+        metadata: data.metadata,
         status: COURSE_PAYMENT_STATUS.pending
       },
       select: coursePaymentSelect
     });
   }
 
-  async markCompleted(id: string) {
+  async findById(id: string) {
+    return prisma.coursePayment.findUnique({
+      where: { id },
+      select: coursePaymentSelect
+    });
+  }
+
+  async findByProviderRef(providerRef: string) {
+    return prisma.coursePayment.findFirst({
+      where: { providerRef },
+      orderBy: { createdAt: "desc" },
+      select: coursePaymentSelect
+    });
+  }
+
+  async updateProviderRef(id: string, providerRef: string, metadata?: PaymentMetadata) {
+    return prisma.coursePayment.update({
+      where: { id },
+      data: { providerRef, ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {}) },
+      select: coursePaymentSelect
+    });
+  }
+
+  async markCompleted(id: string, metadata?: PaymentMetadata) {
     return prisma.coursePayment.update({
       where: { id },
       data: {
         status: COURSE_PAYMENT_STATUS.completed as CoursePaymentStatus,
-        completedAt: new Date()
+        completedAt: new Date(),
+        ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {})
+      },
+      select: coursePaymentSelect
+    });
+  }
+
+  async markFailed(id: string, metadata?: PaymentMetadata) {
+    return prisma.coursePayment.update({
+      where: { id },
+      data: {
+        status: COURSE_PAYMENT_STATUS.failed as CoursePaymentStatus,
+        failedAt: new Date(),
+        ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {})
       },
       select: coursePaymentSelect
     });

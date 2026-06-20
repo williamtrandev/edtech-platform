@@ -35,6 +35,9 @@ importers:
       nodemailer:
         specifier: ^8.0.10
         version: 8.0.10
+      stripe:
+        specifier: ^22.2.2
+        version: 22.2.2(@types/node@22.19.19)
       winston:
         specifier: ^3.17.0
         version: 3.19.0
@@ -786,6 +789,15 @@ packages:
 
   string_decoder@1.3.0:
     resolution: {integrity: sha512-hkRX8U1WjJFd8LsDJ2yQ/wWWxaopEsABU1XfkM8A+j0+85JAGppt16cr1Whg6KIbb4okU6Mql6BOj+uup/wKeA==}
+
+  stripe@22.2.2:
+    resolution: {integrity: sha512-lRXLiarjW/I2QVa6QuFfz1Ma7Dc2yBQ7vlYH6NEmp5htMJNQGfiWExmOv0McfqY5wMCGV8DLuCvsyVRIPJlUUQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   text-hex@1.0.0:
     resolution: {integrity: sha512-uuVGNWzgJ4yhRaNSiubPY7OjISw4sw4E5Uv0wbjp+OzcbmVU/rsT8ujgcXJhn9ypzsgr5vlzpPqP+MBBKcGvbg==}
@@ -1559,6 +1571,10 @@ snapshots:
   string_decoder@1.3.0:
     dependencies:
       safe-buffer: 5.2.1
+
+  stripe@22.2.2(@types/node@22.19.19):
+    optionalDependencies:
+      '@types/node': 22.19.19
 
   text-hex@1.0.0: {}
 

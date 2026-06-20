@@ -68,10 +68,38 @@ export async function listMyCoursePayments(page = 1, limit = 20) {
   return response.data.data;
 }
 
-export async function createCoursePayment(courseId: string, idempotencyKey: string) {
-  const response = await httpClient.post<ApiResponse<{ payment: CoursePaymentRecord }>>(
+export type CoursePaymentProvider = "STRIPE" | "VNPAY" | "MOCK";
+
+export type CoursePaymentProvidersResponse = {
+  courseId: string;
+  isFree: boolean;
+  priceCents: number;
+  currency: string;
+  providers: CoursePaymentProvider[];
+};
+
+export type CreateCoursePaymentResponse = {
+  alreadyPaid: boolean;
+  redirectUrl?: string;
+  provider?: CoursePaymentProvider;
+  payment: CoursePaymentRecord;
+};
+
+export async function listCoursePaymentProviders(courseId: string) {
+  const response = await httpClient.get<ApiResponse<CoursePaymentProvidersResponse>>("/course-payments/providers", {
+    params: { courseId }
+  });
+  return response.data.data;
+}
+
+export async function createCoursePayment(
+  courseId: string,
+  provider: CoursePaymentProvider,
+  idempotencyKey: string
+) {
+  const response = await httpClient.post<ApiResponse<CreateCoursePaymentResponse>>(
     "/course-payments",
-    { courseId },
+    { courseId, provider },
     {
       headers: {
         "Idempotency-Key": idempotencyKey

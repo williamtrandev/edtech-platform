@@ -31,7 +31,15 @@ export function createApp() {
 
   app.use(requestContextMiddleware);
   app.use(cors());
-  app.use(express.json({ limit: "80mb" }));
+  app.use(
+    express.json({
+      limit: "80mb",
+      // Preserve raw bytes for gateway webhook signature verification (e.g. Stripe).
+      verify: (req, _res, buf) => {
+        (req as express.Request).rawBody = buf;
+      }
+    })
+  );
   app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
   app.get("/health", (_req, res) => {

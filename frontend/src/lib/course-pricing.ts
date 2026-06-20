@@ -1,12 +1,19 @@
+// Currencies with no minor unit: the stored integer is the whole amount, not cents.
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"
+]);
+
 export function formatMoney(amountCents: number, currency: string, locale?: string) {
-  const amount = amountCents / 100;
+  const code = currency.toUpperCase();
+  const isZeroDecimal = ZERO_DECIMAL_CURRENCIES.has(code);
+  const amount = isZeroDecimal ? amountCents : amountCents / 100;
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
-      currency: currency.toUpperCase()
+      currency: code
     }).format(amount);
   } catch {
-    return `${currency.toUpperCase()} ${amount.toFixed(2)}`;
+    return `${code} ${isZeroDecimal ? amount : amount.toFixed(2)}`;
   }
 }
 

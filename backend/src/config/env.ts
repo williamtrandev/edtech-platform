@@ -52,7 +52,22 @@ const envSchema = z
     /** When false, CODE questions skip auto-execution and fall back to manual grading. */
     CODE_EXECUTION_ENABLED: booleanFromEnv.default(true),
     /** Per-run wall-clock limit (ms) for a single code execution against one test. */
-    CODE_EXECUTION_TIMEOUT_MS: z.coerce.number().int().positive().default(8000)
+    CODE_EXECUTION_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+
+    // --- Payments ---
+    /** Stripe secret key (sk_test_... / sk_live_...). When set, Stripe provider is enabled. */
+    STRIPE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    /** Stripe webhook signing secret (whsec_...). Required to verify webhook events. */
+    STRIPE_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    /** VNPay merchant terminal code. When set with hash secret, VNPay provider is enabled. */
+    VNPAY_TMN_CODE: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    /** VNPay HMAC-SHA512 secret. */
+    VNPAY_HASH_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    /** VNPay payment gateway URL. Sandbox default. */
+    VNPAY_PAY_URL: z.preprocess(
+      emptyToUndefined,
+      z.string().url().default("https://sandbox.vnpayment.vn/paymentv2/vpcpay.html")
+    )
   })
   .superRefine((value, ctx) => {
     if (value.EMAIL_PROVIDER === "SMTP" && !value.SMTP_HOST) {
