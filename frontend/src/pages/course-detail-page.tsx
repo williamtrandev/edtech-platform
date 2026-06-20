@@ -2,7 +2,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, ArrowLeft, Award, BookOpenText, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, Download, Eye, FileCheck2, Globe2, GripVertical, Layers3, ListOrdered, Lock, LockOpen, Paperclip, PlayCircle, Plus, Search, Send, ShieldCheck, Star, Target, Terminal, Trash2, Users, Video, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -312,6 +313,33 @@ export function CourseDetailPage() {
   const attemptTimeoutSubmitRef = useRef<string | null>(null);
   const lessonContentReaderRef = useRef<(() => string) | null>(null);
   const { t, formatError } = useI18n();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+
+  // Handle redirect back from a payment gateway (?payment=success|failed|cancelled).
+  useEffect(() => {
+    const paymentResult = searchParams.get("payment");
+    if (!paymentResult) {
+      return;
+    }
+
+    if (paymentResult === "success") {
+      toast.success(t("courseDetail.paymentSuccess"));
+      void queryClient.invalidateQueries({ queryKey: ["course-payments", "me", courseId] });
+      void queryClient.invalidateQueries({ queryKey: ["enrollments", "me"] });
+      void queryClient.invalidateQueries({ queryKey: ["courses"] });
+    } else if (paymentResult === "cancelled") {
+      toast.info(t("courseDetail.paymentCancelled"));
+    } else {
+      toast.error(t("courseDetail.paymentReturnFailed"));
+    }
+
+    // Strip payment-related params so a refresh does not re-trigger the toast.
+    const next = new URLSearchParams(searchParams);
+    next.delete("payment");
+    next.delete("session_id");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, queryClient, courseId, t]);
 
   const isCourseOwner =
     meQuery.data?.role === USER_ROLE.instructor && courseQuery.data?.instructorId === meQuery.data.id;

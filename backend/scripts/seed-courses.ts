@@ -142,6 +142,22 @@ function buildTitle(index: number): string {
   return `${topic}: ${level} ${padded(index)}`;
 }
 
+// Mix of free, USD-priced, and VND-priced courses so both Stripe and VNPay
+// checkout flows are demoable. VND has no minor unit: priceCents holds the
+// whole VND amount. USD priceCents are real cents.
+function buildPricing(index: number): { priceCents: number; currency: string } {
+  if (index % 4 === 0) {
+    return { priceCents: 0, currency: "USD" };
+  }
+  const isVietnamese = languages[index % languages.length] === "Vietnamese";
+  if (isVietnamese) {
+    const tiers = [199000, 299000, 499000, 799000];
+    return { priceCents: tiers[index % tiers.length], currency: "VND" };
+  }
+  const tiers = [1999, 2999, 4999, 8999];
+  return { priceCents: tiers[index % tiers.length], currency: "USD" };
+}
+
 function buildDescription(index: number): string {
   const topic = topics[(index - 1) % topics.length];
   return [
@@ -455,6 +471,7 @@ async function upsertSeedUsers(learnerCount: number): Promise<void> {
 
 async function upsertCourses(courseCount: number, lessonsPerCourse: number, questionsPerExam: number, assignmentsPerCourse: number): Promise<void> {
   for (let index = 1; index <= courseCount; index += 1) {
+    const pricing = buildPricing(index);
     await prisma.course.upsert({
       where: { id: courseId(index) },
       create: {
@@ -468,6 +485,8 @@ async function upsertCourses(courseCount: number, lessonsPerCourse: number, ques
         requirements: buildRequirements(index),
         outcomes: buildOutcomes(index),
         coverImageUrl: buildCoverImageUrl(index),
+        priceCents: pricing.priceCents,
+        currency: pricing.currency,
         status: CourseStatus.PUBLISHED,
         instructorId: INSTRUCTOR_ID
       },
@@ -481,6 +500,8 @@ async function upsertCourses(courseCount: number, lessonsPerCourse: number, ques
         requirements: buildRequirements(index),
         outcomes: buildOutcomes(index),
         coverImageUrl: buildCoverImageUrl(index),
+        priceCents: pricing.priceCents,
+        currency: pricing.currency,
         status: CourseStatus.PUBLISHED,
         archivedAt: null,
         instructorId: INSTRUCTOR_ID

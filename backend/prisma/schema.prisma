@@ -41,6 +41,8 @@ enum CoursePaymentStatus {
 
 enum PaymentProvider {
   MOCK
+  STRIPE
+  VNPAY
 }
 
 enum LessonContentType {
@@ -563,9 +565,11 @@ model CoursePayment {
   status         CoursePaymentStatus @default(PENDING)
   provider       PaymentProvider     @default(MOCK)
   providerRef    String?
+  metadata       Json?
   idempotencyKey String
   createdAt      DateTime            @default(now())
   completedAt    DateTime?
+  failedAt       DateTime?
 
   user   User   @relation(fields: [userId], references: [id])
   course Course @relation(fields: [courseId], references: [id])

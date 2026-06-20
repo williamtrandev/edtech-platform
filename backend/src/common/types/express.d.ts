@@ -13,6 +13,8 @@ declare global {
       user?: UserClaims;
       /** Set by request-context middleware for log correlation */
       requestId?: string;
+      /** Raw request body bytes, captured by the express.json verify hook for webhook signatures. */
+      rawBody?: Buffer;
     }
   }
 }
