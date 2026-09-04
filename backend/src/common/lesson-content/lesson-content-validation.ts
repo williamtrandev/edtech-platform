@@ -8,7 +8,7 @@ import {
   parseLessonContentPayload,
   serializeLessonContentPayload
 } from "../constants/lesson-content";
-import { CODE_QUESTION_LANGUAGES } from "../constants/business";
+import { EXECUTABLE_CODE_LANGUAGES } from "../../modules/code-execution/code-runner";
 import type { ExamRepository } from "../../modules/exam/exam.repository";
 
 /**
@@ -151,9 +151,12 @@ export async function validateAndNormalizeLessonContent(
     const parsed = parseLessonContentPayload(input.content, contentType);
     const language = parsed.language?.trim() ?? "";
 
-    if (!CODE_QUESTION_LANGUAGES.includes(language as (typeof CODE_QUESTION_LANGUAGES)[number])) {
+    // Restricted to auto-executable languages: a lesson exercise only completes
+    // when its tests pass, so a language the runner cannot execute would leave
+    // the learner permanently stuck on the lesson.
+    if (!EXECUTABLE_CODE_LANGUAGES.includes(language)) {
       throw new AppError(
-        `Code exercise language must be one of: ${CODE_QUESTION_LANGUAGES.join(", ")}`,
+        `Code exercise language must be one of: ${EXECUTABLE_CODE_LANGUAGES.join(", ")}`,
         422,
         LESSON_CONTENT_ERROR_CODE.codeLanguageInvalid
       );

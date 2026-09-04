@@ -51,7 +51,7 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { CODE_QUESTION_LANGUAGES, COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, EXECUTABLE_CODE_LANGUAGES, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
 import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
@@ -1446,7 +1446,7 @@ export function CourseCreatePage() {
                               <SelectValue placeholder={t("courseDetail.codeExerciseLanguagePlaceholder")} />
                             </SelectTrigger>
                             <SelectContent>
-                              {CODE_QUESTION_LANGUAGES.map((lang) => (
+                              {EXECUTABLE_CODE_LANGUAGES.map((lang) => (
                                 <SelectItem key={lang} value={lang}>
                                   {t(`codeLanguage.${lang}` as Parameters<typeof t>[0])}
                                 </SelectItem>

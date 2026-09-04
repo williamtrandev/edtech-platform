@@ -47,6 +47,25 @@ export const CODE_QUESTION_LANGUAGES = ["python", "javascript", "typescript", "g
 
 export type CodeQuestionLanguage = (typeof CODE_QUESTION_LANGUAGES)[number];
 
+/**
+ * Languages a lesson CODE_EXERCISE may target (mirror of backend
+ * EXECUTABLE_CODE_LANGUAGES, derived from the Piston runtime map).
+ *
+ * Narrower than CODE_QUESTION_LANGUAGES on purpose: an exam CODE question can
+ * fall back to manual grading, but a lesson exercise only completes when its
+ * tests pass, so a language the runner cannot execute would strand the learner.
+ */
+export const EXECUTABLE_CODE_LANGUAGES = [
+  "python",
+  "javascript",
+  "typescript",
+  "rust",
+  "java",
+  "cpp",
+  "bash",
+  "sql"
+] as const satisfies readonly CodeQuestionLanguage[];
+
 export const EXAM_ATTEMPT_STATUS = {
   inProgress: "IN_PROGRESS",
   submitted: "SUBMITTED",

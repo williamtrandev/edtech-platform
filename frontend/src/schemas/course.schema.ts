@@ -6,6 +6,7 @@ import {
   EXAM_QUESTION_TYPE,
   EXAM_SCOPE,
   EXAM_STATUS,
+  EXECUTABLE_CODE_LANGUAGES,
   LESSON_CODE_LIMITS,
   LESSON_CONTENT_TYPE,
   LESSON_PROGRESS_WEIGHT
@@ -98,7 +99,7 @@ export function createLessonFormSchema(t: Translate) {
             path: ["codeLanguage"],
             message: t("validation.lessonCodeLanguageRequired")
           });
-        } else if (!CODE_QUESTION_LANGUAGES.includes(codeLanguage as (typeof CODE_QUESTION_LANGUAGES)[number])) {
+        } else if (!EXECUTABLE_CODE_LANGUAGES.includes(codeLanguage as (typeof EXECUTABLE_CODE_LANGUAGES)[number])) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["codeLanguage"],

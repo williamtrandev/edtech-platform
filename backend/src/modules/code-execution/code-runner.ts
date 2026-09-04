@@ -4,12 +4,12 @@ import { logger } from "../../config/logger";
 
 /**
  * Maps our CODE-question language ids onto Piston language ids / aliases.
- * SQL is intentionally absent: Piston has no reliable SQL runtime, so SQL
- * questions fall back to manual grading.
+ *
+ * A language omitted here cannot be auto-executed. Exam CODE questions still
+ * accept it and fall back to manual grading, but lesson CODE_EXERCISE has no
+ * manual path — it only completes when every test passes — so authoring one
+ * is restricted to the keys of this map. See EXECUTABLE_CODE_LANGUAGES.
  */
-// Languages mapped to Piston runtime names/aliases.
-// Omit languages whose Piston package is broken or unavailable in this environment;
-// they fall back to manual grading automatically.
 const PISTON_LANGUAGE: Record<string, string[]> = {
   python: ["python", "python3"],
   javascript: ["javascript", "node-javascript"],
@@ -21,6 +21,9 @@ const PISTON_LANGUAGE: Record<string, string[]> = {
   bash: ["bash"],
   sql: ["sqlite3", "sqlite"]
 };
+
+/** Languages that can actually be auto-graded, derived from the Piston map. */
+export const EXECUTABLE_CODE_LANGUAGES = Object.keys(PISTON_LANGUAGE);
 
 const SOURCE_FILENAME: Record<string, string> = {
   python: "main.py",
