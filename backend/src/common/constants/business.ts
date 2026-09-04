@@ -39,6 +39,22 @@ export const CODE_QUESTION_LANGUAGES = ["python", "javascript", "typescript", "g
 
 export type CodeQuestionLanguage = (typeof CODE_QUESTION_LANGUAGES)[number];
 
+/**
+ * Learning tracks a course can belong to — the programming subject, distinct
+ * from `Course.language`, which is the spoken language of the material.
+ *
+ * A plain string column validated against this list, rather than a Prisma enum,
+ * so adding a track needs no migration. Display names live in the frontend
+ * `track.*` translations; these ids are the stable API contract.
+ */
+export const COURSE_TRACKS = ["python", "javascript", "go", "sql", "rust", "devops"] as const;
+
+export type CourseTrack = (typeof COURSE_TRACKS)[number];
+
+export function isCourseTrack(value: string): value is CourseTrack {
+  return (COURSE_TRACKS as readonly string[]).includes(value);
+}
+
 export const EXAM_ATTEMPT_STATUS = {
   inProgress: "IN_PROGRESS",
   submitted: "SUBMITTED",

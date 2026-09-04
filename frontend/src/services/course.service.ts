@@ -1,6 +1,6 @@
 import { httpClient } from "../lib/http-client";
 import type { Enrollment } from "./enrollment.service";
-import type { CourseStatus, EditableCourseStatus, LessonContentType, UserRole } from "../constants/business";
+import type { CourseStatus, CourseTrack, EditableCourseStatus, LessonContentType, UserRole } from "../constants/business";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -14,6 +14,7 @@ export type Course = {
   category?: string | null;
   level?: string | null;
   language?: string | null;
+  track?: CourseTrack | null;
   durationMinutes?: number | null;
   requirements?: string | null;
   outcomes?: string | null;
@@ -72,10 +73,18 @@ export type CourseFacets = {
   categories: string[];
   levels: string[];
   languages: string[];
+  tracks: string[];
   instructors: Array<{
     id: string;
     email: string;
   }>;
+};
+
+/** One row of the public track catalog: a track and its published totals. */
+export type CourseTrackSummary = {
+  track: CourseTrack;
+  courseCount: number;
+  lessonCount: number;
 };
 
 export type CourseSearchSuggestion = {
@@ -163,6 +172,7 @@ export type CourseListParams = {
   category?: string;
   level?: string;
   language?: string;
+  track?: CourseTrack;
   instructorId?: string;
   enrollment?: "all" | "enrolled" | "not-enrolled";
   sort?: "newest" | "oldest" | "popular" | "highest-rated" | "title";
@@ -209,6 +219,7 @@ export type CreateCoursePayload = {
   category: string;
   level: string;
   language: string;
+  track: CourseTrack;
   durationMinutes: number;
   requirements: string;
   outcomes: string;
@@ -224,6 +235,7 @@ export type UpdateCoursePayload = {
   category?: string | null;
   level?: string | null;
   language?: string | null;
+  track?: CourseTrack | null;
   durationMinutes?: number | null;
   requirements?: string | null;
   outcomes?: string | null;
@@ -262,11 +274,16 @@ export const courseService = {
         ...(params.category?.trim() ? { category: params.category.trim() } : {}),
         ...(params.level?.trim() ? { level: params.level.trim() } : {}),
         ...(params.language?.trim() ? { language: params.language.trim() } : {}),
+        ...(params.track ? { track: params.track } : {}),
         ...(params.instructorId?.trim() ? { instructorId: params.instructorId.trim() } : {}),
         ...(params.enrollment && params.enrollment !== "all" ? { enrollment: params.enrollment } : {}),
         ...(params.sort ? { sort: params.sort } : {})
       }
     });
+    return response.data.data;
+  },
+  async getCourseTracks(): Promise<CourseTrackSummary[]> {
+    const response = await httpClient.get<ApiResponse<CourseTrackSummary[]>>("/courses/tracks");
     return response.data.data;
   },
   async getCourseFacets(status?: CourseStatus): Promise<CourseFacets> {

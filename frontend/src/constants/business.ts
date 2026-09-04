@@ -140,6 +140,16 @@ export const USER_STATUS = {
 
 export type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
 
+/**
+ * Learning tracks a course can belong to (mirror of backend COURSE_TRACKS).
+ *
+ * The programming subject, distinct from `Course.language`, which is the spoken
+ * language of the material. Display names come from the `track.*` translations.
+ */
+export const COURSE_TRACKS = ["python", "javascript", "go", "sql", "rust", "devops"] as const;
+
+export type CourseTrack = (typeof COURSE_TRACKS)[number];
+
 export const LESSON_CONTENT_TYPE = {
   text: "TEXT",
   video: "VIDEO",

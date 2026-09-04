@@ -13,6 +13,7 @@ export type CourseListFilters = {
   category?: string;
   level?: string;
   language?: string;
+  track?: string;
   instructorId?: string;
   enrollment?: "all" | "enrolled" | "not-enrolled";
   learnerId?: string;
@@ -27,6 +28,7 @@ export class CourseRepository {
     category: true,
     level: true,
     language: true,
+    track: true,
     durationMinutes: true,
     requirements: true,
     outcomes: true,
@@ -79,6 +81,7 @@ export class CourseRepository {
       ...(filters.category ? { category: { contains: filters.category, mode: "insensitive" } } : {}),
       ...(filters.level ? { level: { contains: filters.level, mode: "insensitive" } } : {}),
       ...(filters.language ? { language: { contains: filters.language, mode: "insensitive" } } : {}),
+      ...(filters.track ? { track: filters.track } : {}),
       ...(filters.instructorId ? { instructorId: filters.instructorId } : {}),
       ...enrollmentWhere,
       ...(q
@@ -196,9 +199,10 @@ export class CourseRepository {
         select: {
           category: true,
           level: true,
-          language: true
+          language: true,
+          track: true
         },
-        distinct: ["category", "level", "language"]
+        distinct: ["category", "level", "language", "track"]
       }),
       prisma.course.findMany({
         where,
@@ -224,6 +228,7 @@ export class CourseRepository {
       categories: uniqueSorted(metadataRows.map((course) => course.category)),
       levels: uniqueSorted(metadataRows.map((course) => course.level)),
       languages: uniqueSorted(metadataRows.map((course) => course.language)),
+      tracks: uniqueSorted(metadataRows.map((course) => course.track)),
       instructors: instructorRows
         .map((row) => row.instructor)
         .sort((a, b) => a.email.localeCompare(b.email))
@@ -234,6 +239,34 @@ export class CourseRepository {
     return prisma.lesson.count({
       where: { courseId, archivedAt: null }
     });
+  }
+
+  /**
+   * Course and lesson totals per track across published courses, for the public
+   * track catalog. Aggregated in memory from one query rather than a groupBy,
+   * because the lesson totals need Lesson joined through Course.
+   */
+  async findTrackStats() {
+    const rows = await prisma.course.findMany({
+      where: { status: CourseStatus.PUBLISHED, track: { not: null } },
+      select: {
+        track: true,
+        _count: { select: { lessons: { where: { archivedAt: null } } } }
+      }
+    });
+
+    const totals = new Map<string, { courseCount: number; lessonCount: number }>();
+    for (const row of rows) {
+      if (!row.track) {
+        continue;
+      }
+      const current = totals.get(row.track) ?? { courseCount: 0, lessonCount: 0 };
+      current.courseCount += 1;
+      current.lessonCount += row._count.lessons;
+      totals.set(row.track, current);
+    }
+
+    return totals;
   }
 
   async getAnalytics(courseId: string) {
