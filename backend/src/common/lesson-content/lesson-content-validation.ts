@@ -1,12 +1,70 @@
 import { AppError } from "../errors/app-error";
 import {
+  LESSON_CODE_LIMITS,
   LESSON_CONTENT_ERROR_CODE,
   LESSON_CONTENT_TYPE,
+  type LessonCodeTest,
   type LessonContentType,
   parseLessonContentPayload,
   serializeLessonContentPayload
 } from "../constants/lesson-content";
+import { CODE_QUESTION_LANGUAGES } from "../constants/business";
 import type { ExamRepository } from "../../modules/exam/exam.repository";
+
+/**
+ * Validates the author-supplied tests for a CODE_EXERCISE lesson.
+ *
+ * `input` is preserved verbatim because it is piped to the program's stdin,
+ * where leading and trailing whitespace is significant. An empty `input` is
+ * allowed — a program that reads nothing is a legitimate exercise.
+ * `expectedOutput` is trimmed to match the grader's output normalization.
+ */
+function validateLessonCodeTests(raw: LessonCodeTest[] | undefined): LessonCodeTest[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new AppError("Code exercise requires at least one test", 422, LESSON_CONTENT_ERROR_CODE.codeTestsRequired);
+  }
+
+  if (raw.length > LESSON_CODE_LIMITS.testsMax) {
+    throw new AppError(
+      `Code exercise allows at most ${LESSON_CODE_LIMITS.testsMax} tests`,
+      422,
+      LESSON_CONTENT_ERROR_CODE.codeTestInvalid
+    );
+  }
+
+  return raw.map((test, index) => {
+    const position = index + 1;
+    const name = typeof test?.name === "string" ? test.name.trim() : "";
+    const input = typeof test?.input === "string" ? test.input : "";
+    const expectedOutput = typeof test?.expectedOutput === "string" ? test.expectedOutput.trim() : "";
+
+    if (!name) {
+      throw new AppError(`Test ${position} requires a name`, 422, LESSON_CONTENT_ERROR_CODE.codeTestInvalid);
+    }
+
+    if (name.length > LESSON_CODE_LIMITS.testNameMax) {
+      throw new AppError(
+        `Test ${position} name must be at most ${LESSON_CODE_LIMITS.testNameMax} characters`,
+        422,
+        LESSON_CONTENT_ERROR_CODE.codeTestInvalid
+      );
+    }
+
+    if (!expectedOutput) {
+      throw new AppError(`Test ${position} requires an expected output`, 422, LESSON_CONTENT_ERROR_CODE.codeTestInvalid);
+    }
+
+    if (input.length > LESSON_CODE_LIMITS.testIoMax || expectedOutput.length > LESSON_CODE_LIMITS.testIoMax) {
+      throw new AppError(
+        `Test ${position} input and expected output must each be at most ${LESSON_CODE_LIMITS.testIoMax} characters`,
+        422,
+        LESSON_CONTENT_ERROR_CODE.codeTestInvalid
+      );
+    }
+
+    return { name, input, expectedOutput };
+  });
+}
 
 type ValidateLessonContentInput = {
   courseId: string;
@@ -86,6 +144,48 @@ export async function validateAndNormalizeLessonContent(
       ...(instructions ? { instructions } : {}),
       ...(startsAt ? { startsAt } : {}),
       ...(durationMinutes !== undefined && durationMinutes !== null ? { durationMinutes } : {})
+    });
+  }
+
+  if (contentType === LESSON_CONTENT_TYPE.codeExercise) {
+    const parsed = parseLessonContentPayload(input.content, contentType);
+    const language = parsed.language?.trim() ?? "";
+
+    if (!CODE_QUESTION_LANGUAGES.includes(language as (typeof CODE_QUESTION_LANGUAGES)[number])) {
+      throw new AppError(
+        `Code exercise language must be one of: ${CODE_QUESTION_LANGUAGES.join(", ")}`,
+        422,
+        LESSON_CONTENT_ERROR_CODE.codeLanguageInvalid
+      );
+    }
+
+    const starterCode = parsed.starterCode ?? "";
+    if (starterCode.length > LESSON_CODE_LIMITS.starterCodeMax) {
+      throw new AppError(
+        `Starter code must be at most ${LESSON_CODE_LIMITS.starterCodeMax} characters`,
+        422,
+        LESSON_CONTENT_ERROR_CODE.invalidContent
+      );
+    }
+
+    const instructions = parsed.instructions?.trim() ?? "";
+    if (instructions.length > LESSON_CODE_LIMITS.instructionsMax) {
+      throw new AppError(
+        `Instructions must be at most ${LESSON_CODE_LIMITS.instructionsMax} characters`,
+        422,
+        LESSON_CONTENT_ERROR_CODE.invalidContent
+      );
+    }
+
+    const codeTests = validateLessonCodeTests(parsed.codeTests);
+
+    return serializeLessonContentPayload({
+      version: 1,
+      kind: LESSON_CONTENT_TYPE.codeExercise,
+      language,
+      ...(starterCode ? { starterCode } : {}),
+      ...(instructions ? { instructions } : {}),
+      codeTests
     });
   }
 

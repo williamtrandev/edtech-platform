@@ -64,7 +64,7 @@ import {
   isCourseCreateStepId,
   type CourseCreateStepId
 } from "../lib/course-create-wizard";
-import { buildLessonContentForSubmit, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { buildCodeExerciseContent, buildLessonContentForSubmit, filterValidCodeTests, parseLessonContent } from "../lib/lesson-content";
 import { CodeEditor } from "../components/code-editor";
 import { assignmentService } from "../services/assignment.service";
 import { examService } from "../services/exam.service";
@@ -664,24 +664,14 @@ export function CourseCreatePage() {
   const onSubmitLesson = async (values: CreateLessonFormValues) => {
     const lessonId = selectedLessonId;
 
-    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
-      const validTests = codeTests.filter((test) => test.name.trim() && test.input.trim() && test.expectedOutput.trim());
-      if (validTests.length === 0) {
-        toast.error(t("validation.lessonCodeTestsRequired"));
-        return;
-      }
+    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise && filterValidCodeTests(codeTests).length === 0) {
+      toast.error(t("validation.lessonCodeTestsRequired"));
+      return;
     }
 
     const content =
       values.contentType === LESSON_CONTENT_TYPE.codeExercise
-        ? serializeLessonContent({
-            version: 1,
-            kind: LESSON_CONTENT_TYPE.codeExercise,
-            language: values.codeLanguage,
-            starterCode: values.codeStarterCode,
-            instructions: values.codeInstructions,
-            codeTests: codeTests.filter((test) => test.name.trim() || test.input.trim() || test.expectedOutput.trim())
-          })
+        ? buildCodeExerciseContent(values, codeTests)
         : buildLessonContentForSubmit(values, uploadedLessonFile);
 
     if (!courseId) {

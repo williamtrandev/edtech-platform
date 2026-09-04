@@ -138,6 +138,15 @@ export const LESSON_PROGRESS_WEIGHT = {
   default: 1
 } as const;
 
+/** Size limits for CODE_EXERCISE lesson payloads (mirror of backend LESSON_CODE_LIMITS). */
+export const LESSON_CODE_LIMITS = {
+  starterCodeMax: 20000,
+  instructionsMax: 4000,
+  testsMax: 20,
+  testNameMax: 80,
+  testIoMax: 5000
+} as const;
+
 export const LIVE_SESSION_STATUS = {
   unscheduled: "UNSCHEDULED",
   upcoming: "UPCOMING",
