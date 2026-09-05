@@ -51,7 +51,7 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, EXECUTABLE_CODE_LANGUAGES, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { COURSE_STATUS, COURSE_TRACKS, EXAM_SCOPE, EXAM_STATUS, EXECUTABLE_CODE_LANGUAGES, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
 import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
@@ -146,6 +146,7 @@ export function CourseCreatePage() {
       category: "",
       level: "",
       language: "",
+      track: undefined,
       durationMinutes: undefined,
       requirements: "",
       outcomes: "",
@@ -324,6 +325,7 @@ export function CourseCreatePage() {
       category: courseQuery.data.category ?? "",
       level: courseQuery.data.level ?? "",
       language: courseQuery.data.language ?? "",
+      track: courseQuery.data.track ?? undefined,
       durationMinutes: courseQuery.data.durationMinutes ?? undefined,
       requirements: courseQuery.data.requirements ?? "",
       outcomes: courseQuery.data.outcomes ?? "",
@@ -358,6 +360,7 @@ export function CourseCreatePage() {
     category: values.category.trim(),
     level: values.level.trim(),
     language: values.language.trim(),
+    track: values.track,
     durationMinutes: Number(values.durationMinutes),
     requirements: values.requirements.trim(),
     outcomes: values.outcomes.trim(),
@@ -374,6 +377,7 @@ export function CourseCreatePage() {
       category: course.category ?? "",
       level: course.level ?? "",
       language: course.language ?? "",
+      track: course.track ?? undefined,
       durationMinutes: course.durationMinutes ?? undefined,
       requirements: course.requirements ?? "",
       outcomes: course.outcomes ?? "",
@@ -479,6 +483,7 @@ export function CourseCreatePage() {
       category: values.category.trim() || null,
       level: values.level.trim() || null,
       language: values.language.trim() || null,
+      track: values.track ?? null,
       durationMinutes: Number(values.durationMinutes),
       requirements: values.requirements.trim() || null,
       outcomes: values.outcomes.trim() || null,
@@ -606,6 +611,7 @@ export function CourseCreatePage() {
         category: values.category.trim() || null,
         level: values.level.trim() || null,
         language: values.language.trim() || null,
+        track: values.track ?? null,
         durationMinutes: Number(values.durationMinutes),
         requirements: values.requirements.trim() || null,
         outcomes: values.outcomes.trim() || null,
@@ -1080,6 +1086,31 @@ export function CourseCreatePage() {
                     </FormField>
                     <FormField id="course-language" label={t("courseStudio.courseLanguage")} error={courseForm.formState.errors.language?.message}>
                       <Input id="course-language" placeholder={t("courseStudio.courseLanguagePlaceholder")} {...courseForm.register("language")} />
+                    </FormField>
+                    <FormField
+                      id="course-track"
+                      label={t("courseDetail.track")}
+                      hint={t("courseDetail.trackHint")}
+                      error={courseForm.formState.errors.track?.message}
+                    >
+                      <Controller
+                        control={courseForm.control}
+                        name="track"
+                        render={({ field }) => (
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                            <SelectTrigger id="course-track" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                              <SelectValue placeholder={t("courseDetail.trackPlaceholder")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {COURSE_TRACKS.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {t(`track.${option}` as Parameters<typeof t>[0])}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
                     </FormField>
                     <FormField id="course-duration" label={t("courseStudio.courseDuration")} hint={t("courseStudio.courseDurationUnit")} error={courseForm.formState.errors.durationMinutes?.message}>
                       <Input

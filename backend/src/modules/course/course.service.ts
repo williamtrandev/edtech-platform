@@ -1,7 +1,7 @@
 import { CourseStatus } from "@prisma/client";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";
-import { COURSE_STATUS, USER_ROLE, USER_STATUS } from "../../common/constants/business";
+import { COURSE_STATUS, COURSE_TRACKS, USER_ROLE, USER_STATUS } from "../../common/constants/business";
 import { COURSE_SEARCH } from "../../common/constants/course-search";
 import { redisConnection } from "../../config/redis";
 import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
@@ -101,6 +101,22 @@ export class CourseService {
     }
 
     return this.courseRepository.findFacets(effectiveStatus);
+  }
+
+  /**
+   * The full track list with published-course totals, in COURSE_TRACKS order.
+   *
+   * Every track is returned even when it has no courses yet, so the public
+   * catalog can show the whole curriculum rather than only what is populated.
+   */
+  async listCourseTracks() {
+    const stats = await this.courseRepository.findTrackStats();
+
+    return COURSE_TRACKS.map((track) => ({
+      track,
+      courseCount: stats.get(track)?.courseCount ?? 0,
+      lessonCount: stats.get(track)?.lessonCount ?? 0
+    }));
   }
 
   async getCourseById(user: Express.UserClaims | undefined, id: string) {

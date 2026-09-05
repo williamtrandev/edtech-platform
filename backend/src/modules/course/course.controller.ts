@@ -14,6 +14,7 @@ export class CourseController {
       category: typeof req.query.category === "string" ? req.query.category : undefined,
       level: typeof req.query.level === "string" ? req.query.level : undefined,
       language: typeof req.query.language === "string" ? req.query.language : undefined,
+      track: typeof req.query.track === "string" ? req.query.track : undefined,
       instructorId: typeof req.query.instructorId === "string" ? req.query.instructorId : undefined,
       enrollment: req.query.enrollment as "all" | "enrolled" | "not-enrolled" | undefined,
       sort: req.query.sort as "newest" | "oldest" | "popular" | "highest-rated" | "title" | undefined
@@ -25,6 +26,11 @@ export class CourseController {
     const status = req.query.status as CourseStatus | undefined;
     const facets = await this.courseService.listCourseFacets(req.user, status);
     res.status(200).json({ success: true, data: facets });
+  };
+
+  listCourseTracks = async (_req: Request, res: Response): Promise<void> => {
+    const tracks = await this.courseService.listCourseTracks();
+    res.status(200).json({ success: true, data: tracks });
   };
 
   listCourseEnrollments = async (req: Request, res: Response): Promise<void> => {
