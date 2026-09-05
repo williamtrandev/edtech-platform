@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Boxes, CheckCircle2, GraduationCap, Play, Route, Terminal } from "lucide-react";
@@ -6,24 +6,28 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LanguageSelect } from "../features/preferences/preference-selectors";
 import { useI18n, type I18nKey } from "../i18n";
+import { useCourseTracks } from "../hooks/use-courses";
+import type { CourseTrack } from "../constants/business";
 
 const CONTAINER = "mx-auto w-full max-w-[1180px] px-5 sm:px-8";
 
 type Track = {
+  /** Track id — the API contract, matches COURSE_TRACKS. */
+  id: CourseTrack;
   nameKey: I18nKey;
   descKey: I18nKey;
-  slug: string;
-  lessons: number;
+  /** simpleicons.org slug for the logo, which differs from the track id. */
+  iconSlug: string;
   span: string;
 };
 
 const TRACKS: Track[] = [
-  { nameKey: "landing.trackPythonName", descKey: "landing.trackPythonDesc", slug: "python", lessons: 84, span: "md:col-span-3" },
-  { nameKey: "landing.trackJsName", descKey: "landing.trackJsDesc", slug: "javascript", lessons: 96, span: "md:col-span-3" },
-  { nameKey: "landing.trackGoName", descKey: "landing.trackGoDesc", slug: "go", lessons: 52, span: "md:col-span-2" },
-  { nameKey: "landing.trackSqlName", descKey: "landing.trackSqlDesc", slug: "postgresql", lessons: 41, span: "md:col-span-2" },
-  { nameKey: "landing.trackRustName", descKey: "landing.trackRustDesc", slug: "rust", lessons: 38, span: "md:col-span-2" },
-  { nameKey: "landing.trackDevopsName", descKey: "landing.trackDevopsDesc", slug: "docker", lessons: 47, span: "md:col-span-6" }
+  { id: "python", nameKey: "landing.trackPythonName", descKey: "landing.trackPythonDesc", iconSlug: "python", span: "md:col-span-3" },
+  { id: "javascript", nameKey: "landing.trackJsName", descKey: "landing.trackJsDesc", iconSlug: "javascript", span: "md:col-span-3" },
+  { id: "go", nameKey: "landing.trackGoName", descKey: "landing.trackGoDesc", iconSlug: "go", span: "md:col-span-2" },
+  { id: "sql", nameKey: "landing.trackSqlName", descKey: "landing.trackSqlDesc", iconSlug: "postgresql", span: "md:col-span-2" },
+  { id: "rust", nameKey: "landing.trackRustName", descKey: "landing.trackRustDesc", iconSlug: "rust", span: "md:col-span-2" },
+  { id: "devops", nameKey: "landing.trackDevopsName", descKey: "landing.trackDevopsDesc", iconSlug: "docker", span: "md:col-span-6" }
 ];
 
 function Reveal({ children, className, delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
@@ -94,7 +98,34 @@ const STEPS: { icon: typeof Terminal; titleKey: I18nKey; descKey: I18nKey }[] = 
 
 export function LandingPage() {
   const { t } = useI18n();
-  const lessonCount = (n: number) => t("landing.lessonCount").replace("{count}", String(n));
+  const tracksQuery = useCourseTracks();
+
+  const trackTotals = useMemo(() => {
+    const totals = new Map<CourseTrack, { courseCount: number; lessonCount: number }>();
+    for (const row of tracksQuery.data ?? []) {
+      totals.set(row.track, { courseCount: row.courseCount, lessonCount: row.lessonCount });
+    }
+    return totals;
+  }, [tracksQuery.data]);
+
+  /**
+   * Lesson total for a track, falling back to the course count when a track has
+   * courses but no lessons yet, and to "coming soon" when it has neither.
+   *
+   * Derived purely from the loaded data, never from the query's transient flags:
+   * a loading or error branch here leaves the slot permanently blank whenever
+   * the request fails, which is worse than briefly showing the fallback.
+   */
+  const trackMetric = (id: CourseTrack) => {
+    const totals = trackTotals.get(id);
+    if (!totals || totals.courseCount === 0) {
+      return t("landing.trackEmpty");
+    }
+
+    return totals.lessonCount > 0
+      ? t("landing.lessonCount").replace("{count}", String(totals.lessonCount))
+      : t("landing.trackCourseCount").replace("{count}", String(totals.courseCount));
+  };
 
   return (
     <div className="dark">
@@ -182,19 +213,19 @@ export function LandingPage() {
             </Reveal>
             <div className="mt-10 grid grid-flow-dense auto-rows-[1fr] grid-cols-1 gap-3 md:grid-cols-6">
               {TRACKS.map((track, i) => (
-                <Reveal key={track.slug} delay={i * 0.05} className={track.span}>
+                <Reveal key={track.id} delay={i * 0.05} className={track.span}>
                   <Link
-                    to="/explore"
+                    to={`/explore?track=${track.id}`}
                     className="group flex h-full flex-col gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/50"
                   >
                     <div className="flex items-center justify-between">
                       <img
-                        src={`https://cdn.simpleicons.org/${track.slug}/4ade80`}
+                        src={`https://cdn.simpleicons.org/${track.iconSlug}/4ade80`}
                         alt=""
                         className="size-8 transition-transform duration-500 group-hover:scale-110"
                         loading="lazy"
                       />
-                      <span className="font-mono text-xs text-muted-foreground">{lessonCount(track.lessons)}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{trackMetric(track.id)}</span>
                     </div>
                     <div className="mt-auto">
                       <h3 className="text-lg font-semibold tracking-tight">{t(track.nameKey)}</h3>

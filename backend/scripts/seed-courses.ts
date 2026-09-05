@@ -33,6 +33,8 @@ const topics = [
 const levels = ["Starter", "Core", "Applied", "Advanced", "Workshop"] as const;
 const categories = ["Frontend", "Backend", "Database", "Product", "Testing"] as const;
 const languages = ["English", "Vietnamese"] as const;
+/** Learning tracks cycled across seeded courses so the public catalog has real counts. */
+const tracks = ["python", "javascript", "go", "sql", "rust", "devops"] as const;
 
 function writeLine(message: string): void {
   process.stdout.write(`${message}\n`);
@@ -481,6 +483,7 @@ async function upsertCourses(courseCount: number, lessonsPerCourse: number, ques
         category: categories[(index - 1) % categories.length],
         level: levels[Math.floor((index - 1) / topics.length) % levels.length],
         language: languages[index % languages.length],
+        track: tracks[(index - 1) % tracks.length],
         durationMinutes: 180 + (index % 12) * 30,
         requirements: buildRequirements(index),
         outcomes: buildOutcomes(index),
@@ -496,6 +499,7 @@ async function upsertCourses(courseCount: number, lessonsPerCourse: number, ques
         category: categories[(index - 1) % categories.length],
         level: levels[Math.floor((index - 1) / topics.length) % levels.length],
         language: languages[index % languages.length],
+        track: tracks[(index - 1) % tracks.length],
         durationMinutes: 180 + (index % 12) * 30,
         requirements: buildRequirements(index),
         outcomes: buildOutcomes(index),

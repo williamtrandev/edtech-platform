@@ -5,7 +5,10 @@ import {
   COURSE_STATUS,
   EXAM_QUESTION_TYPE,
   EXAM_SCOPE,
+  COURSE_TRACKS,
   EXAM_STATUS,
+  EXECUTABLE_CODE_LANGUAGES,
+  LESSON_CODE_LIMITS,
   LESSON_CONTENT_TYPE,
   LESSON_PROGRESS_WEIGHT
 } from "../constants/business";
@@ -24,6 +27,7 @@ export function createCourseFormSchema(t: Translate) {
     category: requiredTrimmed(t, "validation.courseCategoryRequired", 100, "validation.courseMetadataMax"),
     level: requiredTrimmed(t, "validation.courseLevelRequired", 100, "validation.courseMetadataMax"),
     language: requiredTrimmed(t, "validation.courseLanguageRequired", 100, "validation.courseMetadataMax"),
+    track: z.enum(COURSE_TRACKS, { errorMap: () => ({ message: t("validation.courseTrackRequired") }) }),
     durationMinutes: z.coerce.number().int().min(1, t("validation.courseDurationMin")).max(100000, t("validation.courseDurationMax")),
     requirements: z.string().trim().min(1, t("validation.courseRequirementsRequired")).max(2000, t("validation.courseLongTextMax")),
     outcomes: z.string().trim().min(1, t("validation.courseOutcomesRequired")).max(2000, t("validation.courseLongTextMax")),
@@ -43,6 +47,7 @@ export function updateCourseFormSchema(t: Translate) {
     category: z.string().max(100, t("validation.courseMetadataMax")).optional(),
     level: z.string().max(100, t("validation.courseMetadataMax")).optional(),
     language: z.string().max(100, t("validation.courseMetadataMax")).optional(),
+    track: z.enum(COURSE_TRACKS).optional(),
     durationMinutes: z.coerce.number().int().min(1, t("validation.courseDurationMin")).max(100000, t("validation.courseDurationMax")).optional().or(z.literal("")),
     requirements: z.string().max(2000, t("validation.courseLongTextMax")).optional(),
     outcomes: z.string().max(2000, t("validation.courseLongTextMax")).optional(),
@@ -84,16 +89,24 @@ export function createLessonFormSchema(t: Translate) {
         .default(LESSON_PROGRESS_WEIGHT.default),
       prerequisiteLessonId: z.string().nullable().optional(),
       codeLanguage: z.string().optional(),
-      codeStarterCode: z.string().optional(),
-      codeInstructions: z.string().optional()
+      codeStarterCode: z.string().max(LESSON_CODE_LIMITS.starterCodeMax, t("validation.lessonCodeStarterMax")).optional(),
+      codeInstructions: z.string().max(LESSON_CODE_LIMITS.instructionsMax, t("validation.lessonCodeInstructionsMax")).optional()
     })
     .superRefine((values, context) => {
       if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
-        if (!values.codeLanguage?.trim()) {
+        const codeLanguage = values.codeLanguage?.trim() ?? "";
+
+        if (!codeLanguage) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["codeLanguage"],
             message: t("validation.lessonCodeLanguageRequired")
+          });
+        } else if (!EXECUTABLE_CODE_LANGUAGES.includes(codeLanguage as (typeof EXECUTABLE_CODE_LANGUAGES)[number])) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["codeLanguage"],
+            message: t("validation.lessonCodeLanguageInvalid")
           });
         }
         return;

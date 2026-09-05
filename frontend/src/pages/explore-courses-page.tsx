@@ -1,6 +1,6 @@
 import { BookOpen, Search, TrendingUp, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { CourseCatalogCard } from "../components/course-catalog-card";
 import { CourseEnrollButton } from "../components/course-enroll-button";
 import { EmptyState } from "../components/empty-state";
 import { CourseCardGridSkeleton } from "../components/skeleton";
-import { COURSE_STATUS } from "../constants/business";
+import { COURSE_STATUS, COURSE_TRACKS, type CourseTrack } from "../constants/business";
 import { useAuth } from "../hooks/use-auth";
 import { useCourseFacets, useCourseSearchSuggestions, useInfiniteCourses } from "../hooks/use-courses";
 import { courseService } from "../services/course.service";
@@ -55,11 +55,18 @@ export function ExploreCoursesPage() {
   const { isAuthenticated, isBootstrapping } = useAuth();
   const meQuery = useCurrentUser(isAuthenticated && !isBootstrapping);
   const myEnrollmentsQuery = useMyEnrollments(isAuthenticated && !isBootstrapping);
+  const [searchParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [category, setCategory] = useState(ALL_FILTER_VALUE);
   const [level, setLevel] = useState(ALL_FILTER_VALUE);
   const [language, setLanguage] = useState(ALL_FILTER_VALUE);
+  const [track, setTrack] = useState<CourseTrack | typeof ALL_FILTER_VALUE>(() => {
+    const requested = searchParams.get("track");
+    return requested && (COURSE_TRACKS as readonly string[]).includes(requested)
+      ? (requested as CourseTrack)
+      : ALL_FILTER_VALUE;
+  });
   const [instructorId, setInstructorId] = useState(ALL_FILTER_VALUE);
   const [enrollment, setEnrollment] = useState<"all" | "enrolled" | "not-enrolled">("all");
   const [sort, setSort] = useState<"newest" | "oldest" | "popular" | "highest-rated" | "title">("newest");
@@ -79,6 +86,7 @@ export function ExploreCoursesPage() {
       category: category === ALL_FILTER_VALUE ? "" : category,
       level: level === ALL_FILTER_VALUE ? "" : level,
       language: language === ALL_FILTER_VALUE ? "" : language,
+      track: track === ALL_FILTER_VALUE ? undefined : track,
       instructorId: instructorId === ALL_FILTER_VALUE ? "" : instructorId,
       enrollment: isAuthenticated ? enrollment : "all",
       sort
@@ -155,6 +163,7 @@ export function ExploreCoursesPage() {
     setCategory(ALL_FILTER_VALUE);
     setLevel(ALL_FILTER_VALUE);
     setLanguage(ALL_FILTER_VALUE);
+    setTrack(ALL_FILTER_VALUE);
     setInstructorId(ALL_FILTER_VALUE);
     setEnrollment(ALL_FILTER_VALUE);
     setSort("newest");
@@ -191,6 +200,13 @@ export function ExploreCoursesPage() {
         onClear: () => setLanguage(ALL_FILTER_VALUE)
       });
     }
+    if (track !== ALL_FILTER_VALUE) {
+      chips.push({
+        key: "track",
+        label: t(`track.${track}` as Parameters<typeof t>[0]),
+        onClear: () => setTrack(ALL_FILTER_VALUE)
+      });
+    }
     if (instructorId !== ALL_FILTER_VALUE) {
       const instructorEmail = facets.instructors.find((item) => item.id === instructorId)?.email ?? instructorId;
       chips.push({
@@ -224,7 +240,7 @@ export function ExploreCoursesPage() {
     }
 
     return chips;
-  }, [category, enrollment, facets.instructors, instructorId, isAuthenticated, language, level, query, sort, t]);
+  }, [category, enrollment, facets.instructors, instructorId, isAuthenticated, language, level, query, sort, t, track]);
 
   const hasActiveFilters = activeFilterChips.length > 0;
 
@@ -300,7 +316,23 @@ export function ExploreCoursesPage() {
 
           {!isAuthenticated ? <p className={cn(STUDIO_NOTICE, "text-sm leading-6 text-muted-foreground")}>{t("explore.guestHint")}</p> : null}
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <ExploreFilterField label={t("explore.trackLabel")}>
+              <Select value={track} onValueChange={(value) => setTrack(value as CourseTrack | typeof ALL_FILTER_VALUE)}>
+                <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.trackLabel")}>
+                  <SelectValue placeholder={t("explore.allTracks")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>{t("explore.allTracks")}</SelectItem>
+                  {COURSE_TRACKS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t(`track.${option}` as Parameters<typeof t>[0])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ExploreFilterField>
+
             <ExploreFilterField label={t("explore.categoryPlaceholder")}>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger className={FILTER_SELECT_TRIGGER} aria-label={t("explore.categoryPlaceholder")}>

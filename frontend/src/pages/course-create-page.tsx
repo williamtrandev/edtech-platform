@@ -48,7 +48,7 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { CODE_QUESTION_LANGUAGES, COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { COURSE_STATUS, COURSE_TRACKS, EXAM_SCOPE, EXAM_STATUS, EXECUTABLE_CODE_LANGUAGES, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
 import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
@@ -61,7 +61,7 @@ import {
   isCourseCreateStepId,
   type CourseCreateStepId
 } from "../lib/course-create-wizard";
-import { buildLessonContentForSubmit, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { buildCodeExerciseContent, buildLessonContentForSubmit, filterValidCodeTests, parseLessonContent } from "../lib/lesson-content";
 import { CodeEditor } from "../components/code-editor";
 import { assignmentService } from "../services/assignment.service";
 import { examService } from "../services/exam.service";
@@ -143,6 +143,7 @@ export function CourseCreatePage() {
       category: "",
       level: "",
       language: "",
+      track: undefined,
       durationMinutes: undefined,
       requirements: "",
       outcomes: "",
@@ -321,6 +322,7 @@ export function CourseCreatePage() {
       category: courseQuery.data.category ?? "",
       level: courseQuery.data.level ?? "",
       language: courseQuery.data.language ?? "",
+      track: courseQuery.data.track ?? undefined,
       durationMinutes: courseQuery.data.durationMinutes ?? undefined,
       requirements: courseQuery.data.requirements ?? "",
       outcomes: courseQuery.data.outcomes ?? "",
@@ -355,6 +357,7 @@ export function CourseCreatePage() {
     category: values.category.trim(),
     level: values.level.trim(),
     language: values.language.trim(),
+    track: values.track,
     durationMinutes: Number(values.durationMinutes),
     requirements: values.requirements.trim(),
     outcomes: values.outcomes.trim(),
@@ -371,6 +374,7 @@ export function CourseCreatePage() {
       category: course.category ?? "",
       level: course.level ?? "",
       language: course.language ?? "",
+      track: course.track ?? undefined,
       durationMinutes: course.durationMinutes ?? undefined,
       requirements: course.requirements ?? "",
       outcomes: course.outcomes ?? "",
@@ -476,6 +480,7 @@ export function CourseCreatePage() {
       category: values.category.trim() || null,
       level: values.level.trim() || null,
       language: values.language.trim() || null,
+      track: values.track ?? null,
       durationMinutes: Number(values.durationMinutes),
       requirements: values.requirements.trim() || null,
       outcomes: values.outcomes.trim() || null,
@@ -603,6 +608,7 @@ export function CourseCreatePage() {
         category: values.category.trim() || null,
         level: values.level.trim() || null,
         language: values.language.trim() || null,
+        track: values.track ?? null,
         durationMinutes: Number(values.durationMinutes),
         requirements: values.requirements.trim() || null,
         outcomes: values.outcomes.trim() || null,
@@ -661,24 +667,14 @@ export function CourseCreatePage() {
   const onSubmitLesson = async (values: CreateLessonFormValues) => {
     const lessonId = selectedLessonId;
 
-    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
-      const validTests = codeTests.filter((test) => test.name.trim() && test.input.trim() && test.expectedOutput.trim());
-      if (validTests.length === 0) {
-        toast.error(t("validation.lessonCodeTestsRequired"));
-        return;
-      }
+    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise && filterValidCodeTests(codeTests).length === 0) {
+      toast.error(t("validation.lessonCodeTestsRequired"));
+      return;
     }
 
     const content =
       values.contentType === LESSON_CONTENT_TYPE.codeExercise
-        ? serializeLessonContent({
-            version: 1,
-            kind: LESSON_CONTENT_TYPE.codeExercise,
-            language: values.codeLanguage,
-            starterCode: values.codeStarterCode,
-            instructions: values.codeInstructions,
-            codeTests: codeTests.filter((test) => test.name.trim() || test.input.trim() || test.expectedOutput.trim())
-          })
+        ? buildCodeExerciseContent(values, codeTests)
         : buildLessonContentForSubmit(values, uploadedLessonFile);
 
     if (!courseId) {
@@ -1088,6 +1084,31 @@ export function CourseCreatePage() {
                     <FormField id="course-language" label={t("courseStudio.courseLanguage")} error={courseForm.formState.errors.language?.message}>
                       <Input id="course-language" placeholder={t("courseStudio.courseLanguagePlaceholder")} {...courseForm.register("language")} />
                     </FormField>
+                    <FormField
+                      id="course-track"
+                      label={t("courseDetail.track")}
+                      hint={t("courseDetail.trackHint")}
+                      error={courseForm.formState.errors.track?.message}
+                    >
+                      <Controller
+                        control={courseForm.control}
+                        name="track"
+                        render={({ field }) => (
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                            <SelectTrigger id="course-track" className="h-10 w-full rounded-md border-border/80 shadow-none">
+                              <SelectValue placeholder={t("courseDetail.trackPlaceholder")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {COURSE_TRACKS.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {t(`track.${option}` as Parameters<typeof t>[0])}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </FormField>
                     <FormField id="course-duration" label={t("courseStudio.courseDuration")} hint={t("courseStudio.courseDurationUnit")} error={courseForm.formState.errors.durationMinutes?.message}>
                       <Input
                         id="course-duration"
@@ -1453,7 +1474,7 @@ export function CourseCreatePage() {
                               <SelectValue placeholder={t("courseDetail.codeExerciseLanguagePlaceholder")} />
                             </SelectTrigger>
                             <SelectContent>
-                              {CODE_QUESTION_LANGUAGES.map((lang) => (
+                              {EXECUTABLE_CODE_LANGUAGES.map((lang) => (
                                 <SelectItem key={lang} value={lang}>
                                   {t(`codeLanguage.${lang}` as Parameters<typeof t>[0])}
                                 </SelectItem>

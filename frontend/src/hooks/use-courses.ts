@@ -16,6 +16,14 @@ export function useCourseFacets(status?: CourseStatus) {
   });
 }
 
+/** Public track catalog with published-course totals; used by the landing page. */
+export function useCourseTracks() {
+  return useQuery({
+    queryKey: ["courses", "tracks"],
+    queryFn: () => courseService.getCourseTracks()
+  });
+}
+
 export function useCourseSearchSuggestions(query: string, enabled = true) {
   return useQuery({
     queryKey: ["courses", "search-suggestions", query],
@@ -30,6 +38,8 @@ export function useInfiniteCourses(status: CourseStatus | undefined, limit = 12,
     category: filters.category?.trim() ?? "",
     level: filters.level?.trim() ?? "",
     language: filters.language?.trim() ?? "",
+    // Track is a closed-list id, so it is passed through rather than trimmed.
+    track: filters.track,
     instructorId: filters.instructorId?.trim() ?? "",
     enrollment: filters.enrollment ?? "all",
     sort: filters.sort ?? "newest"

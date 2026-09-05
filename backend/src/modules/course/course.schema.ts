@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { COURSE_TRACKS } from "../../common/constants/business";
 
 const courseStatusSchema = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED", "LOCKED"]);
 const courseSortSchema = z.enum(["newest", "oldest", "popular", "highest-rated", "title"]);
 const enrollmentFilterSchema = z.enum(["all", "enrolled", "not-enrolled"]);
+const courseTrackSchema = z.enum(COURSE_TRACKS);
 const optionalTrimmedString = (max: number) => z.string().trim().max(max).optional();
 const optionalNullableTrimmedString = (max: number) => optionalTrimmedString(max).nullable();
 const mediaUrlSchema = z
@@ -22,6 +24,7 @@ export const listCoursesSchema = z.object({
     category: optionalTrimmedString(100),
     level: optionalTrimmedString(100),
     language: optionalTrimmedString(100),
+    track: courseTrackSchema.optional(),
     instructorId: optionalTrimmedString(200),
     enrollment: enrollmentFilterSchema.default("all"),
     sort: courseSortSchema.default("newest")
@@ -32,6 +35,11 @@ export const courseFacetsSchema = z.object({
   query: z.object({
     status: courseStatusSchema.optional()
   })
+});
+
+/** Public track catalog — no inputs; always scoped to published courses. */
+export const courseTracksSchema = z.object({
+  query: z.object({})
 });
 
 export const courseSearchSuggestionsSchema = z.object({
@@ -93,6 +101,7 @@ export const createCourseSchema = z.object({
     category: requiredTrimmedString(1, 100),
     level: requiredTrimmedString(1, 100),
     language: requiredTrimmedString(1, 100),
+    track: courseTrackSchema,
     durationMinutes: z.coerce.number().int().min(1).max(100000),
     requirements: requiredTrimmedString(1, 2000),
     outcomes: requiredTrimmedString(1, 2000),
@@ -113,6 +122,7 @@ export const updateCourseSchema = z.object({
     category: optionalNullableTrimmedString(100),
     level: optionalNullableTrimmedString(100),
     language: optionalNullableTrimmedString(100),
+    track: courseTrackSchema.nullable().optional(),
     durationMinutes: z.coerce.number().int().min(1).max(100000).nullable().optional(),
     requirements: optionalNullableTrimmedString(2000),
     outcomes: optionalNullableTrimmedString(2000),
