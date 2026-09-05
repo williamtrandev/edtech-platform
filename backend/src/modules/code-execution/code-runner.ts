@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
+import { RateLimitError, Semaphore, withRetry } from "./execution-limiter";
 
 /**
  * Maps our CODE-question language ids onto Piston language ids / aliases.
@@ -110,7 +111,7 @@ async function resolveRuntime(language: string): Promise<{ language: string; ver
  * the actual isolation (no network, CPU/memory/time caps) — we never execute
  * untrusted code in this process.
  */
-export async function runCode(params: { language: string; source: string; stdin: string }): Promise<CodeRunResult> {
+async function executeOnce(params: { language: string; source: string; stdin: string }): Promise<CodeRunResult> {
   const runtime = await resolveRuntime(params.language);
   if (!runtime) {
     throw new Error(`No executable runtime for language: ${params.language}`);
@@ -139,7 +140,7 @@ export async function runCode(params: { language: string; source: string; stdin:
   }
 
   if (response.status === 429) {
-    throw new Error("Piston rate limit reached");
+    throw new RateLimitError("Piston rate limit reached");
   }
   if (!response.ok) {
     throw new Error(`Piston execute failed: ${response.status}`);
@@ -165,6 +166,35 @@ export async function runCode(params: { language: string; source: string; stdin:
     timedOut,
     compileError
   };
+}
+
+/**
+ * Sandbox capacity for this process. Every execution — practice runs and
+ * graded submissions alike — passes through here, so the sandbox sees a
+ * bounded number of concurrent jobs no matter how many learners are active.
+ */
+const executionSemaphore = new Semaphore(env.CODE_EXECUTION_MAX_CONCURRENCY);
+
+/** Queue depth, exposed so callers can report saturation rather than hang. */
+export function getExecutionLoad() {
+  return { running: executionSemaphore.running, queued: executionSemaphore.queued };
+}
+
+/**
+ * Runs a single source against one stdin, bounded and retried.
+ *
+ * Shedding load once the queue is full is deliberate: a learner told to try
+ * again in a moment is better served than one left waiting behind a queue
+ * that cannot drain before their request times out.
+ */
+export async function runCode(params: { language: string; source: string; stdin: string }): Promise<CodeRunResult> {
+  if (executionSemaphore.queued >= env.CODE_EXECUTION_MAX_QUEUE) {
+    throw new RateLimitError("Code execution queue is full");
+  }
+
+  return executionSemaphore.run(() =>
+    withRetry(() => executeOnce(params), { attempts: env.CODE_EXECUTION_RETRY_ATTEMPTS })
+  );
 }
 
 export function resetRuntimesCache(): void {
