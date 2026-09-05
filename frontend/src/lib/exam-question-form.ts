@@ -10,7 +10,7 @@ export function parseQuestionOptions(value: string | undefined) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line, index) => {
-      const explicitIdMatch = /^([A-Za-z0-9]{1,6})[\).:-]\s+(.+)$/.exec(line);
+      const explicitIdMatch = /^([A-Za-z0-9]{1,6})[).:-]\s+(.+)$/.exec(line);
       return {
         id: explicitIdMatch ? explicitIdMatch[1].toUpperCase() : toQuestionOptionId(index),
         text: explicitIdMatch ? explicitIdMatch[2].trim() : line

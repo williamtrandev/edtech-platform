@@ -1,4 +1,4 @@
-import { ArrowUpRight, Layers3, Loader2 } from "lucide-react";
+import { ArrowUpRight, Layers3 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "../components/app-shell";

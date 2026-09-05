@@ -1,6 +1,6 @@
 import { ExamAttemptEventType, ExamAttemptStatus, ExamStatus, Prisma } from "@prisma/client";
 import { redisConnection } from "../../config/redis";
-import { COURSE_STATUS, USER_ROLE } from "../../common/constants/business";
+import { COURSE_STATUS } from "../../common/constants/business";
 import { AUDIT_ACTION, AUDIT_ENTITY_TYPE, AUDIT_GRADING_SOURCE } from "../../common/constants/audit";
 import {
   EXAM_ATTEMPT_EVENT_TYPE,

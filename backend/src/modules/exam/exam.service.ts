@@ -1,5 +1,5 @@
 import { ExamScope, ExamStatus } from "@prisma/client";
-import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, USER_ROLE } from "../../common/constants/business";
+import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS } from "../../common/constants/business";
 import { AUDIT_ACTION, AUDIT_ENTITY_TYPE } from "../../common/constants/audit";
 import { AppError } from "../../common/errors/app-error";
 import { assertCourseInstructor, canViewCourseAsStaff } from "../../common/auth/course-access";

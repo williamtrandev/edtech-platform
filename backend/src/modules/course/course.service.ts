@@ -62,7 +62,7 @@ export class CourseService {
     search?: string,
     filters: Omit<CourseListFilters, "learnerId"> = {}
   ) {
-    let effectiveStatus: CourseStatus | undefined = CourseStatus.PUBLISHED;
+    let effectiveStatus: CourseStatus | undefined;
     let effectiveFilters: Omit<CourseListFilters, "learnerId"> = filters;
     if (!user?.id || user.role === USER_ROLE.user) {
       effectiveStatus = CourseStatus.PUBLISHED;

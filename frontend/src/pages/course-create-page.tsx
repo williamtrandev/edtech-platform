@@ -22,13 +22,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  STUDIO_CARD_HEADER,
   STUDIO_CHOICE,
   STUDIO_CHOICE_ACTIVE,
-  STUDIO_DIVIDER,
   STUDIO_EDITOR_TITLE,
   STUDIO_FORM_STACK,
-  STUDIO_LIST,
   STUDIO_LIST_ITEM,
   STUDIO_LIST_ITEM_SELECTED,
   STUDIO_LIST_STICKY,

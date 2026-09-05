@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Eye, FileText, GraduationCap, ListChecks, Loader2, Lock, X } from "lucide-react";
+import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Eye, FileText, GraduationCap, ListChecks, Loader2, Lock, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -27,7 +27,7 @@ import { useProgressOfflineSync } from "../hooks/use-progress-offline-sync";
 import { useCompleteLesson, useCourseLessonProgress, useCourseProgress, useSaveLessonWatchPosition } from "../hooks/use-progress";
 import { isLessonProgressQueued } from "../lib/lesson-progress-write";
 import { useI18n } from "../i18n";
-import { getCourseLearnPath, getCoursePreviewPath, getCourseReviewLearnPath, isCoursePreviewPath } from "../lib/course-learn-path";
+import { getCourseLearnPath, getCoursePreviewPath, isCoursePreviewPath } from "../lib/course-learn-path";
 import { findFirstUnlockedQuizLessonId } from "../lib/course-learn-quiz";
 import { filterExamsByScope, findLessonScopedExam } from "../lib/exam-scope";
 import { parseLessonContent } from "../lib/lesson-content";

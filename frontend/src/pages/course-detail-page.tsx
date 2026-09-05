@@ -23,23 +23,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
-  STUDIO_CARD_HEADER,
-  STUDIO_CHOICE,
-  STUDIO_CHOICE_ACTIVE,
-  STUDIO_DIVIDER,
   STUDIO_EDITOR_TITLE,
   STUDIO_FORM_SHELL,
   STUDIO_FORM_STACK,
   STUDIO_LIST,
-  STUDIO_LIST_ITEM,
-  STUDIO_LIST_ITEM_SELECTED,
   STUDIO_LIST_STICKY,
   STUDIO_NOTICE,
-  STUDIO_PANEL,
   STUDIO_ROW,
   STUDIO_ROW_SELECTED,
   STUDIO_SETTINGS_GRID,
-  STUDIO_STAT,
   STUDIO_TAB,
   STUDIO_TAB_ACTIVE,
   STUDIO_TAB_BAR,
@@ -57,14 +49,12 @@ import { CourseArchiveImpactSummary } from "../components/course-archive-impact-
 import { CourseAnalyticsInsights } from "../components/course-analytics-insights";
 import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { CodeEditor } from "../components/code-editor";
-import { CourseCoverFrame } from "../components/course-cover-frame";
 import { CourseDetailLearnerHero } from "../components/course-detail-learner-hero";
 import { CourseDetailLearnerTabs } from "../components/course-detail-learner-tabs";
 import { CourseDetailLearnerExamsSection } from "../components/course-detail-learner-exams-section";
 import { CourseLessonPreviewPanel } from "../components/course-lesson-preview-panel";
 import { CourseStudioCoverHero } from "../components/course-studio-cover-hero";
 import { LearnerLessonContent } from "../components/learner-lesson-content";
-import { CourseStatusBadge } from "../components/course-status-badge";
 import { CourseCoverUploader } from "../components/course-cover-uploader";
 import { EmptyState } from "../components/empty-state";
 import { FormField } from "../components/form-field";
@@ -150,7 +140,7 @@ function parseQuestionOptions(value: string | undefined) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line, index) => {
-      const explicitIdMatch = /^([A-Za-z0-9]{1,6})[\).:-]\s+(.+)$/.exec(line);
+      const explicitIdMatch = /^([A-Za-z0-9]{1,6})[).:-]\s+(.+)$/.exec(line);
       return {
         id: explicitIdMatch ? explicitIdMatch[1].toUpperCase() : toQuestionOptionId(index),
         text: explicitIdMatch ? explicitIdMatch[2].trim() : line
