@@ -16,7 +16,19 @@ export const LESSON_CONTENT_ERROR_CODE = {
   quizExamRequired: "LESSON_QUIZ_EXAM_REQUIRED",
   quizExamNotFound: "LESSON_QUIZ_EXAM_NOT_FOUND",
   quizExamWrongCourse: "LESSON_QUIZ_EXAM_WRONG_COURSE",
-  liveSessionDetailsRequired: "LESSON_LIVE_SESSION_DETAILS_REQUIRED"
+  liveSessionDetailsRequired: "LESSON_LIVE_SESSION_DETAILS_REQUIRED",
+  codeLanguageInvalid: "LESSON_CODE_LANGUAGE_INVALID",
+  codeTestsRequired: "LESSON_CODE_TESTS_REQUIRED",
+  codeTestInvalid: "LESSON_CODE_TEST_INVALID"
+} as const;
+
+/** Size limits for CODE_EXERCISE lesson payloads, mirrored by the author form. */
+export const LESSON_CODE_LIMITS = {
+  starterCodeMax: 20000,
+  instructionsMax: 4000,
+  testsMax: 20,
+  testNameMax: 80,
+  testIoMax: 5000
 } as const;
 
 export type LessonContentPayload = {

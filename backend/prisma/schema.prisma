@@ -213,6 +213,9 @@ model Course {
   category        String?
   level           String?
   language        String?
+  /// Learning track (programming subject), validated against COURSE_TRACKS.
+  /// Distinct from `language`, which is the spoken language of the material.
+  track           String?
   durationMinutes Int?
   requirements    String?
   outcomes        String?
@@ -245,6 +248,7 @@ model Course {
 
   @@index([status])
   @@index([instructorId])
+  @@index([track])
 }
 
 model Assignment {

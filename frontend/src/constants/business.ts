@@ -47,6 +47,25 @@ export const CODE_QUESTION_LANGUAGES = ["python", "javascript", "typescript", "g
 
 export type CodeQuestionLanguage = (typeof CODE_QUESTION_LANGUAGES)[number];
 
+/**
+ * Languages a lesson CODE_EXERCISE may target (mirror of backend
+ * EXECUTABLE_CODE_LANGUAGES, derived from the Piston runtime map).
+ *
+ * Narrower than CODE_QUESTION_LANGUAGES on purpose: an exam CODE question can
+ * fall back to manual grading, but a lesson exercise only completes when its
+ * tests pass, so a language the runner cannot execute would strand the learner.
+ */
+export const EXECUTABLE_CODE_LANGUAGES = [
+  "python",
+  "javascript",
+  "typescript",
+  "rust",
+  "java",
+  "cpp",
+  "bash",
+  "sql"
+] as const satisfies readonly CodeQuestionLanguage[];
+
 export const EXAM_ATTEMPT_STATUS = {
   inProgress: "IN_PROGRESS",
   submitted: "SUBMITTED",
@@ -121,6 +140,16 @@ export const USER_STATUS = {
 
 export type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
 
+/**
+ * Learning tracks a course can belong to (mirror of backend COURSE_TRACKS).
+ *
+ * The programming subject, distinct from `Course.language`, which is the spoken
+ * language of the material. Display names come from the `track.*` translations.
+ */
+export const COURSE_TRACKS = ["python", "javascript", "go", "sql", "rust", "devops"] as const;
+
+export type CourseTrack = (typeof COURSE_TRACKS)[number];
+
 export const LESSON_CONTENT_TYPE = {
   text: "TEXT",
   video: "VIDEO",
@@ -136,6 +165,15 @@ export const LESSON_PROGRESS_WEIGHT = {
   min: 1,
   max: 100,
   default: 1
+} as const;
+
+/** Size limits for CODE_EXERCISE lesson payloads (mirror of backend LESSON_CODE_LIMITS). */
+export const LESSON_CODE_LIMITS = {
+  starterCodeMax: 20000,
+  instructionsMax: 4000,
+  testsMax: 20,
+  testNameMax: 80,
+  testIoMax: 5000
 } as const;
 
 export const LIVE_SESSION_STATUS = {

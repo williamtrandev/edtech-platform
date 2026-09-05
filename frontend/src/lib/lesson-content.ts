@@ -1,5 +1,38 @@
 import { LESSON_CONTENT_TYPE, type LessonContentType } from "../constants/business";
 
+export type LessonCodeTest = { name: string; input: string; expectedOutput: string };
+
+/**
+ * Keeps only tests the backend will accept: a name and an expected output are
+ * required, `input` may be empty for programs that read no stdin.
+ *
+ * Author forms MUST serialize through this so a half-filled row can never be
+ * persisted as a test the learner cannot pass.
+ */
+export function filterValidCodeTests(tests: LessonCodeTest[]): LessonCodeTest[] {
+  return tests
+    .map((test) => ({ name: test.name.trim(), input: test.input, expectedOutput: test.expectedOutput.trim() }))
+    .filter((test) => test.name.length > 0 && test.expectedOutput.length > 0);
+}
+
+/** Serializes a CODE_EXERCISE lesson payload, dropping incomplete tests. */
+export function buildCodeExerciseContent(
+  values: { codeLanguage?: string; codeStarterCode?: string; codeInstructions?: string },
+  tests: LessonCodeTest[]
+) {
+  const starterCode = values.codeStarterCode ?? "";
+  const instructions = values.codeInstructions?.trim() ?? "";
+
+  return serializeLessonContent({
+    version: 1,
+    kind: LESSON_CONTENT_TYPE.codeExercise,
+    language: values.codeLanguage?.trim() ?? "",
+    ...(starterCode ? { starterCode } : {}),
+    ...(instructions ? { instructions } : {}),
+    codeTests: filterValidCodeTests(tests)
+  });
+}
+
 export type LessonContentPayload = {
   version: 1;
   kind: LessonContentType;

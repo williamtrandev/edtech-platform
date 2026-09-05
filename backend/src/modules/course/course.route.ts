@@ -11,6 +11,7 @@ import {
   courseEnrollmentsSchema,
   courseFacetsSchema,
   courseIdParamSchema,
+  courseTracksSchema,
   courseSearchEventSchema,
   courseSearchSuggestionsSchema,
   createCourseSchema,
@@ -110,6 +111,7 @@ export const courseRouter = Router();
 
 courseRouter.get("/", optionalAuthMiddleware, validateRequest(listCoursesSchema), asyncHandler(courseController.listCourses));
 courseRouter.get("/facets", optionalAuthMiddleware, validateRequest(courseFacetsSchema), asyncHandler(courseController.listCourseFacets));
+courseRouter.get("/tracks", optionalAuthMiddleware, validateRequest(courseTracksSchema), asyncHandler(courseController.listCourseTracks));
 courseRouter.get("/search-suggestions", optionalAuthMiddleware, validateRequest(courseSearchSuggestionsSchema), asyncHandler(courseController.getSearchSuggestions));
 courseRouter.post("/search-events", optionalAuthMiddleware, validateRequest(courseSearchEventSchema), asyncHandler(courseController.trackSearchTerm));
 courseRouter.get("/:id/exams", optionalAuthMiddleware, validateRequest(courseExamsParamSchema), asyncHandler(examController.listCourseExams));
