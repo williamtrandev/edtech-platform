@@ -11,7 +11,7 @@ import { ProgressRepository } from "../progress/progress.repository";
 import { EnrollmentController } from "./enrollment.controller";
 import { EnrollmentRepository } from "./enrollment.repository";
 import { EnrollmentService } from "./enrollment.service";
-import { adminEnrollCourseSchema, adminRemoveCourseEnrollmentSchema, createEnrollmentSchema, dropEnrollmentSchema } from "./enrollment.schema";
+import { createEnrollmentSchema, dropEnrollmentSchema } from "./enrollment.schema";
 import { UserRepository } from "../user/user.repository";
 import { AuditRepository } from "../audit/audit.repository";
 import { CoursePaymentRepository } from "../course-payment/course-payment.repository";

@@ -14,7 +14,6 @@ import type { JobQueueJob } from "../services/job.service";
 
 function FailedJobRow({
   job,
-  queueName,
   retryingJobId,
   onRetry,
   onDiscard,

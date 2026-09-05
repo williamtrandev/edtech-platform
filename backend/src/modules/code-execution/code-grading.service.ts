@@ -26,7 +26,7 @@ export type CodeQuestionGrade = {
 };
 
 /** Normalizes output for comparison: CRLF, trailing spaces per line, and trailing blank lines. */
-function normalizeOutput(value: string): string {
+export function normalizeOutput(value: string): string {
   return value
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+$/gm, "")

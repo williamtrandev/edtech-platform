@@ -19,10 +19,6 @@ type GradingQuestion = {
 type CodeSecret = { solutionCode?: string; tests?: CodeTest[] };
 type CodeConfig = { language?: string };
 
-type GradingAnswer = {
-  questionId: string;
-  answer: Prisma.JsonValue | null;
-};
 
 function normalizeAnswerIds(answer: Prisma.JsonValue | null): string[] {
   if (answer === null || answer === undefined) {

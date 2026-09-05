@@ -13,7 +13,7 @@ import { MetricCardSkeleton, TableSkeleton } from "../components/skeleton";
 import { USER_ROLE, USER_STATUS, type UserRole, type UserStatus } from "../constants/business";
 import { useAuditLogs } from "../hooks/use-audit-logs";
 import { useUpdateUser, useUser } from "../hooks/use-users";
-import { type I18nKey, useI18n } from "../i18n";
+import { useI18n } from "../i18n";
 
 function useDateFormatter() {
   return useMemo(

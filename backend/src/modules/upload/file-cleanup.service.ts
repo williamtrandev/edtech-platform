@@ -66,7 +66,7 @@ export class FileCleanupService {
     let freedBytes = 0;
     let skippedRecent = 0;
 
-    let diskFiles: string[] = [];
+    let diskFiles: string[];
     try {
       diskFiles = await readdir(UPLOAD_ROOT);
     } catch (error) {

@@ -12,16 +12,6 @@ type PreferenceSelectProps = {
   variant?: "default" | "icon";
 };
 
-function ThemeIcon({ value }: { value: ThemeMode }) {
-  if (value === THEME_MODE.light) {
-    return <Sun className="size-4" aria-hidden />;
-  }
-  if (value === THEME_MODE.dark) {
-    return <Moon className="size-4" aria-hidden />;
-  }
-  return <Monitor className="size-4" aria-hidden />;
-}
-
 function NextThemeIcon({ value }: { value: "light" | "dark" }) {
   return value === THEME_MODE.dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />;
 }
