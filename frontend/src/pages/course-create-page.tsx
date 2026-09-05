@@ -121,7 +121,7 @@ export function CourseCreatePage() {
   const lessonContentReaderRef = useRef<(() => string) | null>(null);
   const reorderSaveTimerRef = useRef<number | null>(null);
   const queryClient = useQueryClient();
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
   const courseQuery = useCourseDetail(courseId ?? "");
   const lessonsQuery = useCourseLessons(courseId ?? "", Boolean(courseId));
   const examsQuery = useCourseExams(courseId ?? "", Boolean(courseId));
@@ -568,7 +568,7 @@ export function CourseCreatePage() {
       setMaxReachedStepIndex((current) => Math.max(current, nextIndex));
       setWizardStep(nextStep);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseStudio.stepSaveFailed"));
+      toast.error(formatError(error, "courseStudio.stepSaveFailed"));
     } finally {
       setIsSavingStep(false);
     }
@@ -619,7 +619,7 @@ export function CourseCreatePage() {
         nextStatus === COURSE_STATUS.published ? t("courseStudio.courseCreated") : t("courseDetail.courseUpdated")
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseDetail.courseUpdateFailed"));
+      toast.error(formatError(error, "courseDetail.courseUpdateFailed"));
     } finally {
       setIsSavingStep(false);
     }
@@ -657,7 +657,9 @@ export function CourseCreatePage() {
       lessonForm.setValue("content", uploaded.url, { shouldDirty: true });
     } catch (error) {
       lessonForm.setError("content", {
-        message: error instanceof Error ? error.message : t("courseDetail.lessonCreateFailed")
+        // An upload failure is not a lesson-creation failure; the other editor
+        // has always reported this correctly.
+        message: formatError(error, "courseStudio.coverUploadFailed")
       });
     } finally {
       setIsUploadingLessonFile(false);
@@ -781,7 +783,7 @@ export function CourseCreatePage() {
         setCodeTests([]);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t(lessonId ? "courseDetail.lessonSaveFailed" : "courseDetail.lessonCreateFailed"));
+      toast.error(formatError(error, lessonId ? "courseDetail.lessonSaveFailed" : "courseDetail.lessonCreateFailed"));
     }
   };
 
@@ -816,7 +818,7 @@ export function CourseCreatePage() {
           await reorderLessonsMutation.mutateAsync(lessonIds);
         } catch (error) {
           setOrderedLessons(lessonsQuery.data ?? []);
-          toast.error(error instanceof Error ? error.message : t("courseDetail.lessonMoveFailed"));
+          toast.error(formatError(error, "courseDetail.lessonMoveFailed"));
         }
       })();
     }, 5000);
@@ -954,7 +956,7 @@ export function CourseCreatePage() {
       setLessonPendingDelete(null);
       toast.success(t("courseDetail.lessonArchived"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonArchiveFailed"));
+      toast.error(formatError(error, "courseDetail.lessonArchiveFailed"));
     }
   };
 
@@ -967,7 +969,7 @@ export function CourseCreatePage() {
       await restoreLessonMutation.mutateAsync(lessonId);
       toast.success(t("courseDetail.lessonRestored"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseDetail.lessonRestoreFailed"));
+      toast.error(formatError(error, "courseDetail.lessonRestoreFailed"));
     }
   };
 

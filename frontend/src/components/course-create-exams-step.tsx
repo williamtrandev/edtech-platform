@@ -71,7 +71,7 @@ type CourseCreateExamsStepProps = {
 };
 
 export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsChange }: CourseCreateExamsStepProps) {
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
   const [selectedSavedExamId, setSelectedSavedExamId] = useState<string | null>(null);
   const [selectedPendingId, setSelectedPendingId] = useState<string | null>(null);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
@@ -237,7 +237,7 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
           toast.success(t("courseDetail.examCreated"));
         }
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("courseDetail.examSaveFailed"));
+        toast.error(formatError(error, "courseDetail.examSaveFailed"));
       }
       return;
     }
@@ -315,7 +315,7 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
         onNewQuestion();
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseDetail.questionSaveFailed"));
+      toast.error(formatError(error, "courseDetail.questionSaveFailed"));
     }
   };
 
@@ -332,7 +332,7 @@ export function CourseCreateExamsStep({ courseId, pendingExams, onPendingExamsCh
       setQuestionPendingDelete(null);
       toast.success(t("courseDetail.questionDeleted"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("courseDetail.questionDeleteFailed"));
+      toast.error(formatError(error, "courseDetail.questionDeleteFailed"));
     }
   };
 
