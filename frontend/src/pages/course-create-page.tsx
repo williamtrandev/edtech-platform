@@ -51,7 +51,7 @@ import { LessonRichTextEditor } from "../components/lesson-rich-text-editor";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { TextareaField } from "../components/textarea-field";
-import { CODE_QUESTION_LANGUAGES, COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
+import { COURSE_STATUS, EXAM_SCOPE, EXAM_STATUS, EXECUTABLE_CODE_LANGUAGES, LESSON_CONTENT_TYPE, type LessonContentType, toEditableCourseStatus } from "../constants/business";
 import { useCourseAssignments } from "../hooks/use-assignments";
 import { useCourseDetail, useCourseLessons, useCreateCourse, useCreateLesson, useDeleteLesson, useReorderLessons, useRestoreLesson, useUpdateCourse, useUpdateLesson } from "../hooks/use-courses";
 import { useCourseExams } from "../hooks/use-exams";
@@ -64,7 +64,7 @@ import {
   isCourseCreateStepId,
   type CourseCreateStepId
 } from "../lib/course-create-wizard";
-import { buildLessonContentForSubmit, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { buildCodeExerciseContent, buildLessonContentForSubmit, filterValidCodeTests, parseLessonContent } from "../lib/lesson-content";
 import { CodeEditor } from "../components/code-editor";
 import { assignmentService } from "../services/assignment.service";
 import { examService } from "../services/exam.service";
@@ -664,24 +664,14 @@ export function CourseCreatePage() {
   const onSubmitLesson = async (values: CreateLessonFormValues) => {
     const lessonId = selectedLessonId;
 
-    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
-      const validTests = codeTests.filter((test) => test.name.trim() && test.input.trim() && test.expectedOutput.trim());
-      if (validTests.length === 0) {
-        toast.error(t("validation.lessonCodeTestsRequired"));
-        return;
-      }
+    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise && filterValidCodeTests(codeTests).length === 0) {
+      toast.error(t("validation.lessonCodeTestsRequired"));
+      return;
     }
 
     const content =
       values.contentType === LESSON_CONTENT_TYPE.codeExercise
-        ? serializeLessonContent({
-            version: 1,
-            kind: LESSON_CONTENT_TYPE.codeExercise,
-            language: values.codeLanguage,
-            starterCode: values.codeStarterCode,
-            instructions: values.codeInstructions,
-            codeTests: codeTests.filter((test) => test.name.trim() || test.input.trim() || test.expectedOutput.trim())
-          })
+        ? buildCodeExerciseContent(values, codeTests)
         : buildLessonContentForSubmit(values, uploadedLessonFile);
 
     if (!courseId) {
@@ -1456,7 +1446,7 @@ export function CourseCreatePage() {
                               <SelectValue placeholder={t("courseDetail.codeExerciseLanguagePlaceholder")} />
                             </SelectTrigger>
                             <SelectContent>
-                              {CODE_QUESTION_LANGUAGES.map((lang) => (
+                              {EXECUTABLE_CODE_LANGUAGES.map((lang) => (
                                 <SelectItem key={lang} value={lang}>
                                   {t(`codeLanguage.${lang}` as Parameters<typeof t>[0])}
                                 </SelectItem>

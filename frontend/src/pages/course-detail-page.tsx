@@ -71,7 +71,7 @@ import { FormField } from "../components/form-field";
 import { CourseListSkeleton } from "../components/skeleton";
 import { LessonUploadField } from "../components/lesson-upload-field";
 import { TextareaField } from "../components/textarea-field";
-import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, CODE_QUESTION_LANGUAGES, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_SCOPE, EXAM_STATUS, EXAM_SUBMIT_REASON, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
+import { ASSIGNMENT_STATUS, ASSIGNMENT_SUBMISSION_STATUS, CERTIFICATE_STATUS, COURSE_STATUS, EXAM_ATTEMPT_STATUS, EXAM_QUESTION_TYPE, EXAM_SCOPE, EXAM_STATUS, EXAM_SUBMIT_REASON, EXECUTABLE_CODE_LANGUAGES, LESSON_CONTENT_TYPE, USER_ROLE, USER_STATUS } from "../constants/business";
 import { ExamScopeFields } from "../components/exam-scope-fields";
 import { ExamIntegrityEventsPanel } from "../components/exam-integrity-events-panel";
 import {
@@ -115,7 +115,7 @@ import { useCourseCertificates, useRestoreCertificate, useRevokeCertificate } fr
 import { useCurrentUser } from "../hooks/use-current-user";
 import { useCompleteLesson, useCourseLessonProgress, useCourseProgress } from "../hooks/use-progress";
 import { useUsers } from "../hooks/use-users";
-import { buildLessonContentFromForm, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
+import { buildCodeExerciseContent, buildLessonContentFromForm, filterValidCodeTests, parseLessonContent, serializeLessonContent } from "../lib/lesson-content";
 import type { AssignmentRubricCriterionInput } from "../lib/assignment-rubric";
 import { sumRubricMaxPoints, sumRubricPoints, toRubricCriterionInputs } from "../lib/assignment-rubric";
 import { getCourseLearnPath, getCoursePreviewPath } from "../lib/course-learn-path";
@@ -825,12 +825,9 @@ export function CourseDetailPage() {
       return;
     }
 
-    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
-      const validTests = codeTests.filter((test) => test.name.trim() && test.input.trim() && test.expectedOutput.trim());
-      if (validTests.length === 0) {
-        toast.error(t("validation.lessonCodeTestsRequired"));
-        return;
-      }
+    if (values.contentType === LESSON_CONTENT_TYPE.codeExercise && filterValidCodeTests(codeTests).length === 0) {
+      toast.error(t("validation.lessonCodeTestsRequired"));
+      return;
     }
 
     const content =
@@ -850,14 +847,7 @@ export function CourseDetailPage() {
               size: uploadedLessonFile?.size
             })
           : values.contentType === LESSON_CONTENT_TYPE.codeExercise
-            ? serializeLessonContent({
-                version: 1,
-                kind: LESSON_CONTENT_TYPE.codeExercise,
-                language: values.codeLanguage,
-                starterCode: values.codeStarterCode,
-                instructions: values.codeInstructions,
-                codeTests: codeTests.filter((test) => test.name.trim() || test.input.trim() || test.expectedOutput.trim())
-              })
+            ? buildCodeExerciseContent(values, codeTests)
             : buildLessonContentFromForm(values);
 
     try {
@@ -2682,7 +2672,7 @@ export function CourseDetailPage() {
                                   <SelectValue placeholder={t("courseDetail.codeExerciseLanguagePlaceholder")} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {CODE_QUESTION_LANGUAGES.map((lang) => (
+                                  {EXECUTABLE_CODE_LANGUAGES.map((lang) => (
                                     <SelectItem key={lang} value={lang}>
                                       {t(`codeLanguage.${lang}` as Parameters<typeof t>[0])}
                                     </SelectItem>

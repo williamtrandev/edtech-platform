@@ -6,6 +6,8 @@ import {
   EXAM_QUESTION_TYPE,
   EXAM_SCOPE,
   EXAM_STATUS,
+  EXECUTABLE_CODE_LANGUAGES,
+  LESSON_CODE_LIMITS,
   LESSON_CONTENT_TYPE,
   LESSON_PROGRESS_WEIGHT
 } from "../constants/business";
@@ -84,16 +86,24 @@ export function createLessonFormSchema(t: Translate) {
         .default(LESSON_PROGRESS_WEIGHT.default),
       prerequisiteLessonId: z.string().nullable().optional(),
       codeLanguage: z.string().optional(),
-      codeStarterCode: z.string().optional(),
-      codeInstructions: z.string().optional()
+      codeStarterCode: z.string().max(LESSON_CODE_LIMITS.starterCodeMax, t("validation.lessonCodeStarterMax")).optional(),
+      codeInstructions: z.string().max(LESSON_CODE_LIMITS.instructionsMax, t("validation.lessonCodeInstructionsMax")).optional()
     })
     .superRefine((values, context) => {
       if (values.contentType === LESSON_CONTENT_TYPE.codeExercise) {
-        if (!values.codeLanguage?.trim()) {
+        const codeLanguage = values.codeLanguage?.trim() ?? "";
+
+        if (!codeLanguage) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["codeLanguage"],
             message: t("validation.lessonCodeLanguageRequired")
+          });
+        } else if (!EXECUTABLE_CODE_LANGUAGES.includes(codeLanguage as (typeof EXECUTABLE_CODE_LANGUAGES)[number])) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["codeLanguage"],
+            message: t("validation.lessonCodeLanguageInvalid")
           });
         }
         return;
