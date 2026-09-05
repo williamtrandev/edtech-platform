@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  // Tests are type-checked by `pnpm run typecheck`, but must not reach dist.
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

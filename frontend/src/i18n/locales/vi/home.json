@@ -1532,6 +1532,8 @@
   "errors.http.409": "Không thể hoàn tất vì xung đột dữ liệu.",
   "errors.http.422": "Một số trường không hợp lệ. Kiểm tra lại thông tin.",
   "errors.http.500": "Máy chủ gặp lỗi. Vui lòng thử lại.",
+  "errors.api.CODE_EXECUTION_BUSY": "Trình chạy code đang quá tải. Thử chạy lại sau giây lát.",
+  "errors.api.CODE_EXECUTION_UNAVAILABLE": "Hiện chưa chạy được code. Bài làm của bạn vẫn được lưu — thử lại sau.",
   "errors.api.UNAUTHORIZED": "Vui lòng đăng nhập để tiếp tục.",
   "errors.api.FORBIDDEN": "Bạn không có quyền thực hiện thao tác này.",
   "errors.api.TOKEN_EXPIRED": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",

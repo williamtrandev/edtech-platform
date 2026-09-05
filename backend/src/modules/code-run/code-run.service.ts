@@ -8,6 +8,7 @@ import { ExamAttemptRepository } from "../exam-attempt/exam-attempt.repository";
 import { ExamQuestionRepository } from "../exam-question/exam-question.repository";
 import { LessonRepository } from "../lesson/lesson.repository";
 import { CodeGradingService } from "../code-execution/code-grading.service";
+import { isRateLimitError } from "../code-execution/execution-limiter";
 
 type CodeConfig = {
   language: string;
@@ -65,16 +66,38 @@ export class CodeRunService {
       throw new AppError("Enroll in this course to run code", 403, "COURSE_ENROLLMENT_REQUIRED");
     }
 
-    const result = await this.codeGradingService.gradeCodeQuestion({
-      language: config.language,
-      code,
-      tests: sampleTests.map((test) => ({
-        name: test.name,
-        input: test.input,
-        expectedOutput: test.expectedOutput,
-        hidden: false
-      }))
-    });
+    return this.runVisibleTests(config.language, code, sampleTests);
+  }
+
+  /**
+   * Runs code against tests the learner is allowed to see, translating sandbox
+   * trouble into a status they can act on: saturation is worth retrying, an
+   * outage is not.
+   */
+  private async runVisibleTests(
+    language: string,
+    code: string,
+    tests: Array<{ name: string; input: string; expectedOutput: string }>
+  ) {
+    let result;
+    try {
+      result = await this.codeGradingService.gradeCodeQuestion({
+        language,
+        code,
+        tests: tests.map((test) => ({
+          name: test.name,
+          input: test.input,
+          expectedOutput: test.expectedOutput,
+          hidden: false
+        }))
+      });
+    } catch (error) {
+      if (isRateLimitError(error)) {
+        throw new AppError("Code execution is busy, try again shortly", 429, "CODE_EXECUTION_BUSY");
+      }
+      throw error;
+    }
+
     if (!result) {
       throw new AppError("Code execution is unavailable", 503, "CODE_EXECUTION_UNAVAILABLE");
     }
@@ -114,15 +137,6 @@ export class CodeRunService {
       throw new AppError("Enroll in this course to run code", 403, "COURSE_ENROLLMENT_REQUIRED");
     }
 
-    const result = await this.codeGradingService.gradeCodeQuestion({
-      language: payload.language,
-      code,
-      tests: tests.map((test) => ({ name: test.name, input: test.input, expectedOutput: test.expectedOutput, hidden: false }))
-    });
-    if (!result) {
-      throw new AppError("Code execution is unavailable", 503, "CODE_EXECUTION_UNAVAILABLE");
-    }
-
-    return result;
+    return this.runVisibleTests(payload.language, code, tests);
   }
 }

@@ -1,5 +1,6 @@
 import { logger } from "../../config/logger";
 import { isExecutableLanguage, runCode } from "./code-runner";
+import { isRateLimitError } from "./execution-limiter";
 
 export type CodeTest = {
   name: string;
@@ -37,9 +38,12 @@ export function normalizeOutput(value: string): string {
 export class CodeGradingService {
   /**
    * Runs `code` against each test in the Piston sandbox and reports pass/fail.
-   * Returns `null` when the language is not executable or an infrastructure
-   * failure occurs (rate limit, network) — the caller then falls back to
-   * manual grading rather than scoring the learner zero for an outage.
+   * Returns `null` when the language is not executable or the sandbox is
+   * genuinely unavailable — the caller then falls back to manual grading
+   * rather than scoring the learner zero for an outage.
+   *
+   * Throws {@link RateLimitError} when the sandbox is merely saturated, so the
+   * caller can distinguish "try again shortly" from "this cannot be graded".
    */
   async gradeCodeQuestion(params: { language: string; code: string; tests: CodeTest[] }): Promise<CodeQuestionGrade | null> {
     if (!isExecutableLanguage(params.language) || params.tests.length === 0 || !params.code.trim()) {
@@ -75,6 +79,12 @@ export class CodeGradingService {
         results
       };
     } catch (error) {
+      // Saturation is temporary and the caller can act on it — a practice run
+      // says "try again", a graded submission still falls back to manual.
+      // Collapsing it into `null` here would hide a recoverable condition.
+      if (isRateLimitError(error)) {
+        throw error;
+      }
       logger.warn(`Code grading failed, falling back to manual: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }

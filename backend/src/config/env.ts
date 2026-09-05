@@ -47,12 +47,25 @@ const envSchema = z
     RESEND_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     /** Project URL (e.g. https://xxxx.supabase.co). Required when access tokens use RS256/ES256 (JWKS verification). */
     SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
-    /** Piston code-execution API base. Self-host for production; public instance is the dev default. */
-    PISTON_URL: z.preprocess(emptyToUndefined, z.string().url().default("https://emkc.org/api/v2/piston")),
+    /**
+     * Piston code-execution API base — must be a self-hosted instance.
+     *
+     * Deliberately has no default. It used to fall back to the public
+     * emkc.org instance, which silently pointed every learner at a shared,
+     * heavily rate-limited endpoint that fails after a handful of runs.
+     * Failing to boot is better than that.
+     */
+    PISTON_URL: z.preprocess(emptyToUndefined, z.string().url()),
     /** When false, CODE questions skip auto-execution and fall back to manual grading. */
     CODE_EXECUTION_ENABLED: booleanFromEnv.default(true),
     /** Per-run wall-clock limit (ms) for a single code execution against one test. */
     CODE_EXECUTION_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+    /** Executions this process may have in flight at once; the rest queue. */
+    CODE_EXECUTION_MAX_CONCURRENCY: z.coerce.number().int().positive().default(4),
+    /** Queued executions allowed before new work is rejected instead of piling up. */
+    CODE_EXECUTION_MAX_QUEUE: z.coerce.number().int().positive().default(50),
+    /** Tries per execution, including the first, when the sandbox reports a rate limit. */
+    CODE_EXECUTION_RETRY_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
 
     // --- Payments ---
     /** Stripe secret key (sk_test_... / sk_live_...). When set, Stripe provider is enabled. */
