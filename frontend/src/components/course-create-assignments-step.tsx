@@ -33,7 +33,7 @@ type CourseCreateAssignmentsStepProps = {
 };
 
 export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPendingAssignmentsChange }: CourseCreateAssignmentsStepProps) {
-  const { t } = useI18n();
+  const { t, formatError } = useI18n();
   const [selectedSavedAssignmentId, setSelectedSavedAssignmentId] = useState<string | null>(null);
   const [selectedPendingId, setSelectedPendingId] = useState<string | null>(null);
   const [isUploadingAssignmentFile, setIsUploadingAssignmentFile] = useState(false);
@@ -129,7 +129,7 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
       assignmentForm.setValue("attachmentUrl", uploaded.url, { shouldDirty: true, shouldValidate: true });
     } catch (error) {
       assignmentForm.setError("attachmentUrl", {
-        message: error instanceof Error ? error.message : t("courseDetail.assignmentFileUploadFailed")
+        message: formatError(error, "courseDetail.assignmentFileUploadFailed")
       });
     } finally {
       setIsUploadingAssignmentFile(false);
@@ -158,7 +158,7 @@ export function CourseCreateAssignmentsStep({ courseId, pendingAssignments, onPe
           toast.success(t("courseDetail.assignmentCreated"));
         }
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("courseDetail.assignmentSaveFailed"));
+        toast.error(formatError(error, "courseDetail.assignmentSaveFailed"));
       }
       return;
     }
