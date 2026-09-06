@@ -26,7 +26,7 @@ function serviceWith(row: unknown) {
     findManyPublished: vi.fn(async () => ({ items: row ? [row] : [], total: row ? 1 : 0 })),
     findSolvedSlugs: vi.fn(async () => new Set<string>())
   };
-  return { service: new ProblemService(repository as never), repository };
+  return { service: new ProblemService(repository as never, {} as never), repository };
 }
 
 describe("ProblemService.getProblem", () => {

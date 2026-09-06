@@ -20,4 +20,19 @@ export class ProblemController {
     const problem = await this.problemService.getProblem(req.params.slug);
     res.status(200).json({ success: true, data: problem });
   };
+
+  runProblem = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.problemService.runProblem(req.user, req.params.slug, req.body.code);
+    res.status(200).json({ success: true, data: result });
+  };
+
+  submitProblem = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.problemService.submitProblem(req.user, req.params.slug, req.body.code);
+    res.status(200).json({ success: true, data: result });
+  };
+
+  listSubmissions = async (req: Request, res: Response): Promise<void> => {
+    const submissions = await this.problemService.listSubmissions(req.user, req.params.slug);
+    res.status(200).json({ success: true, data: submissions });
+  };
 }
