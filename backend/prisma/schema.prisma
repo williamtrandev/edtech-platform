@@ -32,6 +32,18 @@ enum LearningPathStatus {
   ARCHIVED
 }
 
+enum ProblemDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ProblemStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum CoursePaymentStatus {
   PENDING
   COMPLETED
@@ -134,6 +146,7 @@ model User {
   certificates           Certificate[]
   learningPathsCreated   LearningPath[]   @relation("LearningPathCreator")
   coursePayments         CoursePayment[]
+  problemSubmissions     ProblemSubmission[]
 }
 
 model AuditLog {
@@ -582,4 +595,55 @@ model CoursePayment {
   @@index([userId, courseId])
   @@index([courseId])
   @@index([status])
+}
+
+/// A standalone practice problem, deliberately not tied to a course or exam.
+/// ExamQuestion was the obvious host, but its examId is required and every
+/// consumer depends on that; hosting course-less problems there would weaken
+/// an invariant across the whole exam module.
+model Problem {
+  id          String            @id @default(cuid())
+  /// Stable, human-readable id used in URLs. Never reused.
+  slug        String            @unique
+  title       String
+  statement   String
+  difficulty  ProblemDifficulty
+  /// Learning track, validated against COURSE_TRACKS.
+  track       String?
+  language    String
+  starterCode String?
+  /// Public worked examples: [{ name, input, expectedOutput }]
+  sampleTests Json
+  /// Full suite including hidden cases: [{ name, input, expectedOutput, hidden }]
+  /// Never selected into a learner-facing response.
+  tests       Json
+  status      ProblemStatus     @default(DRAFT)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  submissions ProblemSubmission[]
+
+  @@index([status])
+  @@index([track])
+  @@index([difficulty])
+}
+
+model ProblemSubmission {
+  id            String   @id @default(cuid())
+  problemId     String
+  userId        String
+  code          String
+  passed        Int
+  total         Int
+  allPassed     Boolean
+  /// { total, passed, allPassed, results: [{ name, passed, hidden }] }
+  gradingResult Json
+  createdAt     DateTime @default(now())
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([problemId])
+  @@index([userId, problemId])
 }

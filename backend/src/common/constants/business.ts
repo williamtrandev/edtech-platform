@@ -51,6 +51,21 @@ export const COURSE_TRACKS = ["python", "javascript", "go", "sql", "rust", "devo
 
 export type CourseTrack = (typeof COURSE_TRACKS)[number];
 
+export const PROBLEM_DIFFICULTY = { easy: "EASY", medium: "MEDIUM", hard: "HARD" } as const;
+
+export type ProblemDifficulty = (typeof PROBLEM_DIFFICULTY)[keyof typeof PROBLEM_DIFFICULTY];
+
+export const PROBLEM_STATUS = { draft: "DRAFT", published: "PUBLISHED", archived: "ARCHIVED" } as const;
+
+export type ProblemStatus = (typeof PROBLEM_STATUS)[keyof typeof PROBLEM_STATUS];
+
+export const PROBLEM_ERROR_CODE = {
+  notFound: "PROBLEM_NOT_FOUND",
+  languageInvalid: "PROBLEM_LANGUAGE_INVALID",
+  testsRequired: "PROBLEM_TESTS_REQUIRED",
+  testInvalid: "PROBLEM_TEST_INVALID"
+} as const;
+
 export function isCourseTrack(value: string): value is CourseTrack {
   return (COURSE_TRACKS as readonly string[]).includes(value);
 }

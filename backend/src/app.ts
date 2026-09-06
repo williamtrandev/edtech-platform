@@ -22,6 +22,7 @@ import { learningPathRouter } from "./modules/learning-path/learning-path.route"
 import { coursePaymentRouter } from "./modules/course-payment/course-payment.route";
 import { lessonRouter } from "./modules/lesson/lesson.route";
 import { notificationRouter } from "./modules/notification/notification.route";
+import { problemRouter } from "./modules/problem/problem.route";
 import { progressRouter } from "./modules/progress/progress.route";
 import { uploadRouter } from "./modules/upload/upload.route";
 import { userRouter } from "./modules/user/user.route";
@@ -66,6 +67,7 @@ export function createApp() {
   app.use("/course-payments", coursePaymentRouter);
   app.use("/lessons", lessonRouter);
   app.use("/notifications", notificationRouter);
+  app.use("/practice", problemRouter);
   app.use("/lesson-progress", progressRouter);
   app.use("/uploads", uploadRouter);
 
