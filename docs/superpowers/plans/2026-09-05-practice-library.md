@@ -260,14 +260,22 @@ In `model User`, alongside `coursePayments`:
 
 - [ ] **Step 3: Generate the migration SQL without touching the database**
 
+> **DANGER.** `--shadow-database-url` is destructive: Prisma DROPS the target
+> schema and replays every migration into it. Pointing it at a real database
+> destroys that database. It must only ever receive a throwaway Postgres.
+
+Start a scratch database, diff against it, then throw it away:
+
 ```bash
 cd backend
+docker run --rm -d --name prisma-shadow -p 5433:5432 -e POSTGRES_PASSWORD=shadow postgres:16
 mkdir -p "prisma/migrations/$(date -u +%Y%m%d%H%M%S)_add_practice_problems"
 npx prisma migrate diff \
   --from-migrations ./prisma/migrations \
   --to-schema-datamodel ./prisma/schema.prisma \
-  --shadow-database-url "$SUPABASE_DIRECT_URL" \
+  --shadow-database-url "postgresql://postgres:shadow@localhost:5433/postgres" \
   --script
+docker stop prisma-shadow
 ```
 
 Paste the output into the new `migration.sql`. **Do not run `migrate deploy`** — applying it to the remote database is the repository owner's call.
